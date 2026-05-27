@@ -1,0 +1,192 @@
+#include "timer_hal.h"
+#include "hal_common.h"
+#include "irq_event.h"
+#include "misc.h"
+#include "stm32f10x_rcc.h"
+
+static uint8_t timer_hal_delay_ready;
+
+static void timer_hal_clock_enable(TIM_TypeDef *TIMx)
+{
+    if (TIMx == TIM1) {
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
+    } else if (TIMx == TIM2) {
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+    } else if (TIMx == TIM3) {
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+    } else if (TIMx == TIM4) {
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
+    }
+}
+
+static IRQn_Type timer_hal_irqn(TIM_TypeDef *TIMx)
+{
+    if (TIMx == TIM1) {
+        return TIM1_UP_IRQn;
+    }
+    if (TIMx == TIM2) {
+        return TIM2_IRQn;
+    }
+    if (TIMx == TIM3) {
+        return TIM3_IRQn;
+    }
+    return TIM4_IRQn;
+}
+
+static irq_event_source_t timer_hal_update_source(TIM_TypeDef *TIMx)
+{
+    if (TIMx == TIM1) {
+        return IRQ_EVENT_SOURCE_TIM1_UPDATE;
+    }
+    if (TIMx == TIM2) {
+        return IRQ_EVENT_SOURCE_TIM2_UPDATE;
+    }
+    if (TIMx == TIM3) {
+        return IRQ_EVENT_SOURCE_TIM3_UPDATE;
+    }
+    return IRQ_EVENT_SOURCE_TIM4_UPDATE;
+}
+
+static void timer_hal_delay_timer_init(void)
+{
+    TIM_TimeBaseInitTypeDef timer;
+
+    if (timer_hal_delay_ready != 0U) {
+        return;
+    }
+
+    timer_hal_clock_enable(TIM4);
+    TIM_TimeBaseStructInit(&timer);
+    timer.TIM_Prescaler = 72U - 1U;
+    timer.TIM_Period = 0xFFFFU;
+    timer.TIM_CounterMode = TIM_CounterMode_Up;
+    timer.TIM_ClockDivision = TIM_CKD_DIV1;
+    TIM_TimeBaseInit(TIM4, &timer);
+    TIM_Cmd(TIM4, ENABLE);
+    timer_hal_delay_ready = 1U;
+}
+
+void timer_hal_init_us(TIM_TypeDef *TIMx, uint16_t period_us)
+{
+    TIM_TimeBaseInitTypeDef timer;
+
+    timer_hal_clock_enable(TIMx);
+    TIM_TimeBaseStructInit(&timer);
+    timer.TIM_Prescaler = 72U - 1U;
+    timer.TIM_Period = period_us - 1U;
+    timer.TIM_CounterMode = TIM_CounterMode_Up;
+    timer.TIM_ClockDivision = TIM_CKD_DIV1;
+    TIM_TimeBaseInit(TIMx, &timer);
+    TIM_Cmd(TIMx, ENABLE);
+}
+
+void timer_hal_delay_us(uint16_t us)
+{
+    uint16_t start;
+
+    timer_hal_delay_timer_init();
+    start = (uint16_t)TIM_GetCounter(TIM4);
+
+    while ((uint16_t)(TIM_GetCounter(TIM4) - start) < us) {
+    }
+}
+
+static void timer_hal_configure_pwm_channel(TIM_TypeDef *TIMx, uint8_t channel, uint16_t compare)
+{
+    TIM_OCInitTypeDef oc;
+
+    TIM_OCStructInit(&oc);
+    oc.TIM_OCMode = TIM_OCMode_PWM1;
+    oc.TIM_OutputState = TIM_OutputState_Enable;
+    oc.TIM_Pulse = compare;
+    oc.TIM_OCPolarity = TIM_OCPolarity_High;
+
+    switch (channel) {
+    case 1U:
+        TIM_OC1Init(TIMx, &oc);
+        TIM_OC1PreloadConfig(TIMx, TIM_OCPreload_Enable);
+        break;
+    case 2U:
+        TIM_OC2Init(TIMx, &oc);
+        TIM_OC2PreloadConfig(TIMx, TIM_OCPreload_Enable);
+        break;
+    case 3U:
+        TIM_OC3Init(TIMx, &oc);
+        TIM_OC3PreloadConfig(TIMx, TIM_OCPreload_Enable);
+        break;
+    case 4U:
+        TIM_OC4Init(TIMx, &oc);
+        TIM_OC4PreloadConfig(TIMx, TIM_OCPreload_Enable);
+        break;
+    default:
+        break;
+    }
+}
+
+static void timer_hal_pwm_timebase_init(TIM_TypeDef *TIMx, uint16_t period, uint16_t prescaler)
+{
+    TIM_TimeBaseInitTypeDef timer;
+
+    timer_hal_clock_enable(TIMx);
+    TIM_TimeBaseStructInit(&timer);
+    timer.TIM_Prescaler = prescaler;
+    timer.TIM_Period = period;
+    timer.TIM_CounterMode = TIM_CounterMode_Up;
+    timer.TIM_ClockDivision = TIM_CKD_DIV1;
+    TIM_TimeBaseInit(TIMx, &timer);
+    TIM_ARRPreloadConfig(TIMx, ENABLE);
+    TIM_Cmd(TIMx, ENABLE);
+}
+
+hal_status_t timer_hal_pwm_init(const timer_hal_pwm_config_t *cfg)
+{
+    if ((cfg == 0) || (cfg->instance == 0)) {
+        return HAL_ERR_PARAM;
+    }
+
+    gpio_hal_apply_remap(cfg->remap);
+    gpio_hal_config_pin(&cfg->pin);
+    timer_hal_pwm_timebase_init(cfg->instance, cfg->period, cfg->prescaler);
+    timer_hal_configure_pwm_channel(cfg->instance, cfg->channel, 0U);
+    return HAL_OK;
+}
+
+void timer_hal_pwm_set_compare(TIM_TypeDef *TIMx, uint8_t channel, uint16_t compare)
+{
+    switch (channel) {
+    case 1U:
+        TIM_SetCompare1(TIMx, compare);
+        break;
+    case 2U:
+        TIM_SetCompare2(TIMx, compare);
+        break;
+    case 3U:
+        TIM_SetCompare3(TIMx, compare);
+        break;
+    case 4U:
+        TIM_SetCompare4(TIMx, compare);
+        break;
+    default:
+        break;
+    }
+}
+
+void timer_hal_enable_update_irq(TIM_TypeDef *TIMx)
+{
+    NVIC_InitTypeDef nvic;
+
+    nvic.NVIC_IRQChannel = timer_hal_irqn(TIMx);
+    nvic.NVIC_IRQChannelPreemptionPriority = 2U;
+    nvic.NVIC_IRQChannelSubPriority = 1U;
+    nvic.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&nvic);
+    TIM_ITConfig(TIMx, TIM_IT_Update, ENABLE);
+}
+
+void timer_hal_irq_handler(TIM_TypeDef *TIMx)
+{
+    if (TIM_GetITStatus(TIMx, TIM_IT_Update) != RESET) {
+        TIM_ClearITPendingBit(TIMx, TIM_IT_Update);
+        irq_event_post_from_isr(timer_hal_update_source(TIMx), 0U);
+    }
+}
