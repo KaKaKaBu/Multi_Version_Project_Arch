@@ -1,3 +1,8 @@
+/**
+ * @file oled_ssd1306.c
+ * @brief SSD1306 128x64 I2C OLED display driver implementing display_if.h.
+ */
+
 #include "display_if.h"
 #include "oled_font.h"
 #include "tiny_printf.h"
@@ -7,23 +12,43 @@
 #include "stm32f10x.h"
 #include <stdarg.h>
 
+/** @brief Panel horizontal resolution in pixels. */
 #define OLED_WIDTH 128U
+/** @brief Panel vertical resolution in pixels. */
 #define OLED_HEIGHT 64U
+/** @brief Number of SSD1306 RAM pages (8 pixels per page). */
 #define OLED_PAGES 8U
+/** @brief I2C control byte selecting command stream mode. */
 #define OLED_CTRL_CMD 0x00U
+/** @brief I2C control byte selecting GDDRAM data stream mode. */
 #define OLED_CTRL_DATA 0x40U
+/** @brief Stack buffer size for tiny_vsnprintf in oled_print(). */
 #define OLED_PRINT_BUF_SIZE 64U
 
+/** @brief Internal 128x64 monochrome framebuffer in SSD1306 page layout. */
 static uint8_t oled_framebuffer[OLED_WIDTH * OLED_PAGES];
 
+/** @brief Forward declaration: zeroes the internal framebuffer. */
 static void oled_clear(void);
+/** @brief Forward declaration: flushes the framebuffer to the panel over I2C. */
 static void oled_update(void);
 
+/**
+ * @brief Maps display font size to pixel scale factor (1 or 2).
+ * @param size Font size selector from display_if.h.
+ * @return Scale factor: 2 for DISPLAY_FONT_LARGE, 1 otherwise.
+ */
 static unsigned char oled_font_scale(display_font_size_t size)
 {
     return (size == DISPLAY_FONT_LARGE) ? 2U : 1U;
 }
 
+/**
+ * @brief Sets or clears a single pixel in the internal framebuffer.
+ * @param x Horizontal pixel coordinate (0-127).
+ * @param y Vertical pixel coordinate (0-63).
+ * @param on Non-zero to set the pixel; zero to clear it.
+ */
 static void oled_set_pixel(unsigned char x, unsigned char y, unsigned char on)
 {
     uint16_t index;
@@ -45,16 +70,26 @@ static void oled_set_pixel(unsigned char x, unsigned char y, unsigned char on)
     }
 }
 
+/**
+ * @brief Sends a single SSD1306 command byte over I2C.
+ * @param cmd SSD1306 command register value.
+ */
 static void oled_write_cmd(uint8_t cmd)
 {
     (void)i2c_hal_write(BOARD_OLED_I2C, BOARD_OLED_I2C_ADDR, OLED_CTRL_CMD, &cmd, 1U);
 }
 
+/**
+ * @brief Sends a block of display data bytes over I2C.
+ * @param data Pointer to display RAM bytes to write.
+ * @param len Number of bytes to transmit.
+ */
 static void oled_write_data(const uint8_t *data, uint16_t len)
 {
     (void)i2c_hal_write(BOARD_OLED_I2C, BOARD_OLED_I2C_ADDR, OLED_CTRL_DATA, data, len);
 }
 
+/** @brief Applies the SSD1306 power-on initialization command sequence. */
 static void oled_hw_init(void)
 {
     static const uint8_t init_seq[] = {
@@ -69,6 +104,7 @@ static void oled_hw_init(void)
     }
 }
 
+/** @brief Initializes I2C and the SSD1306 panel, then clears the screen. */
 static void oled_init(void)
 {
     i2c_hal_config_t cfg;
@@ -86,6 +122,7 @@ static void oled_init(void)
     oled_update();
 }
 
+/** @brief Zeroes the internal 128x64 pixel framebuffer. */
 static void oled_clear(void)
 {
     uint16_t i;
@@ -95,6 +132,13 @@ static void oled_clear(void)
     }
 }
 
+/**
+ * @brief Renders one scaled ASCII character into the framebuffer.
+ * @param col Character grid column index.
+ * @param page Starting SSD1306 page row for the glyph.
+ * @param ch ASCII character to draw.
+ * @param scale Pixel scale factor (1 or 2).
+ */
 static void oled_draw_char(unsigned char col, unsigned char page, char ch, unsigned char scale)
 {
     const uint8_t *glyph;
@@ -163,6 +207,13 @@ static void oled_draw_char(unsigned char col, unsigned char page, char ch, unsig
     }
 }
 
+/**
+ * @brief Draws a null-terminated string at a grid column and row.
+ * @param x Starting character column.
+ * @param y Starting character row.
+ * @param size Font size selector.
+ * @param text Null-terminated string to render.
+ */
 static void oled_print_text(unsigned char x, unsigned char y, display_font_size_t size, const char *text)
 {
     unsigned char col = x;
@@ -187,6 +238,14 @@ static void oled_print_text(unsigned char x, unsigned char y, display_font_size_
     }
 }
 
+/**
+ * @brief Formats text with tiny_vsnprintf and draws it on the display.
+ * @param x Starting character column.
+ * @param y Starting character row.
+ * @param size Font size selector.
+ * @param fmt printf-style format string.
+ * @param ... Arguments for fmt.
+ */
 static void oled_print(unsigned char x, unsigned char y, display_font_size_t size, const char *fmt, ...)
 {
     char buffer[OLED_PRINT_BUF_SIZE];
@@ -204,6 +263,7 @@ static void oled_print(unsigned char x, unsigned char y, display_font_size_t siz
     oled_print_text(x, y, size, buffer);
 }
 
+/** @brief Flushes the framebuffer to the SSD1306 over I2C page by page. */
 static void oled_update(void)
 {
     unsigned char page;
@@ -216,6 +276,7 @@ static void oled_update(void)
     }
 }
 
+/** @brief display_if.h driver instance registered as DISPLAY. */
 static const display_driver_t oled_drv = {
     "oled",
     oled_init,

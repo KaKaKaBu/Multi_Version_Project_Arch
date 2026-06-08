@@ -20,6 +20,13 @@
   THE SOFTWARE.
 */
 
+/**
+ * @file cJSON.h
+ * @brief 第三方 JSON 解析库公开 API（Dave Gamble 等）。
+ *
+ * 功能裁剪由 cJSON_config.h 控制；项目侧请使用 cjson_port.h 封装。
+ */
+
 #ifndef cJSON__h
 #define cJSON__h
 

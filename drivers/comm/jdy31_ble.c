@@ -11,9 +11,9 @@ static void jdy31_init(void)
     usart_hal_config_t cfg;
 
     cfg.instance = BOARD_JDY31_USART;
-    cfg.baudrate = BOARD_USART2_BAUDRATE;
-    cfg.tx = board_usart2_tx;
-    cfg.rx = board_usart2_rx;
+    cfg.baudrate = BOARD_JDY31_BAUDRATE;
+    cfg.tx = board_jdy31_tx;
+    cfg.rx = board_jdy31_rx;
     cfg.remap = BOARD_JDY31_USART_REMAP;
     cfg.rx_buf_size = USART_HAL_DEFAULT_RX_BUF_SIZE;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;

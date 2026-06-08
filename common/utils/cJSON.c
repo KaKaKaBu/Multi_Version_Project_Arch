@@ -20,8 +20,12 @@
   THE SOFTWARE.
 */
 
-/* cJSON */
-/* JSON parser in C. */
+/**
+ * @file cJSON.c
+ * @brief 第三方 JSON 解析库实现（Dave Gamble 等）。
+ *
+ * 嵌入式构建通过 cJSON_config.h 裁剪未用 API；勿在此添加项目逻辑。
+ */
 
 /* disable warnings about old C89 functions in MSVC */
 #if !defined(_CRT_SECURE_NO_DEPRECATE) && defined(_MSC_VER)

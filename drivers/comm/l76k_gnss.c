@@ -201,8 +201,8 @@ static void l76k_init(void)
 
     cfg.instance = BOARD_L76K_USART;
     cfg.baudrate = BOARD_L76K_BAUDRATE;
-    cfg.tx = board_usart3_tx;
-    cfg.rx = board_usart3_rx;
+    cfg.tx = board_l76k_tx;
+    cfg.rx = board_l76k_rx;
     cfg.remap = BOARD_L76K_USART_REMAP;
     cfg.rx_buf_size = USART_HAL_DEFAULT_RX_BUF_SIZE;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;

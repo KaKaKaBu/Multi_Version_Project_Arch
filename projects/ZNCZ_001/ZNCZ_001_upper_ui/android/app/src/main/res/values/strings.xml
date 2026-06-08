@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ZNCZ 001</string>
+    <string name="title_activity_main">ZNCZ 001</string>
+    <string name="package_name">com.jbltech.zncz_001</string>
+    <string name="custom_url_scheme">com.jbltech.zncz_001</string>
+</resources>

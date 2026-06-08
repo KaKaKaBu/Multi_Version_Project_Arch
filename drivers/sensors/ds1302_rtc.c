@@ -1,3 +1,8 @@
+/**
+ * @file ds1302_rtc.c
+ * @brief DS1302 three-wire RTC driver registered as RTC via rtc_if.h.
+ */
+
 #include "rtc_if.h"
 #include "gpio_hal.h"
 #include "hal_common.h"
@@ -5,52 +10,90 @@
 #include "debug_log.h"
 #include "driver_core.h"
 
+/** @brief Cached calendar time updated by refresh and set operations. */
 static rtc_time_t ds1302_time_cache;
 
+/** @brief Forward declaration: programs chip registers from rtc_time_t. */
 static void ds1302_set_time(const rtc_time_t *time);
+/** @brief Forward declaration: writes one DS1302 register over the serial bus. */
 static void ds1302_write_reg(uint8_t address, uint8_t data);
+/** @brief Forward declaration: reads one DS1302 register over the serial bus. */
 static uint8_t ds1302_read_reg(uint8_t address);
 
+/**
+ * @brief Drives the DS1302 chip-enable (CE) line.
+ * @param level Non-zero for high, zero for low.
+ */
 static void ds1302_ce_write(uint8_t level)
 {
     gpio_hal_write(board_ds1302_ce_pin.port, board_ds1302_ce_pin.pin, level);
 }
 
+/**
+ * @brief Drives the DS1302 serial clock (SCLK) line.
+ * @param level Non-zero for high, zero for low.
+ */
 static void ds1302_sclk_write(uint8_t level)
 {
     gpio_hal_write(board_ds1302_sclk_pin.port, board_ds1302_sclk_pin.pin, level);
 }
 
+/**
+ * @brief Drives the DS1302 bidirectional data line as output.
+ * @param level Non-zero for high, zero for low.
+ */
 static void ds1302_data_write(uint8_t level)
 {
     gpio_hal_write(board_ds1302_data_pin.port, board_ds1302_data_pin.pin, level);
 }
 
+/** @brief Configures the DS1302 data pin as push-pull output. */
 static void ds1302_data_set_output(void)
 {
     gpio_hal_set_mode(board_ds1302_data_pin.port, board_ds1302_data_pin.pin, GPIO_HAL_MODE_OUT_PP);
 }
 
+/** @brief Configures the DS1302 data pin as floating input. */
 static void ds1302_data_set_input(void)
 {
     gpio_hal_set_mode(board_ds1302_data_pin.port, board_ds1302_data_pin.pin, GPIO_HAL_MODE_IN_FLOATING);
 }
 
+/**
+ * @brief Reads the current level on the DS1302 data pin.
+ * @return Non-zero if the line is high; zero if low.
+ */
 static uint8_t ds1302_data_read(void)
 {
     return gpio_hal_read(board_ds1302_data_pin.port, board_ds1302_data_pin.pin);
 }
 
+/**
+ * @brief Converts a decimal value to BCD for DS1302 register writes.
+ * @param value Decimal value 0-99.
+ * @return Packed BCD byte.
+ */
 static uint8_t ds1302_dec_to_bcd(uint8_t value)
 {
     return (uint8_t)(((value / 10U) << 4U) | (value % 10U));
 }
 
+/**
+ * @brief Converts a BCD register byte to decimal.
+ * @param value Packed BCD byte.
+ * @return Decimal value 0-99.
+ */
 static uint8_t ds1302_bcd_to_dec(uint8_t value)
 {
     return (uint8_t)(((value >> 4U) * 10U) + (value & 0x0FU));
 }
 
+/**
+ * @brief Checks that a BCD nibble pair is valid and within max_value.
+ * @param bcd Packed BCD byte to validate.
+ * @param max_value Maximum allowed decimal value after conversion.
+ * @return 1 if valid; 0 otherwise.
+ */
 static uint8_t ds1302_bcd_byte_is_valid(uint8_t bcd, uint8_t max_value)
 {
     uint8_t hi = (uint8_t)(bcd >> 4U);
@@ -63,11 +106,16 @@ static uint8_t ds1302_bcd_byte_is_valid(uint8_t bcd, uint8_t max_value)
     return (ds1302_bcd_to_dec(bcd) <= max_value) ? 1U : 0U;
 }
 
+/**
+ * @brief Enables or disables DS1302 write protection via register 0x8E.
+ * @param enable Non-zero to enable write protect; zero to allow writes.
+ */
 static void ds1302_write_protect(uint8_t enable)
 {
     ds1302_write_reg(0x8EU, enable != 0U ? 0x80U : 0x00U);
 }
 
+/** @brief Clears the clock-halt (CH) bit so the oscillator runs. */
 static void ds1302_start_clock(void)
 {
     uint8_t sec;
@@ -84,6 +132,11 @@ static void ds1302_start_clock(void)
     ds1302_write_protect(1U);
 }
 
+/**
+ * @brief Validates calendar field ranges in an rtc_time_t.
+ * @param time Pointer to the time structure; must not be null.
+ * @return 1 if all fields are in range; 0 otherwise.
+ */
 static uint8_t ds1302_time_is_valid(const rtc_time_t *time)
 {
     if (time == 0) {
@@ -99,6 +152,7 @@ static uint8_t ds1302_time_is_valid(const rtc_time_t *time)
     return 1U;
 }
 
+/** @brief Writes a fixed default calendar when the chip RAM is invalid. */
 static void ds1302_apply_default_time(void)
 {
     rtc_time_t default_time;
@@ -113,6 +167,10 @@ static void ds1302_apply_default_time(void)
     ds1302_set_time(&default_time);
 }
 
+/**
+ * @brief Shifts one byte out on the DS1302 data line LSB first.
+ * @param data Byte value to shift out.
+ */
 static void ds1302_write_byte(uint8_t data)
 {
     uint8_t count;
@@ -132,6 +190,11 @@ static void ds1302_write_byte(uint8_t data)
     }
 }
 
+/**
+ * @brief Performs a DS1302 write transaction for one register.
+ * @param address DS1302 register address with write bit set.
+ * @param data Value to write to the register.
+ */
 static void ds1302_write_reg(uint8_t address, uint8_t data)
 {
     ds1302_ce_write(0U);
@@ -146,6 +209,11 @@ static void ds1302_write_reg(uint8_t address, uint8_t data)
     hal_delay_us(3U);
 }
 
+/**
+ * @brief Performs a DS1302 read transaction for one register.
+ * @param address DS1302 register address with read bit set.
+ * @return Register value read from the chip.
+ */
 static uint8_t ds1302_read_reg(uint8_t address)
 {
     uint8_t count;
@@ -179,6 +247,7 @@ static uint8_t ds1302_read_reg(uint8_t address)
     return return_data;
 }
 
+/** @brief Reads time/date registers into ds1302_time_cache when BCD is valid. */
 static void ds1302_refresh_cache(void)
 {
     uint8_t raw[7];
@@ -214,6 +283,7 @@ static void ds1302_refresh_cache(void)
     ds1302_time_cache.year = (unsigned short)(ds1302_bcd_to_dec(raw[6]) + 2000U);
 }
 
+/** @brief Initializes GPIO, starts the clock, and seeds cache or default time. */
 static void ds1302_init(void)
 {
     gpio_hal_config_pin(&board_ds1302_ce_pin);
@@ -240,6 +310,10 @@ static void ds1302_init(void)
                   (unsigned int)ds1302_time_is_valid(&ds1302_time_cache));
 }
 
+/**
+ * @brief Copies the cached calendar into caller storage.
+ * @param time Output rtc_time_t; ignored when null.
+ */
 static void ds1302_read_time(rtc_time_t *time)
 {
     if (time == 0) {
@@ -250,6 +324,10 @@ static void ds1302_read_time(rtc_time_t *time)
     *time = ds1302_time_cache;
 }
 
+/**
+ * @brief Writes calendar fields to the chip and updates the cache.
+ * @param time Source rtc_time_t; ignored when null.
+ */
 static void ds1302_set_time(const rtc_time_t *time)
 {
     uint8_t year_bcd;
@@ -272,6 +350,7 @@ static void ds1302_set_time(const rtc_time_t *time)
     ds1302_time_cache = *time;
 }
 
+/** @brief rtc_if.h DS1302 driver instance registered as RTC. */
 static const rtc_driver_t ds1302_drv = {
     "ds1302",
     ds1302_init,

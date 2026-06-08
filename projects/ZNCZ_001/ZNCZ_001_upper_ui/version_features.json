@@ -1,0 +1,41 @@
+{
+  "_comment": "Edit feature lists per firmware version. defaultFeatures applies when a version entry is missing.",
+  "defaultFeatures": ["common"],
+  "alwaysInclude": [
+    "package.json",
+    "package-lock.json",
+    "vite.config.js",
+    "uni.scss",
+    "index.html",
+    "capacitor.config.json",
+    "version_features.json",
+    "src/main.js",
+    "src/App.vue",
+    "src/manifest.json",
+    "src/pages.json",
+    "src/static/**",
+    "src/config/**",
+    "src/services/**"
+  ],
+  "featureGlobs": {
+    "common": [
+      "src/features/common/**",
+      "src/features/index.js",
+      "src/pages/**"
+    ],
+    "wifi": [
+      "src/features/wifi/**"
+    ],
+    "ble": [
+      "src/features/ble/**"
+    ]
+  },
+  "versions": {
+    "default": {
+      "features": ["common"]
+    },
+    "3": {
+      "features": ["common", "wifi"]
+    }
+  }
+}

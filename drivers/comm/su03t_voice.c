@@ -51,12 +51,12 @@ static void su03t_init(void)
 
     cfg.instance = BOARD_SU03T_USART;
     cfg.baudrate = BOARD_SU03T_BAUDRATE;
-    cfg.tx = board_usart3_tx;
-    cfg.rx = board_usart3_rx;
+    cfg.tx = board_su03t_tx;
+    cfg.rx = board_su03t_rx;
     cfg.remap = BOARD_SU03T_USART_REMAP;
     cfg.rx_buf_size = USART_HAL_DEFAULT_RX_BUF_SIZE;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;
-    cfg.tx_mode = USART_HAL_TX_MODE_IRQ;
+    cfg.tx_mode = BOARD_SU03T_USART_TX_MODE;
     (void)usart_hal_init(&cfg);
     usart_hal_enable_rx_irq(BOARD_SU03T_USART);
     su03t_rx_callback = 0;

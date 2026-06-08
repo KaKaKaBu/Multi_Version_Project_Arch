@@ -1,6 +1,15 @@
+/**
+ * @file gpio_hal.c
+ * @brief GPIO clock, remap, mode, and bit I/O implementation for STM32F10x.
+ */
+
 #include "gpio_hal.h"
 #include "stm32f10x_rcc.h"
 
+/**
+ * @brief Enables the RCC clock for the given GPIO port.
+ * @param port GPIO port base address (GPIOA–GPIOE).
+ */
 void gpio_hal_clock_enable(GPIO_TypeDef *port)
 {
     if (port == GPIOA) {
@@ -16,6 +25,10 @@ void gpio_hal_clock_enable(GPIO_TypeDef *port)
     }
 }
 
+/**
+ * @brief Applies an AFIO pin remap when @p remap is not GPIO_HAL_REMAP_NONE.
+ * @param remap Remap selector.
+ */
 void gpio_hal_apply_remap(gpio_hal_remap_t remap)
 {
     if (remap == GPIO_HAL_REMAP_NONE) {
@@ -48,6 +61,12 @@ void gpio_hal_apply_remap(gpio_hal_remap_t remap)
     }
 }
 
+/**
+ * @brief Sets mode and speed for a single pin on @p port.
+ * @param port GPIO port.
+ * @param pin Pin bitmask (e.g. GPIO_Pin_0).
+ * @param mode Logical GPIO mode.
+ */
 void gpio_hal_set_mode(GPIO_TypeDef *port, uint16_t pin, gpio_hal_mode_t mode)
 {
     GPIO_InitTypeDef gpio;
@@ -85,6 +104,10 @@ void gpio_hal_set_mode(GPIO_TypeDef *port, uint16_t pin, gpio_hal_mode_t mode)
     GPIO_Init(port, &gpio);
 }
 
+/**
+ * @brief Configures a pin from a hal_pin_t descriptor (no-op if @p pin is NULL).
+ * @param pin Pin descriptor.
+ */
 void gpio_hal_config_pin(const hal_pin_t *pin)
 {
     if (pin == 0) {
@@ -94,6 +117,12 @@ void gpio_hal_config_pin(const hal_pin_t *pin)
     gpio_hal_set_mode(pin->port, pin->pin, pin->mode);
 }
 
+/**
+ * @brief Drives an output pin high or low.
+ * @param port GPIO port.
+ * @param pin Pin bitmask.
+ * @param value Non-zero for high, zero for low.
+ */
 void gpio_hal_write(GPIO_TypeDef *port, uint16_t pin, uint8_t value)
 {
     if (value != 0U) {
@@ -103,11 +132,22 @@ void gpio_hal_write(GPIO_TypeDef *port, uint16_t pin, uint8_t value)
     }
 }
 
+/**
+ * @brief Reads the logical level of an input pin.
+ * @param port GPIO port.
+ * @param pin Pin bitmask.
+ * @return 1 if the pin is high, 0 if low.
+ */
 uint8_t gpio_hal_read(GPIO_TypeDef *port, uint16_t pin)
 {
     return (uint8_t)GPIO_ReadInputDataBit(port, pin);
 }
 
+/**
+ * @brief Toggles an output pin.
+ * @param port GPIO port.
+ * @param pin Pin bitmask.
+ */
 void gpio_hal_toggle(GPIO_TypeDef *port, uint16_t pin)
 {
     if (GPIO_ReadOutputDataBit(port, pin) != Bit_RESET) {

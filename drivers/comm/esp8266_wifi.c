@@ -1,3 +1,8 @@
+/**
+ * @file esp8266_wifi.c
+ * @brief ESP8266 USART transport and comm_if.h stream driver.
+ */
+
 #include "comm_if.h"
 #include "esp8266_port.h"
 #include "usart_hal.h"
@@ -12,7 +17,9 @@
 
 #include <string.h>
 
+/** @brief Maximum capacity of the software USART RX stream buffer. */
 #define ESP8266_RX_STREAM_MAX 768U
+/** @brief Non-zero when esp8266_port_drain_rx() should log drained bytes. */
 #define ESP8266_DRAIN_DEBUG DEBUG_LOG_ESP8266_DRAIN_ENABLE
 
 #if HAL_DEBUG_UART_ENABLE && defined(BOARD_DEBUG_UART_PASSTHROUGH_USART3) && \
@@ -25,11 +32,21 @@
 #endif
 
 #if ESP8266_DEBUG_TRACE_USART3
+/**
+ * @brief Forwards raw TX bytes to the debug UART trace when enabled.
+ * @param data Pointer to transmitted bytes.
+ * @param len Number of bytes to trace.
+ */
 static void esp8266_debug_trace(const uint8_t *data, uint16_t len)
 {
     debug_uart_trace_bytes(data, len);
 }
 #else
+/**
+ * @brief No-op trace stub when USART3 debug passthrough is disabled.
+ * @param data Unused.
+ * @param len Unused.
+ */
 static void esp8266_debug_trace(const uint8_t *data, uint16_t len)
 {
     (void)data;
@@ -37,25 +54,32 @@ static void esp8266_debug_trace(const uint8_t *data, uint16_t len)
 }
 #endif
 
+/** @brief Optional comm_if raw RX callback for single-byte notifications. */
 static comm_rx_callback_t esp8266_rx_callback;
+/** @brief Software ring-style buffer holding drained USART bytes for AT parsing. */
 static uint8_t esp8266_rx_stream[ESP8266_RX_STREAM_MAX];
+/** @brief Number of valid bytes currently stored in esp8266_rx_stream. */
 static uint16_t esp8266_rx_stream_len;
 
+/** @brief Asserts CH_PD to enable the ESP8266 module. */
 static void esp8266_ch_pd_enable(void)
 {
     gpio_hal_write(board_esp8266_ch_pd_pin.port, board_esp8266_ch_pd_pin.pin, 1U);
 }
 
+/** @brief Deasserts the ESP8266 hardware reset line. */
 static void esp8266_rst_high(void)
 {
     gpio_hal_write(board_esp8266_rst_pin.port, board_esp8266_rst_pin.pin, 1U);
 }
 
+/** @brief Asserts the ESP8266 hardware reset line. */
 static void esp8266_rst_low(void)
 {
     gpio_hal_write(board_esp8266_rst_pin.port, board_esp8266_rst_pin.pin, 0U);
 }
 
+/** @brief Configures USART and control GPIO, then powers the module. */
 static void esp8266_hw_init(void)
 {
     usart_hal_config_t cfg;
@@ -65,16 +89,8 @@ static void esp8266_hw_init(void)
 
     cfg.instance = BOARD_ESP8266_USART;
     cfg.baudrate = BOARD_ESP8266_BAUDRATE;
-#if (BOARD_ESP8266_USART_ID == 1U)
-    cfg.tx = board_usart1_tx;
-    cfg.rx = board_usart1_rx;
-#elif (BOARD_ESP8266_USART_ID == 2U)
-    cfg.tx = board_usart2_tx;
-    cfg.rx = board_usart2_rx;
-#else
-    cfg.tx = board_usart3_tx;
-    cfg.rx = board_usart3_rx;
-#endif
+    cfg.tx = board_esp8266_tx;
+    cfg.rx = board_esp8266_rx;
     cfg.remap = BOARD_ESP8266_USART_REMAP;
     cfg.rx_buf_size = 256U;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;
@@ -89,6 +105,7 @@ static void esp8266_hw_init(void)
     esp8266_ch_pd_enable();
 }
 
+/** @brief Pulses RST low for 500 ms to reset the ESP8266. */
 static void esp8266_reset(void)
 {
     esp8266_rst_low();
@@ -96,6 +113,7 @@ static void esp8266_reset(void)
     esp8266_rst_high();
 }
 
+/** @brief Clears the software RX stream buffer and USART hardware FIFO. */
 void esp8266_port_rx_clear(void)
 {
     DEBUG_LOG_ESP8266("[ESP8266] rx_clear old_stream_len=%u\r\n", (unsigned int)esp8266_rx_stream_len);
@@ -103,6 +121,11 @@ void esp8266_port_rx_clear(void)
     usart_hal_flush_rx(BOARD_ESP8266_USART);
 }
 
+/**
+ * @brief Appends bytes to the bounded software RX stream buffer.
+ * @param data Pointer to incoming bytes; ignored when null or len is zero.
+ * @param len Number of bytes to append.
+ */
 void esp8266_port_rx_push(const uint8_t *data, uint16_t len)
 {
     uint16_t i;
@@ -122,16 +145,28 @@ void esp8266_port_rx_push(const uint8_t *data, uint16_t len)
     }
 }
 
+/**
+ * @brief Returns the number of bytes currently stored in the RX stream buffer.
+ * @return RX stream length in bytes.
+ */
 uint16_t esp8266_port_rx_length(void)
 {
     return esp8266_rx_stream_len;
 }
 
+/**
+ * @brief Returns a pointer to the RX stream buffer contents.
+ * @return Read-only pointer valid until the next discard or clear.
+ */
 const uint8_t *esp8266_port_rx_data(void)
 {
     return esp8266_rx_stream;
 }
 
+/**
+ * @brief Removes len bytes from the front of the RX stream buffer.
+ * @param len Number of bytes to discard; clears all when len exceeds length.
+ */
 void esp8266_port_rx_discard(uint16_t len)
 {
     if (len >= esp8266_rx_stream_len) {
@@ -145,6 +180,12 @@ void esp8266_port_rx_discard(uint16_t len)
     esp8266_rx_stream_len = (uint16_t)(esp8266_rx_stream_len - len);
 }
 
+/**
+ * @brief Sends a raw byte buffer over the ESP8266 USART.
+ * @param data Pointer to bytes to transmit.
+ * @param len Number of bytes to send.
+ * @return Number of bytes sent on success, or -1 on error.
+ */
 int esp8266_port_send(const uint8_t *data, uint16_t len)
 {
     if ((data == 0) || (len == 0U)) {
@@ -159,6 +200,11 @@ int esp8266_port_send(const uint8_t *data, uint16_t len)
     return (int)len;
 }
 
+/**
+ * @brief Sends a null-terminated string over the ESP8266 USART.
+ * @param text C string to transmit.
+ * @return Number of bytes sent on success, or -1 on error.
+ */
 int esp8266_port_send_str(const char *text)
 {
     if (text == 0) {
@@ -168,6 +214,11 @@ int esp8266_port_send_str(const char *text)
     return esp8266_port_send((const uint8_t *)text, (uint16_t)strlen(text));
 }
 
+/**
+ * @brief Reads one byte from the USART hardware FIFO if available.
+ * @param byte Output byte storage; ignored when null.
+ * @return 1 if a byte was read, 0 if the FIFO is empty.
+ */
 int esp8266_port_recv_byte(uint8_t *byte)
 {
     if (byte == 0) {
@@ -181,6 +232,7 @@ int esp8266_port_recv_byte(uint8_t *byte)
     return 0;
 }
 
+/** @brief Drains the USART FIFO into the RX stream and invokes any raw RX callback. */
 void esp8266_port_drain_rx(void)
 {
     uint8_t byte;
@@ -220,6 +272,11 @@ void esp8266_port_drain_rx(void)
 #endif
 }
 
+/**
+ * @brief Returns 1 if token appears anywhere in the RX stream buffer.
+ * @param token Substring to search for.
+ * @return 1 if found, 0 otherwise.
+ */
 static int esp8266_port_buffer_contains(const char *token)
 {
     uint16_t i;
@@ -243,6 +300,12 @@ static int esp8266_port_buffer_contains(const char *token)
     return 0;
 }
 
+/**
+ * @brief Polls the RX stream until token appears or timeout expires.
+ * @param token Substring to search for in the RX stream.
+ * @param timeout_ms Maximum wait time in milliseconds.
+ * @return 1 if token was found, 0 on timeout.
+ */
 int esp8266_port_wait_token(const char *token, uint32_t timeout_ms)
 {
     uint32_t elapsed_ms = 0U;
@@ -259,11 +322,17 @@ int esp8266_port_wait_token(const char *token, uint32_t timeout_ms)
     return 0;
 }
 
+/**
+ * @brief Waits for the ESP8266 '>' prompt used before raw payload uploads.
+ * @param timeout_ms Maximum wait time in milliseconds.
+ * @return 1 if the prompt appeared, 0 on timeout.
+ */
 int esp8266_port_wait_prompt(uint32_t timeout_ms)
 {
     return esp8266_port_wait_token(">", timeout_ms);
 }
 
+/** @brief Initializes USART, clears RX state, and resets the module. */
 static void esp8266_init(void)
 {
     DEBUG_LOG_ESP8266("[ESP8266] init start usart_id=%u baud=%lu\r\n",
@@ -277,11 +346,23 @@ static void esp8266_init(void)
     DEBUG_LOG_ESP8266("[ESP8266] init done\r\n");
 }
 
+/**
+ * @brief Sends raw bytes through the comm_if send hook.
+ * @param data Outbound byte buffer.
+ * @param len Number of bytes to send.
+ * @return Number of bytes sent, or -1 on error.
+ */
 static int esp8266_send(const unsigned char *data, unsigned short len)
 {
     return esp8266_port_send((const uint8_t *)data, (uint16_t)len);
 }
 
+/**
+ * @brief Receives one byte, optionally invoking the registered RX callback.
+ * @param buf Output buffer for received data.
+ * @param max_len Maximum bytes to receive (must be at least 1).
+ * @return 1 if a byte was read, 0 if none available, -1 on error.
+ */
 static int esp8266_recv(unsigned char *buf, unsigned short max_len)
 {
     uint8_t data;
@@ -304,12 +385,17 @@ static int esp8266_recv(unsigned char *buf, unsigned short max_len)
     return 0;
 }
 
+/**
+ * @brief Stores the comm_if raw RX callback for byte notifications.
+ * @param callback Function to invoke on receive, or null to disable.
+ */
 static void esp8266_register_rx_callback(comm_rx_callback_t callback)
 {
     esp8266_rx_callback = callback;
     DEBUG_LOG_ESP8266("[ESP8266] raw rx callback=%s\r\n", (callback != 0) ? "set" : "null");
 }
 
+/** @brief comm_if.h stream driver instance registered as COMM. */
 static const comm_driver_t esp8266_drv = {
     "esp8266",
     COMM_KIND_STREAM,

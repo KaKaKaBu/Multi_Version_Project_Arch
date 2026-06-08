@@ -1,3 +1,8 @@
+/**
+ * @file cjson_port.c
+ * @brief cJSON 移植层：钩子、解析/释放及遥测 JSON 构建。
+ */
+
 #include "cjson_port.h"
 #include <stdlib.h>
 
@@ -54,6 +59,7 @@ char *cjson_build_telemetry(const char *device, float temperature, float humidit
         return NULL;
     }
 
+    /* PrintUnformatted 省 Flash；root 可先 Delete，字符串独立分配 */
     json_text = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return json_text;

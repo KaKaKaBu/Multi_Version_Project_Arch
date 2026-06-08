@@ -1,13 +1,26 @@
+/**
+ * @file comm_port.c
+ * @brief 通信端口门面：devmgr 查找、send/recv 转发、设备名→IRQ 源映射。
+ */
+
 #include "comm_port.h"
 #include "devmgr.h"
 #include "board_config.h"
 
 #ifndef BOARD_COMM_DEVICE
+/** @brief 未在 board_config 指定时的默认 Wi-Fi/串口模块注册名。 */
 #define BOARD_COMM_DEVICE "esp8266"
 #endif
 
+/** 当前会话绑定的 comm 驱动；由 comm_port_bind 设置。 */
 static const comm_driver_t *comm_port_active;
 
+/**
+ * @brief 根据设备名前缀推断 USART RX IRQ 槽（与板级 USART 分配约定一致）。
+ *
+ * "esp*" → BOARD_ESP8266_USART_ID 或默认 USART1；
+ * "jdy*" → USART2（JDY 蓝牙模块常见接线）。
+ */
 static irq_event_source_t comm_port_irq_for_device(const char *name)
 {
     if (name == 0) {

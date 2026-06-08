@@ -42,8 +42,8 @@ static void co2_init(void)
 
     cfg.instance = BOARD_CO2_USART;
     cfg.baudrate = BOARD_CO2_BAUDRATE;
-    cfg.tx = board_usart2_tx;
-    cfg.rx = board_usart2_rx;
+    cfg.tx = board_co2_tx;
+    cfg.rx = board_co2_rx;
     cfg.remap = BOARD_CO2_USART_REMAP;
     cfg.rx_buf_size = USART_HAL_DEFAULT_RX_BUF_SIZE;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;

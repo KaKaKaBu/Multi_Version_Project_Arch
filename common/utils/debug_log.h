@@ -1,52 +1,54 @@
+/**
+ * @file debug_log.h
+ * @brief 编译期门控的 printf 调试宏，按子系统独立开关。
+ *
+ * 在 board_config 或编译选项中定义 DEBUG_LOG_ENABLE=1 启用总开关；
+ * 各 DEBUG_LOG_*_ENABLE 可单独关闭嘈杂模块（如 MQTT_POLL）。
+ * 禁用时宏展开为 do{}while(0)，不产生代码体积。
+ *
+ * 输出依赖 newlib printf，通常重定向到 debug_uart（见 syscalls/retarget）。
+ */
+
 #ifndef DEBUG_LOG_H
 #define DEBUG_LOG_H
 
 #include "board_config.h"
 
 #ifndef DEBUG_LOG_ENABLE
+/** @brief 主开关：0 时所有子宏为空操作。 */
 #define DEBUG_LOG_ENABLE 0
 #endif
 
 #ifndef DEBUG_LOG_APP_ENABLE
 #define DEBUG_LOG_APP_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_APP_CB_ENABLE
 #define DEBUG_LOG_APP_CB_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_ESP8266_ENABLE
 #define DEBUG_LOG_ESP8266_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_ESP8266_DRAIN_ENABLE
 #define DEBUG_LOG_ESP8266_DRAIN_ENABLE 0
 #endif
-
 #ifndef DEBUG_LOG_MQTT_ENABLE
 #define DEBUG_LOG_MQTT_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_MQTT_AT_ENABLE
 #define DEBUG_LOG_MQTT_AT_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_MQTT_POLL_ENABLE
 #define DEBUG_LOG_MQTT_POLL_ENABLE 0
 #endif
-
 #ifndef DEBUG_LOG_IRQ_EVENT_ENABLE
 #define DEBUG_LOG_IRQ_EVENT_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_USART_ENABLE
 #define DEBUG_LOG_USART_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_RTC_ENABLE
 #define DEBUG_LOG_RTC_ENABLE DEBUG_LOG_ENABLE
 #endif
-
 #ifndef DEBUG_LOG_SCHED_ENABLE
 #define DEBUG_LOG_SCHED_ENABLE DEBUG_LOG_ENABLE
 #endif

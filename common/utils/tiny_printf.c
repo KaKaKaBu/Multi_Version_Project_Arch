@@ -1,14 +1,32 @@
+/**
+ * @file tiny_printf.c
+ * @brief 精简 printf 实现：有界缓冲、整数/十六进制/浮点、宽度与精度解析。
+ *
+ * tiny_append_char 在 pos+1>=size 时不写入，但 pos 仍递增，返回值表示“逻辑长度”，
+ * 便于 snprintf 返回本应输出的字符数（与标准 snprintf 行为一致）。
+ */
+
 #include "tiny_printf.h"
 
+/** @brief %f 与 %g 转换的最大小数位数。 */
 #define TINY_PRINTF_MAX_FLOAT_PREC 9U
 
+/** @brief 单次转换解析出的宽度、精度与零填充标志。 */
 typedef struct tiny_fmt_spec {
-    unsigned char width;
-    unsigned char precision;
-    unsigned char precision_set;
-    unsigned char zero_pad;
+    unsigned char width;          ///< 最小字段宽度。
+    unsigned char precision;      ///< 浮点转换的小数位数。
+    unsigned char precision_set;  ///< 非零表示指定了 '.' 精度。
+    unsigned char zero_pad;       ///< 非零时用 '0' 填充数字字段。
 } tiny_fmt_spec_t;
 
+/**
+ * @brief 在缓冲区有空间时追加一个字符。
+ * @param[in,out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量（字节）。
+ * @param[in] pos 当前写入索引。
+ * @param[in] ch 待追加字符。
+ * @return 更新后的写入位置（始终递增）。
+ */
 static unsigned int tiny_append_char(char *buffer, unsigned int size, unsigned int pos, char ch)
 {
     if ((buffer != 0) && (pos + 1U < size)) {
@@ -18,6 +36,14 @@ static unsigned int tiny_append_char(char *buffer, unsigned int size, unsigned i
     return pos + 1U;
 }
 
+/**
+ * @brief 追加 C 字符串；null 指针时写入 "(null)"。
+ * @param[in,out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量。
+ * @param[in] pos 当前写入索引。
+ * @param[in] text 待追加字符串。
+ * @return 更新后的写入索引。
+ */
 static unsigned int tiny_append_string(char *buffer, unsigned int size, unsigned int pos, const char *text)
 {
     if (text == 0) {
@@ -32,6 +58,16 @@ static unsigned int tiny_append_string(char *buffer, unsigned int size, unsigned
     return pos;
 }
 
+/**
+ * @brief 按给定进制追加无字段填充的无符号整数。
+ * @param[in,out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量。
+ * @param[in] pos 当前写入索引。
+ * @param[in] value 待格式化的无符号值。
+ * @param[in] base 进制（2–16）。
+ * @param[in] uppercase 非零时十六进制用大写字母。
+ * @return 更新后的写入索引。
+ */
 static unsigned int tiny_append_uint_core(char *buffer, unsigned int size, unsigned int pos,
                                         unsigned long value, unsigned char base, unsigned char uppercase)
 {
@@ -58,6 +94,17 @@ static unsigned int tiny_append_uint_core(char *buffer, unsigned int size, unsig
     return pos;
 }
 
+/**
+ * @brief 追加带可选宽度与零填充的无符号整数。
+ * @param[in,out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量。
+ * @param[in] pos 当前写入索引。
+ * @param[in] value 待格式化的无符号值。
+ * @param[in] base 进制（2–16）。
+ * @param[in] uppercase 非零时十六进制用大写字母。
+ * @param[in] spec 宽度与填充标志；可为 null。
+ * @return 更新后的写入索引。
+ */
 static unsigned int tiny_append_uint_padded(char *buffer, unsigned int size, unsigned int pos,
                                           unsigned long value, unsigned char base, unsigned char uppercase,
                                           const tiny_fmt_spec_t *spec)
@@ -95,6 +142,14 @@ static unsigned int tiny_append_uint_padded(char *buffer, unsigned int size, uns
     return pos;
 }
 
+/**
+ * @brief 追加有符号十进制整数。
+ * @param[in,out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量。
+ * @param[in] pos 当前写入索引。
+ * @param[in] value 待格式化的有符号值。
+ * @return 更新后的写入索引。
+ */
 static unsigned int tiny_append_int(char *buffer, unsigned int size, unsigned int pos, long value)
 {
     if (value < 0L) {
@@ -105,6 +160,15 @@ static unsigned int tiny_append_int(char *buffer, unsigned int size, unsigned in
     return tiny_append_uint_core(buffer, size, pos, (unsigned long)value, 10U, 0U);
 }
 
+/**
+ * @brief 以固定小数精度追加浮点数。
+ * @param[in,out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量。
+ * @param[in] pos 当前写入索引。
+ * @param[in] value 待格式化的值。
+ * @param[in] precision 小数点后位数。
+ * @return 更新后的写入索引。
+ */
 static unsigned int tiny_append_float(char *buffer, unsigned int size, unsigned int pos, double value,
                                     unsigned char precision)
 {
@@ -150,6 +214,11 @@ static unsigned int tiny_append_float(char *buffer, unsigned int size, unsigned 
     return pos;
 }
 
+/**
+ * @brief 解析格式串中 '%' 后的宽度、精度与零填充标志。
+ * @param[in,out] fmt 解析后向前推进的格式串指针。
+ * @param[out] spec 填充后的宽度/精度结构体。
+ */
 static void tiny_parse_spec(const char **fmt, tiny_fmt_spec_t *spec)
 {
     spec->width = 0U;
@@ -176,6 +245,12 @@ static void tiny_parse_spec(const char **fmt, tiny_fmt_spec_t *spec)
     }
 }
 
+/** @brief 将格式串写入有界缓冲区（va_list 版本）。
+ * @param[out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量（字节）。
+ * @param[in] fmt 格式串。
+ * @param[in] args 可变参数列表。
+ * @return 写入字符数（不含 null）；参数无效时返回 0。 */
 int tiny_vsnprintf(char *buffer, unsigned int size, const char *fmt, va_list args)
 {
     unsigned int pos = 0U;
@@ -255,6 +330,11 @@ int tiny_vsnprintf(char *buffer, unsigned int size, const char *fmt, va_list arg
     return (int)pos;
 }
 
+/** @brief 将格式串写入有界缓冲区（可变参数包装）。
+ * @param[out] buffer 输出缓冲区。
+ * @param[in] size 缓冲区容量（字节）。
+ * @param[in] fmt 格式串。
+ * @return 写入字符数（不含 null）；参数无效时返回 0。 */
 int tiny_snprintf(char *buffer, unsigned int size, const char *fmt, ...)
 {
     va_list args;

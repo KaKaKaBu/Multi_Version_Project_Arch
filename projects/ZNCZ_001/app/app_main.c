@@ -2,9 +2,10 @@
 #include "comm_port.h"
 #include "board_config.h"
 #include "hal_common.h"
-#include "input_if.h"
+#include "key_service.h"
 #include "irq_event.h"
 #include "scheduler.h"
+#include "sched_loop.h"
 #include "version_config.h"
 #include "app_logic.h"
 #include "debug_log.h"
@@ -14,7 +15,6 @@
 #include <string.h>
 #endif
 
-#define APP_KEY_DEBOUNCE_MS 50U
 #define APP_RTC_TICK_MS 1000U
 
 void app_comm_rx_callback(const unsigned char *data, unsigned short len);
@@ -23,11 +23,6 @@ void app_mqtt_rx_callback(const char *topic,
                           const unsigned char *payload,
                           unsigned short len);
 #endif
-
-static void app_logic_task_entry(driver_task_t *task);
-static void comm_poll_task_entry(driver_task_t *task);
-static void key_poll_task_entry(driver_task_t *task);
-static void rtc_tick_task_entry(driver_task_t *task);
 
 #if VERSION_FEATURE_WIFI
 static const esp8266_mqtt_config_t app_mqtt_cfg = {
@@ -43,62 +38,19 @@ static const esp8266_mqtt_config_t app_mqtt_cfg = {
 };
 #endif
 
-static driver_task_t app_logic_task = {
-    "app_logic",
-    app_logic_task_entry,
-    4U,
-    TASK_READY,
-    0U,
-    0U,
-    0
-};
-
-static driver_task_t comm_poll_task = {
-    "comm_poll",
-    comm_poll_task_entry,
-    3U,
-    TASK_READY,
-    0U,
-    0U,
-    0
-};
-
-static driver_task_t key_poll_task = {
-    "key_poll",
-    key_poll_task_entry,
-    2U,
-    TASK_READY,
-    0U,
-    0U,
-    0
-};
-
-static driver_task_t rtc_tick_task = {
-    "rtc_tick",
-    rtc_tick_task_entry,
-    1U,
-    TASK_READY,
-    0U,
-    0U,
-    0
-};
-
-static void app_logic_task_entry(driver_task_t *task)
+static void app_logic_run(sched_event_t events, void *ctx)
 {
-    sched_event_t events = task_events_get(task);
-
+    (void)ctx;
     app_logic_loop(events);
-    task_block(APP_EVENT_TICK | APP_EVENT_KEY | APP_EVENT_COMM_RX);
 }
 
-static void comm_poll_task_entry(driver_task_t *task)
+static void comm_loop_run(sched_event_t events, void *ctx)
 {
     static unsigned char mqtt_rx_defer_ticks;
     unsigned char rx;
-    sched_event_t events = task_events_get(task);
     int mqtt_ready = 0;
 
-    (void)task;
+    (void)ctx;
 
 #if VERSION_FEATURE_WIFI
     if (esp8266_mqtt_is_ready() != 0) {
@@ -122,65 +74,61 @@ static void comm_poll_task_entry(driver_task_t *task)
         while (comm_port_recv(&rx, 1U) > 0) {
         }
     }
-
-    task_block(APP_EVENT_COMM_RX | APP_EVENT_TICK);
 }
 
-static void key_poll_task_entry(driver_task_t *task)
+static void rtc_loop_run(sched_event_t events, void *ctx)
 {
-    const input_driver_t *keys = devmgr_get_input("key");
-    static unsigned char last_stable_key;
-    static unsigned char pending_key;
-    static uint32_t debounce_start_tick;
-    unsigned char raw_key;
+    (void)events;
+    (void)ctx;
+    app_logic_on_second_tick();
+}
 
-    (void)task;
+static void app_key_event_handler(uint8_t key_index, key_event_type_t event, void *ctx)
+{
+    (void)ctx;
 
-    if (keys == 0) {
-        task_block(APP_EVENT_TICK);
+    if (key_index == 0U) {
         return;
     }
 
-    raw_key = keys->read_key();
-
-    if (raw_key != pending_key) {
-        pending_key = raw_key;
-        debounce_start_tick = sched_tick_get();
-    } else if ((raw_key != 0U) &&
-               ((sched_tick_get() - debounce_start_tick) >= APP_KEY_DEBOUNCE_MS) &&
-               (raw_key != last_stable_key)) {
-        last_stable_key = raw_key;
-        app_logic_on_key(raw_key);
+    switch (event) {
+    case KEY_EVENT_SINGLE_CLICK:
+    case KEY_EVENT_DOUBLE_CLICK:
+    case KEY_EVENT_LONG_PRESS:
+        app_logic_on_key(key_index);
         event_set(APP_EVENT_KEY);
+        break;
+    default:
+        break;
     }
-
-    if (raw_key == 0U) {
-        last_stable_key = 0U;
-        pending_key = 0U;
-    }
-
-    task_block(APP_EVENT_TICK);
 }
 
-static void rtc_tick_task_entry(driver_task_t *task)
-{
-    static uint32_t last_second_tick;
-    uint32_t now_tick;
+static sched_loop_t logic_loop = SCHED_LOOP_DEF(
+    "app_logic",
+    app_logic_run,
+    4U,
+    0U,
+    APP_EVENT_TICK | APP_EVENT_KEY | APP_EVENT_COMM_RX,
+    0U
+);
 
-    (void)task;
+static sched_loop_t comm_loop = SCHED_LOOP_DEF(
+    "comm",
+    comm_loop_run,
+    3U,
+    0U,
+    APP_EVENT_COMM_RX | APP_EVENT_TICK,
+    0U
+);
 
-    now_tick = sched_tick_get();
-    if ((now_tick - last_second_tick) >= APP_RTC_TICK_MS) {
-        DEBUG_LOG_SCHED("[SCHED] rtc_tick fired tick=%lu delta=%lu\r\n",
-                        (unsigned long)now_tick,
-                        (unsigned long)(now_tick - last_second_tick));
-        last_second_tick = now_tick;
-        app_logic_on_second_tick();
-        event_set(APP_EVENT_TICK);
-    }
-
-    task_block(APP_EVENT_TICK);
-}
+static sched_loop_t rtc_loop = SCHED_LOOP_DEF(
+    "rtc",
+    rtc_loop_run,
+    1U,
+    APP_RTC_TICK_MS,
+    0U,
+    APP_EVENT_TICK
+);
 
 static void app_comm_setup(void)
 {
@@ -212,6 +160,9 @@ void app_main(void)
     sched_init();
     irq_event_init();
     devmgr_init_all();
+    sched_loop_init();
+
+    key_register_callback(app_key_event_handler, 0);
 
     app_comm_setup();
 
@@ -226,10 +177,9 @@ void app_main(void)
 
     app_logic_init();
 
-    sched_add_task(&app_logic_task);
-    sched_add_task(&comm_poll_task);
-    sched_add_task(&key_poll_task);
-    sched_add_task(&rtc_tick_task);
+    (void)sched_loop_register(&logic_loop);
+    (void)sched_loop_register(&comm_loop);
+    (void)sched_loop_register(&rtc_loop);
     sched_start();
 }
 

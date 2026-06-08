@@ -1,3 +1,8 @@
+/**
+ * @file esp8266_mqtt.c
+ * @brief ESP8266 AT MQTT client: Wi-Fi join, publish, subscribe, and RX parsing.
+ */
+
 #include "esp8266_mqtt.h"
 #include "esp8266_port.h"
 #include "cjson_port.h"
@@ -8,19 +13,37 @@
 #include <string.h>
 #include <stdlib.h>
 
+/** @brief Default AT command response wait time in milliseconds. */
 #define ESP8266_AT_TIMEOUT_MS 8000U
+/** @brief Timeout for AT+MQTTPUBRAW payload upload and OK response. */
 #define ESP8266_MQTT_PUBRAW_TIMEOUT_MS 10000U
+/** @brief URC prefix for an incoming MQTT subscription message line. */
 #define ESP8266_MQTT_RECV_PREFIX "+MQTTSUBRECV:"
+/** @brief Maximum parsed line length when scanning the RX stream. */
 #define ESP8266_MQTT_LINE_MAX 512U
+/** @brief Non-zero when esp8266_mqtt_poll() should log trailing stream bytes. */
 #define ESP8266_MQTT_POLL_DEBUG DEBUG_LOG_MQTT_POLL_ENABLE
 
+/** @brief Active MQTT configuration copied on successful connect. */
 static esp8266_mqtt_config_t esp8266_mqtt_cfg;
+/** @brief Non-zero after Wi-Fi and MQTT session setup succeed. */
 static unsigned char esp8266_mqtt_ready;
+/** @brief User callback for delivered subscribe payloads. */
 static esp8266_mqtt_rx_callback_t esp8266_mqtt_rx_callback;
+/** @brief Non-zero when a multi-line +MQTTSUBRECV payload is pending. */
 static unsigned char esp8266_mqtt_pending;
+/** @brief Expected payload byte count for a pending delivery. */
 static unsigned short esp8266_mqtt_pending_len;
+/** @brief Topic name buffer for a pending delivery. */
 static char esp8266_mqtt_pending_topic[64];
 
+/**
+ * @brief Sends an AT command and waits for an expected response token.
+ * @param cmd AT command string without line ending.
+ * @param expect Response substring; uses "OK" when null.
+ * @param timeout_ms Maximum wait time in milliseconds.
+ * @return 0 on success, -1 on timeout or ERROR.
+ */
 static int esp8266_at_cmd(const char *cmd, const char *expect, uint32_t timeout_ms)
 {
     if (cmd == 0) {
@@ -58,6 +81,12 @@ static int esp8266_at_cmd(const char *cmd, const char *expect, uint32_t timeout_
     return 0;
 }
 
+/**
+ * @brief Joins a Wi-Fi access point using AT+CWJAP.
+ * @param ssid Network SSID; must not be null.
+ * @param password Network password; must not be null.
+ * @return 0 on success, -1 on failure.
+ */
 static int esp8266_wifi_connect(const char *ssid, const char *password)
 {
     char cmd[160];
@@ -90,6 +119,11 @@ static int esp8266_wifi_connect(const char *ssid, const char *password)
     return 0;
 }
 
+/**
+ * @brief Configures MQTT user credentials, connects, and subscribes.
+ * @param cfg MQTT parameters; must not be null.
+ * @return 0 on success, -1 on failure.
+ */
 static int esp8266_mqtt_setup(const esp8266_mqtt_config_t *cfg)
 {
     char cmd[256];
@@ -133,6 +167,11 @@ static int esp8266_mqtt_setup(const esp8266_mqtt_config_t *cfg)
     return 0;
 }
 
+/**
+ * @brief Connects Wi-Fi and establishes an MQTT session using AT commands.
+ * @param cfg Connection parameters; must not be null.
+ * @return 0 on success, -1 on failure.
+ */
 int esp8266_mqtt_connect(const esp8266_mqtt_config_t *cfg)
 {
     esp8266_mqtt_ready = 0U;
@@ -164,11 +203,19 @@ int esp8266_mqtt_connect(const esp8266_mqtt_config_t *cfg)
     return 0;
 }
 
+/**
+ * @brief Reports whether the last esp8266_mqtt_connect() succeeded.
+ * @return 1 if connected and ready, 0 otherwise.
+ */
 int esp8266_mqtt_is_ready(void)
 {
     return (esp8266_mqtt_ready != 0U) ? 1 : 0;
 }
 
+/**
+ * @brief Returns the active configuration after a successful connect.
+ * @return Pointer to stored config, or null if not ready.
+ */
 const esp8266_mqtt_config_t *esp8266_mqtt_active_config(void)
 {
     if (esp8266_mqtt_ready == 0U) {
@@ -178,6 +225,13 @@ const esp8266_mqtt_config_t *esp8266_mqtt_active_config(void)
     return &esp8266_mqtt_cfg;
 }
 
+/**
+ * @brief Publishes a raw payload using AT+MQTTPUBRAW.
+ * @param topic MQTT topic string.
+ * @param payload Raw payload bytes.
+ * @param len Payload length in bytes.
+ * @return Number of bytes published on success, -1 on error.
+ */
 int esp8266_mqtt_publish_raw(const char *topic,
                              const unsigned char *payload,
                              unsigned short len)
@@ -216,6 +270,12 @@ int esp8266_mqtt_publish_raw(const char *topic,
     return (int)len;
 }
 
+/**
+ * @brief Publishes a null-terminated JSON string.
+ * @param topic MQTT topic string.
+ * @param json_text JSON payload C string.
+ * @return Number of bytes published on success, -1 on error.
+ */
 int esp8266_mqtt_publish_json(const char *topic, const char *json_text)
 {
     if (json_text == 0) {
@@ -227,6 +287,14 @@ int esp8266_mqtt_publish_json(const char *topic, const char *json_text)
                                     (unsigned short)strlen(json_text));
 }
 
+/**
+ * @brief Builds and publishes a standard temperature/humidity telemetry JSON message.
+ * @param topic MQTT topic; uses cfg.pub_topic when null.
+ * @param device Device identifier string embedded in JSON.
+ * @param temperature Temperature value in degrees Celsius.
+ * @param humidity Relative humidity percentage.
+ * @return Number of bytes published on success, -1 on error.
+ */
 int esp8266_mqtt_publish_telemetry(const char *topic,
                                    const char *device,
                                    float temperature,
@@ -249,12 +317,22 @@ int esp8266_mqtt_publish_telemetry(const char *topic,
     return rc;
 }
 
+/**
+ * @brief Registers a callback for incoming MQTT subscription messages.
+ * @param callback Function to invoke on receive, or null to disable.
+ */
 void esp8266_mqtt_register_rx_callback(esp8266_mqtt_rx_callback_t callback)
 {
     esp8266_mqtt_rx_callback = callback;
     DEBUG_LOG_MQTT("[MQTT] rx callback=%s\r\n", (callback != 0) ? "set" : "null");
 }
 
+/**
+ * @brief Locates the payload pointer in a +MQTTSUBRECV line with inline data.
+ * @param line Full receive line from the module.
+ * @param payload_len Output payload length parsed from the line.
+ * @return Pointer to payload bytes, or null when not inline.
+ */
 static const char *esp8266_mqtt_find_payload_start(const char *line, unsigned short *payload_len)
 {
     const char *cursor;
@@ -300,6 +378,12 @@ static const char *esp8266_mqtt_find_payload_start(const char *line, unsigned sh
     return len_start + 1U;
 }
 
+/**
+ * @brief Invokes the registered RX callback when parameters are valid.
+ * @param topic Null-terminated topic string.
+ * @param payload Payload bytes (not null-terminated).
+ * @param payload_len Payload length in bytes.
+ */
 static void esp8266_mqtt_deliver(const char *topic,
                                  const unsigned char *payload,
                                  unsigned short payload_len)
@@ -317,6 +401,7 @@ static void esp8266_mqtt_deliver(const char *topic,
     esp8266_mqtt_rx_callback(topic, payload, payload_len);
 }
 
+/** @brief Clears multi-line payload reassembly state. */
 static void esp8266_mqtt_clear_pending(void)
 {
     esp8266_mqtt_pending = 0U;
@@ -324,6 +409,10 @@ static void esp8266_mqtt_clear_pending(void)
     esp8266_mqtt_pending_topic[0] = '\0';
 }
 
+/**
+ * @brief Handles a follow-on line as payload for a pending subscription.
+ * @param line Raw payload line from the module.
+ */
 static void esp8266_mqtt_handle_payload_line(const char *line)
 {
     unsigned short line_len;
@@ -349,6 +438,10 @@ static void esp8266_mqtt_handle_payload_line(const char *line)
     esp8266_mqtt_clear_pending();
 }
 
+/**
+ * @brief Parses one USART line for +MQTTSUBRECV headers or pending payload.
+ * @param line Complete CRLF-delimited line from the RX stream.
+ */
 static void esp8266_mqtt_handle_line(const char *line)
 {
     const char *payload;
@@ -434,6 +527,7 @@ static void esp8266_mqtt_handle_line(const char *line)
     esp8266_mqtt_clear_pending();
 }
 
+/** @brief Extracts complete CRLF-delimited lines from the RX stream buffer. */
 static void esp8266_mqtt_parse_stream(void)
 {
     uint16_t i = 0U;
@@ -461,6 +555,10 @@ static void esp8266_mqtt_parse_stream(void)
     }
 }
 
+/**
+ * @brief Returns 1 if the RX stream contains at least one complete line.
+ * @return 1 when a CRLF delimiter is present; 0 otherwise.
+ */
 static int esp8266_mqtt_stream_has_line(void)
 {
     uint16_t i;
@@ -474,6 +572,9 @@ static int esp8266_mqtt_stream_has_line(void)
     return 0;
 }
 
+/**
+ * @brief Drains USART data and parses incoming MQTT URC lines; call periodically.
+ */
 void esp8266_mqtt_poll(void)
 {
 #if ESP8266_MQTT_POLL_DEBUG

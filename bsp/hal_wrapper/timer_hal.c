@@ -1,11 +1,21 @@
+/**
+ * @file timer_hal.c
+ * @brief Timer HAL: microsecond delay (TIM4), PWM setup, and update IRQ dispatch.
+ */
+
 #include "timer_hal.h"
 #include "hal_common.h"
 #include "irq_event.h"
 #include "misc.h"
 #include "stm32f10x_rcc.h"
 
+/** @brief Non-zero after TIM4 delay timer has been initialized once. */
 static uint8_t timer_hal_delay_ready;
 
+/**
+ * @brief Enables RCC clock for TIM1 (APB2) or TIM2–4 (APB1).
+ * @param TIMx Timer instance.
+ */
 static void timer_hal_clock_enable(TIM_TypeDef *TIMx)
 {
     if (TIMx == TIM1) {
@@ -19,6 +29,11 @@ static void timer_hal_clock_enable(TIM_TypeDef *TIMx)
     }
 }
 
+/**
+ * @brief Returns NVIC IRQ number for timer update events.
+ * @param TIMx Timer instance.
+ * @return IRQn_Type for the instance update interrupt.
+ */
 static IRQn_Type timer_hal_irqn(TIM_TypeDef *TIMx)
 {
     if (TIMx == TIM1) {
@@ -33,6 +48,11 @@ static IRQn_Type timer_hal_irqn(TIM_TypeDef *TIMx)
     return TIM4_IRQn;
 }
 
+/**
+ * @brief Maps timer instance to irq_event update source.
+ * @param TIMx Timer instance.
+ * @return irq_event_source_t for timer update.
+ */
 static irq_event_source_t timer_hal_update_source(TIM_TypeDef *TIMx)
 {
     if (TIMx == TIM1) {
@@ -47,6 +67,9 @@ static irq_event_source_t timer_hal_update_source(TIM_TypeDef *TIMx)
     return IRQ_EVENT_SOURCE_TIM4_UPDATE;
 }
 
+/**
+ * @brief One-time init of TIM4 as 1 MHz free-running counter for timer_hal_delay_us().
+ */
 static void timer_hal_delay_timer_init(void)
 {
     TIM_TimeBaseInitTypeDef timer;
@@ -66,6 +89,11 @@ static void timer_hal_delay_timer_init(void)
     timer_hal_delay_ready = 1U;
 }
 
+/**
+ * @brief Configures a timer for 1 MHz tick rate with update period @p period_us.
+ * @param TIMx Timer instance (TIM1–TIM4).
+ * @param period_us Auto-reload value in microseconds (ARR = period_us - 1).
+ */
 void timer_hal_init_us(TIM_TypeDef *TIMx, uint16_t period_us)
 {
     TIM_TimeBaseInitTypeDef timer;
@@ -80,6 +108,10 @@ void timer_hal_init_us(TIM_TypeDef *TIMx, uint16_t period_us)
     TIM_Cmd(TIMx, ENABLE);
 }
 
+/**
+ * @brief Busy-waits for @p us microseconds using TIM4 as a free-running counter.
+ * @param us Delay in microseconds.
+ */
 void timer_hal_delay_us(uint16_t us)
 {
     uint16_t start;
@@ -91,6 +123,12 @@ void timer_hal_delay_us(uint16_t us)
     }
 }
 
+/**
+ * @brief Configures one timer channel for PWM1 output mode.
+ * @param TIMx Timer instance.
+ * @param channel Channel number (1–4).
+ * @param compare Initial compare (pulse) value.
+ */
 static void timer_hal_configure_pwm_channel(TIM_TypeDef *TIMx, uint8_t channel, uint16_t compare)
 {
     TIM_OCInitTypeDef oc;
@@ -123,6 +161,12 @@ static void timer_hal_configure_pwm_channel(TIM_TypeDef *TIMx, uint8_t channel, 
     }
 }
 
+/**
+ * @brief Initializes timer timebase for PWM with preload enabled.
+ * @param TIMx Timer instance.
+ * @param period Auto-reload value (ARR).
+ * @param prescaler Prescaler minus one (PSC register value).
+ */
 static void timer_hal_pwm_timebase_init(TIM_TypeDef *TIMx, uint16_t period, uint16_t prescaler)
 {
     TIM_TimeBaseInitTypeDef timer;
@@ -138,6 +182,11 @@ static void timer_hal_pwm_timebase_init(TIM_TypeDef *TIMx, uint16_t period, uint
     TIM_Cmd(TIMx, ENABLE);
 }
 
+/**
+ * @brief Initializes PWM on @p cfg->channel with GPIO and timebase from @p cfg.
+ * @param cfg PWM configuration (instance and pin must be valid).
+ * @return HAL_OK or HAL_ERR_PARAM.
+ */
 hal_status_t timer_hal_pwm_init(const timer_hal_pwm_config_t *cfg)
 {
     if ((cfg == 0) || (cfg->instance == 0)) {
@@ -151,6 +200,12 @@ hal_status_t timer_hal_pwm_init(const timer_hal_pwm_config_t *cfg)
     return HAL_OK;
 }
 
+/**
+ * @brief Sets the compare register for PWM channel 1–4.
+ * @param TIMx Timer instance.
+ * @param channel Channel number (1–4).
+ * @param compare Compare value (pulse width).
+ */
 void timer_hal_pwm_set_compare(TIM_TypeDef *TIMx, uint8_t channel, uint16_t compare)
 {
     switch (channel) {
@@ -171,6 +226,10 @@ void timer_hal_pwm_set_compare(TIM_TypeDef *TIMx, uint8_t channel, uint16_t comp
     }
 }
 
+/**
+ * @brief Enables timer update interrupt and NVIC for @p TIMx.
+ * @param TIMx Timer instance.
+ */
 void timer_hal_enable_update_irq(TIM_TypeDef *TIMx)
 {
     NVIC_InitTypeDef nvic;
@@ -183,6 +242,10 @@ void timer_hal_enable_update_irq(TIM_TypeDef *TIMx)
     TIM_ITConfig(TIMx, TIM_IT_Update, ENABLE);
 }
 
+/**
+ * @brief Timer update IRQ handler; posts irq_event and clears update flag.
+ * @param TIMx Timer instance.
+ */
 void timer_hal_irq_handler(TIM_TypeDef *TIMx)
 {
     if (TIM_GetITStatus(TIMx, TIM_IT_Update) != RESET) {

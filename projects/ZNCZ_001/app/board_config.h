@@ -41,9 +41,8 @@ static const hal_pin_t board_debug_uart_tx = { GPIOC, GPIO_Pin_13, GPIO_HAL_MODE
 #define BOARD_ESP8266_USART_TX_DMA DMA1_Channel3
 #endif
 
-static const hal_pin_t board_usart3_tx = { GPIOB, GPIO_Pin_10, GPIO_HAL_MODE_AF_PP };
-static const hal_pin_t board_usart3_rx = { GPIOB, GPIO_Pin_11, GPIO_HAL_MODE_IN_FLOATING };
-
+static const hal_pin_t board_esp8266_tx = { GPIOB, GPIO_Pin_10, GPIO_HAL_MODE_AF_PP };
+static const hal_pin_t board_esp8266_rx = { GPIOB, GPIO_Pin_11, GPIO_HAL_MODE_IN_FLOATING };
 static const hal_pin_t board_esp8266_ch_pd_pin = { GPIOB, GPIO_Pin_0, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_esp8266_rst_pin = { GPIOB, GPIO_Pin_1, GPIO_HAL_MODE_OUT_PP };
 
@@ -88,9 +87,9 @@ static const hal_pin_t board_led_pin = { GPIOC, GPIO_Pin_13, GPIO_HAL_MODE_OUT_P
 /* -------------------------------------------------------------------------- */
 /* DS1302 RTC (RST PB8 / DAT PB9 / CLK PB15)                                    */
 /* -------------------------------------------------------------------------- */
-static const hal_pin_t board_ds1302_ce_pin = { GPIOB, GPIO_Pin_8, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_ds1302_ce_pin = { GPIOB, GPIO_Pin_15, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_ds1302_data_pin = { GPIOB, GPIO_Pin_9, GPIO_HAL_MODE_OUT_PP };
-static const hal_pin_t board_ds1302_sclk_pin = { GPIOB, GPIO_Pin_15, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_ds1302_sclk_pin = { GPIOB, GPIO_Pin_8, GPIO_HAL_MODE_OUT_PP };
 
 /* -------------------------------------------------------------------------- */
 /* 5 Keys (PB4/PB5/PB12/PB13/PB14)                                              */

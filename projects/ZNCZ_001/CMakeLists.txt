@@ -31,6 +31,8 @@ set(CPU_FLAGS
 set(COMMON_SRCS
     ${TEMPLATE_ROOT}/common/device_manager/devmgr.c
     ${TEMPLATE_ROOT}/common/scheduler/scheduler.c
+    ${TEMPLATE_ROOT}/common/scheduler/sched_loop.c
+    ${TEMPLATE_ROOT}/common/app_framework/app_fsm.c
     ${TEMPLATE_ROOT}/common/irq_event/irq_event.c
     ${TEMPLATE_ROOT}/common/utils/tiny_printf.c
     ${TEMPLATE_ROOT}/common/utils/soft_uart.c
@@ -45,6 +47,7 @@ set(BSP_SRCS
     ${TEMPLATE_ROOT}/bsp/syscalls/syscalls.c
     ${TEMPLATE_ROOT}/bsp/hal_wrapper/hal_common.c
     ${TEMPLATE_ROOT}/bsp/hal_wrapper/gpio_hal.c
+    ${TEMPLATE_ROOT}/bsp/hal_wrapper/exti_hal.c
     ${BSP_HAL_I2C_SRC}
     ${TEMPLATE_ROOT}/bsp/hal_wrapper/usart_hal.c
     ${BSP_HAL_USART_DMA_SRC}
@@ -62,6 +65,7 @@ set(SPL_SRCS
     ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/CMSIS/system_stm32f10x.c
     ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/misc.c
     ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_gpio.c
+    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_exti.c
     ${SPL_HAL_I2C_SRC}
     ${SPL_HAL_SPI_SRC}
     ${SPL_HAL_ADC_SRC}
@@ -98,6 +102,7 @@ target_include_directories(${PROJECT_NAME}.elf PRIVATE
     ${TEMPLATE_ROOT}/common/driver_core
     ${TEMPLATE_ROOT}/common/device_manager
     ${TEMPLATE_ROOT}/common/scheduler
+    ${TEMPLATE_ROOT}/common/app_framework
     ${TEMPLATE_ROOT}/common/irq_event
     ${TEMPLATE_ROOT}/common/utils
     ${TEMPLATE_ROOT}/drivers/comm
