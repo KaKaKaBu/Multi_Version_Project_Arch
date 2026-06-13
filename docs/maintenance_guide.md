@@ -26,7 +26,8 @@
 ```
 project_template/
 ├── projects/<VERSION>/app/     # 应用层：业务、任务、回调、board_config.h
-├── projects/<VERSION>/<VERSION>_upper_ui/  # 上位机：Vue3 + Vite + uni-app + Capacitor（Android）
+├── projects/<VERSION>/<VERSION>_upper_ui_flutter/  # Flutter 主上位机（默认 App/Web）
+├── projects/<VERSION>/<VERSION>_upper_ui/          # 可选 uni-app 小程序/历史兼容栈
 ├── common/
 │   ├── interfaces/             # 标准接口（sensor/display/actuator/comm/misc）
 │   ├── driver_core/            # REGISTER_DRIVER、.driver_list 链接段
@@ -188,8 +189,10 @@ if (comm_port_has_irq()) {
 
 - 链接 `mem_pool.c` 后，libc `malloc/free/realloc` 由静态池实现（默认 2048 B，可在编译前改 `MEM_POOL_SIZE`）。
 - `cjson_port_init()` 将 cJSON hooks 指向 mem_pool；遥测 JSON 优先走 `esp8266_mqtt_publish_telemetry()` 或 `cjson_port_build_telemetry()`。
-- 显示格式化使用 `tiny_printf`，避免链接完整 `sprintf`。
-- 调试日志使用标准 `printf`（`HAL_DEBUG_UART_ENABLE=1` 时经 PC13 软串口输出）；业务 JSON 仍走 `tiny_printf` / cJSON。
+- **所有业务 JSON 字段必须用 cJSON 构建/解析**：新增字段用 `cJSON_Add*ToObject()`，解析字段用 `cJSON_GetObjectItemCaseSensitive()` 等 cJSON API。
+- 禁止用 `sprintf` / `snprintf` / `strcat` / 手工拼接字符串构造 JSON；这样会绕过 cJSON 转义、增加缓冲区溢出风险，并导致字段格式不可统一。
+- 显示格式化使用 `tiny_printf`，避免链接完整 `sprintf`；调试日志可使用标准 `printf`（`HAL_DEBUG_UART_ENABLE=1` 时经 PC13 软串口输出）。
+- 调试日志不是业务协议输出；发送到 MQTT/BLE/串口协议层的 JSON 仍必须走 cJSON。
 
 ### 2.6.1 调试软串口（soft_uart / debug_uart）
 
@@ -383,6 +386,13 @@ cmake/*                      ├── version_config.h
 
 **原则**：公共代码不因某一版本特殊需求而分叉；版本差异通过「选哪些驱动编译」和「board_config 内容」表达。
 
+**统一版本宏强制要求**：
+
+- 全局版本输入宏只能使用 `APP_VERSION`，并且必须由工程 `CMakeLists.txt` 以 `CACHE STRING` 定义。
+- C 代码里的功能条件输出只能使用 `VERSION_FEATURE_*`，并统一在 `projects/<NAME>/app/version_config.h` 中由 `APP_VERSION` 派生。
+- 应用层、板级配置和回调代码只判断 `VERSION_FEATURE_*`；除 `version_config.h` 和工程 CMake preamble 外，不得直接用 `APP_VERSION` 写业务分支。
+- 旧项目宏（如 `KQZL3_VERSION` / `RTJK_VERSION` / `KQZL3_HAS_*`）仅可作为兼容别名保留在 `CMakeLists.txt` 或 `version_config.h` 中，新代码不得新增或继续消费项目专属版本/功能宏。
+
 ### 5.2 新建项目步骤
 
 ```bash
@@ -396,10 +406,13 @@ python tools/gen_project.py RTJK_001
 - `board_config.h`（自模板复制）
 - `version_config.h`（`VERSION_NAME`、应用事件定义）
 - `CMakeLists.txt`（需手动编辑 `DRIVER_SRCS`）
-- `RTJK_001_upper_ui/`：Uni-app + Vite + Capacitor 脚手架，默认生成 `src/features/{common,wifi,ble}.js`、`version_features.json`
+- `<NAME>_upper_ui_flutter/`：Flutter 主上位机脚手架，包含 `lib/core/version/`、`lib/app.dart`、`pubspec.yaml`、`version_features.json`，默认覆盖 App/Web 交付
+  - Flutter 侧通过 `String.fromEnvironment('UPPER_VERSION')` / `String.fromEnvironment('UPPER_FEATURES')` 读取编译期常量
+  - 生成后会执行 `flutter pub get`，本地验证至少运行 `flutter analyze` 与 `flutter test`
+- 仅当传入 `--with-mini-program` 时，额外生成 `<NAME>_upper_ui/`：Vue3 + Vite + uni-app + Capacitor 小程序/历史兼容栈
   - `vite.config.js` 会读取 `UPPER_VERSION` / `UPPER_FEATURES` 环境变量并注入常量
-  - 默认 `version_features.json` 示例中 `versions.default` 仅启用 `common` 模块，可按固件版本维护功能差异
-  - `npm install`、`npm run build:h5`、`npm run build:mp-weixin`、`npx cap init`、`npx cap add android` 会在脚手架生成阶段自动执行
+  - 默认 `version_features.json` 示例中 `versions.default` 仅启用 `common` 模块，可按小程序/历史版本维护功能差异
+  - 生成阶段会执行 `npm install`、`npm run build:h5`、`npm run build:mp-weixin`、`npx cap init`、`npx cap add android`
 
 构建：
 
@@ -426,23 +439,25 @@ exports/
 │   ├── RTJK_001_version1/        # 裸嵌入式工程（cmake、app、drivers、bsp、common）
 │   ├── RTJK_001_version2/
 │   └── ...
-│   └── RTJK_001_upper_ui/
-│       ├── android/              # Capacitor Android 工程（所有版本通用）
-│       ├── capacitor.config.json
-│       ├── version_features.json
-│       └── versions/
-│           ├── default/          # 只包含 defaultFeatures + alwaysInclude + dist
-│           ├── version3/
-│           └── ...
+│   └── upper_ui/
+│       ├── RTJK_001_upper_ui_flutter/
+│       │   ├── version_features.json
+│       │   └── versions/
+│       │       ├── version1/      # Flutter 源码 + build_outputs/flutter-apk
+│       │       └── ...
+│       └── RTJK_001_upper_ui/     # 仅项目包含 uni-app 小程序/历史栈时存在
+│           ├── version_features.json
+│           └── versions/
+│               └── version3/      # 小程序源码 + dist/build/mp-weixin
 ```
 
 `export_project.py` 在导出每个版本时，会：
 
-1. 解析 `version_features.json` → 获取 `features` → 计算需要复制的上位机源码路径（支持 glob / `!` 排除）。
-2. 以 `UPPER_VERSION` 与 `UPPER_FEATURES` 环境变量运行 `npm run build:h5`、`npm run build:mp-weixin`。
-3. 将匹配的源码、`dist/build/h5`、`dist/build/mp-weixin` 拷贝到 `versions/<label>/` 下，保证导出包仅包含该版本所需的上位机代码。
+1. Flutter 主上位机：解析 `<NAME>_upper_ui_flutter/version_features.json` → 获取 `features` → 以 `--dart-define=UPPER_VERSION=<N>` / `--dart-define=UPPER_FEATURES=<list>` 执行 `flutter build apk --debug`，包含 `web` feature 时同时执行 `flutter build web`，再将 Flutter 工程源码与 `build_outputs/` 拷贝到 `versions/<label>/`。
+2. uni-app 小程序/历史栈：解析 `<NAME>_upper_ui/version_features.json` → 获取 `features` → 计算需要复制的源码路径（支持 glob / `!` 排除），仅对包含 `mpWeixin` 的版本运行 `npm run build:mp-weixin` 并导出到 `versions/<label>/`。
+3. 双栈项目使用两套独立版本矩阵；Flutter 只导出 Flutter 矩阵显式覆盖的主上位机版本，uni-app 只导出小程序版本。
 
-如未提供 `version_features.json`，工具会退化为直接复制整个上位机目录。
+如未提供 `version_features.json`，工具会退化为兼容导出策略；新项目应始终提供 Flutter 侧版本矩阵。
 
 导出约定与禁止行为见 **§12**；修改 CMake / 驱动目录结构 / 上位机 feature 定义后应重新导出并编译验证。
 
@@ -460,7 +475,7 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 | 引脚不同 | 各项目独立 `board_config.h` |
 | 业务逻辑不同 | 各项目独立 `app_main.c` / `app_callbacks.c` |
 | 应用事件不同 | 各项目 `version_config.h` 定义 `APP_EVENT_*` |
-| 功能宏文档化 | `version_config.h` 中 `VERSION_FEATURE_*`（建议与 DRIVER_SRCS 保持一致） |
+| 功能宏文档化 | `version_config.h` 中强制输出 `VERSION_FEATURE_*`；应用/板级代码只消费这些功能宏 |
 
 ### 5.4 从 ZNCZ_001 复制出新版本
 
@@ -499,6 +514,8 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 | 使用 `malloc` / `free` | 违背静态分配原则 | 静态数组、编译期确定大小 |
 | 在应用任务中长时间 busy-wait | 阻塞协作调度 | `task_block()` 或 HAL 超时等待 |
 | 跳过 `bsp_init()` 直接用 HAL | SysTick/DWT 未就绪 | 始终最先调用 `bsp_init()` |
+| 用 `sprintf` / `strcat` 手工拼业务 JSON | 字符串未统一转义且易溢出 | 用 cJSON API 构建/解析每个字段 |
+| 在业务代码中直接判断 `APP_VERSION` 或旧项目宏 | 版本规则分散，导出后难验证 | 在 `version_config.h` 输出 `VERSION_FEATURE_*`，业务只判断功能宏 |
 
 ### 7.2 驱动层
 
@@ -528,6 +545,7 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 | 为每个版本复制整个 `common/` 或 `bsp/` | 无法维护 | 只复制 `projects/<VERSION>/` |
 | 在 `drivers/` 里 `#ifdef ZNCZ_001` | 驱动库被污染 | CMake 选择是否编译该文件 |
 | 同一逻辑名注册两个驱动 | devmgr 查询不确定 | 保证 `"name"` 全局唯一 |
+| 新增 `XXX_VERSION` / `XXX_HAS_*` 等项目专属主宏 | 版本入口不统一 | 统一使用 `APP_VERSION` → `VERSION_FEATURE_*` |
 
 ### 7.5 导出工具（export_project.py）
 
@@ -538,7 +556,9 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 | 在 `DRIVER_SRCS` 中手写驱动 `.c` 路径 | 导出无法复用 `driver_catalog.cmake` 版本规则 |
 | 用 `option()` 定义数值型版本号 | CLion 会解析成 BOOL，导出/编译版本错误 |
 | 把 `include(hal_options.cmake)` 写在版本相关 `if()` 之前 | preamble 截断失效，HAL 源与版本不匹配 |
-| 在 `common/` / `drivers/` 里 `#ifdef RTJK_VERSION` | 公共代码被污染；版本差异应只在 catalog + `version_config.h` |
+| 在 `common/` / `drivers/` 里 `#ifdef APP_VERSION` 或项目版本宏 | 公共代码被污染；版本差异应只在 catalog + `version_config.h` |
+| 新增项目专属主版本宏或功能宏（如 `MY_VERSION` / `MY_HAS_WIFI`） | 多项目规则分叉，导出脚本难统一 | `APP_VERSION` 作为唯一输入，`VERSION_FEATURE_*` 作为唯一功能输出 |
+| 用手工字符串拼接业务 JSON 字段 | 字段转义和缓冲区大小不可控 | 统一使用 cJSON 构建/解析 JSON |
 | 修改 `add_executable` 目标名（非 `${PROJECT_NAME}.elf`） | 导出脚本无法解析源组与编译宏 |
 | 源文件使用本机绝对路径 | 导出目录不可移植 |
 
@@ -600,6 +620,7 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 | export_project / driver_catalog / hal_options 变更 | 本指南 §12、§10.1 |
 | 新增 DRIVER_CATALOG_* 条目 | `cmake/driver_catalog.cmake`、本指南 §12 |
 | 新产品规格 | `projects/<NAME>/PRODUCT_SPEC.md`、本指南 §11.4 |
+| 上位机 feature / version_features.json / Flutter dart-define / uni-app vite 常量 | [upper_ui_guide.md](./upper_ui_guide.md) |
 
 ### 10.1 导出回归验证（必做）
 
@@ -636,7 +657,7 @@ python tools/export_project.py --project ZNCZ_001 -o ../exports --clean --extras
 | I2C | 软件 / 硬件二选一（`HAL_I2C_USE_SOFT`） | 软、硬 I2C 均按 **I2C1/I2C2 两路逻辑槽位**；第 3 路需扩展 `i2c_hal_*` 数组与 `board_config` |
 | SPI | **软件**（`HAL_SPI_USE_SOFT`）与 **硬件**（`HAL_SPI_USE_HW`）**互斥**；硬件 SPI 可选 **DMA 全双工 TX/RX**（`HAL_SPI_ENABLE_DMA`） | `bus_id` 上限 `SPI_HAL_BUS_MAX`（**2**，对应 SPI1/SPI2）；RC522 等需 `-DHAL_SPI_USE_HW=ON` |
 | USART | IRQ 收发 + 可选 **DMA TX**（`HAL_USART_ENABLE_DMA`） | **RX 无 DMA**，仍为 IRQ + 环形缓冲；DMA 仅走 `usart_hal_send_buffer` 发送路径 |
-| ADC | 轮询（`HAL_ADC_ENABLE`）+ 可选 **DMA 连续采集**（`HAL_ADC_ENABLE_DMA`） | 是否启用由工程 CMake **preamble** 决定（如 RTJK `VERSION>=8` 开 ADC）；DMA 与 RTJK MSP20 当前用轮询 ADC |
+| ADC | 轮询（`HAL_ADC_ENABLE`）+ 可选 **DMA 连续采集**（`HAL_ADC_ENABLE_DMA`） | 是否启用由工程 CMake **preamble** 决定（如 RTJK `APP_VERSION>=8` 开 ADC）；DMA 与 RTJK MSP20 当前用轮询 ADC |
 | Timer / GPIO | 已完成 | — |
 | Debug UART | `HAL_DEBUG_UART_ENABLE` + PC13 软串口 TX | 与 LED 等同脚时 LED 驱动自动禁用；高日志量影响实时性 |
 
@@ -657,7 +678,7 @@ python tools/export_project.py --project ZNCZ_001 -o ../exports --clean --extras
 | 项 | 现状 |
 | --- | --- |
 | `ZNCZ_001` | 智能插座 Demo：手动/定时、5 键、DS1302、ESP8266 MQTT JSON；`sched_loop` 四任务 |
-| `RTJK_001` | 健康监测：`RTJK_VERSION` 1–10，条件编译 + `driver_catalog` 选驱动；默认 V10 |
+| `RTJK_001` | 健康监测：`APP_VERSION` 1–10，`VERSION_FEATURE_*` 条件编译 + `driver_catalog` 选驱动；默认 V10 |
 | `driver_all_test` | 全量驱动链接冒烟（约 26 条 `.driver_list`） |
 | `export_project.py` | 多版本导出独立工程；约定见 **§12**；改 CMake/catalog 后须 **§10.1** 回归 |
 | `gen_project.py` | 仅生成最小 `app_main` / `board_config` 骨架，**不含** `app_logic`、`comm_port`、MQTT 模板 |
@@ -683,13 +704,15 @@ python tools/export_project.py --project ZNCZ_001 -o ../exports --clean --extras
 | --- | --- | --- |
 | 源文件组 | 工程 `CMakeLists.txt` 中 `set(APP_SRCS …)` 等 + `add_executable` | 路径含 `${TEMPLATE_ROOT}/` 或 `app/` |
 | HAL 源与开关 | `cmake/hal_options.cmake` + preamble | 通过 `tools/cmake/resolve_export.cmake` 脚本模式解析 |
-| HAL 前条件 | `include(hal_options)` **之前**的 CMake 片段 | 如 `RTJK_VERSION>=8` 时 `set(HAL_ADC_ENABLE ON …)` |
+| HAL 前条件 | `include(hal_options)` **之前**的 CMake 片段 | 如 `APP_VERSION>=8` 时 `set(HAL_ADC_ENABLE ON …)` |
 | 驱动列表 | `cmake/driver_catalog.cmake` 中 `DRIVER_CATALOG_<NAME>` | 由 `set(DRIVER_SRCS ${DRIVER_CATALOG_*})` 引用 |
-| 编译宏 | `target_compile_definitions` 静态项 + HAL 宏 + 版本变量 | `${XXX_VERSION}=${XXX_VERSION}` 由导出脚本注入 |
+| 编译宏 | `target_compile_definitions` 静态项 + HAL 宏 + 版本变量 | `APP_VERSION=<N>` 由导出脚本注入；旧项目宏仅兼容 |
 | 工具链 | `STM32_TOOLCHAIN_BIN` | CLI `--toolchain-bin` / 环境变量 `STM32_TOOLCHAIN_BIN` 可覆盖 |
-| 上位机特性 | `projects/<NAME>/<NAME>_upper_ui/version_features.json` | `defaultFeatures` + `versions.<N>.features` + `featureGlobs` + `alwaysInclude` 决定导出哪些上位机源码 |
+| 上位机特性 | Flutter 主栈读取 `projects/<NAME>/<NAME>_upper_ui_flutter/version_features.json`；uni-app 小程序/历史栈读取 `projects/<NAME>/<NAME>_upper_ui/version_features.json` | `defaultFeatures` + `versions.<N>.features` 决定 `UPPER_FEATURES`；uni-app 的 `featureGlobs` + `alwaysInclude` 决定导出哪些源码 |
 
 **原则**：版本差异与选源逻辑写在 **CMake + driver_catalog + version_config.h**，不要写进 `export_project.py`。
+
+**导出源码裁剪**：默认导出会根据当前 `APP_VERSION`、`VERSION_FEATURE_*` 与 `HAL_*`，保守移除一手源码中已确定未启用的条件编译分支。无法安全求值的条件块（如 `BOARD_*`、include guard、第三方库平台宏）会原样保留。调试或对比原始条件块时可传 `--no-prune-conditionals` 关闭裁剪。裁剪结果会写入 `export_manifest.txt` 的 `[prune_macros]`、`[prune_stats]`、`[prune_warnings]`。
 
 ### 12.2 CMake 编写规则（必须遵守）
 
@@ -708,9 +731,9 @@ project(MY_PROJECT C ASM)
 set(TEMPLATE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 
 # ① 版本号、option、与版本相关的 HAL 开关（必须在 hal_options 之前）
-set(MY_PROJECT_VERSION 1 CACHE STRING "firmware version 1-5")
-if(MY_PROJECT_VERSION LESS 1 OR MY_PROJECT_VERSION GREATER 5)
-    message(FATAL_ERROR "MY_PROJECT_VERSION must be 1-5, got '${MY_PROJECT_VERSION}'")
+set(APP_VERSION 1 CACHE STRING "Application version (1-5)")
+if(APP_VERSION LESS 1 OR APP_VERSION GREATER 5)
+    message(FATAL_ERROR "APP_VERSION must be 1-5, got '${APP_VERSION}'")
 endif()
 
 # ② 固定写法，路径勿改——export 靠此截取 preamble
@@ -763,7 +786,7 @@ target_include_directories(${PROJECT_NAME}.elf PRIVATE
 target_compile_definitions(${PROJECT_NAME}.elf PRIVATE
     STM32F10X_MD
     USE_STDPERIPH_DRIVER
-    MY_PROJECT_VERSION=${MY_PROJECT_VERSION}
+    APP_VERSION=${APP_VERSION}
 )
 
 hal_apply_compile_definitions(${PROJECT_NAME}.elf)
@@ -783,12 +806,12 @@ hal_apply_compile_definitions(${PROJECT_NAME}.elf)
 
 | 规则 | 说明 |
 | --- | --- |
-| 版本变量命名 | `set(<前缀>VERSION N CACHE STRING "...")`，前缀大写，以 `VERSION` 结尾 |
-| 版本类型 | **禁止** `option(MY_VERSION …)`；必须用 `CACHE STRING` |
-| 版本范围 | `message(FATAL_ERROR "... must be 1-10")` 供导出脚本解析批量范围 |
-| 版本→驱动 | 在 `driver_catalog.cmake` 的 `DRIVER_CATALOG_<NAME>` 内用 `if(<PREFIX>VERSION …)` |
+| 版本变量命名 | `set(APP_VERSION N CACHE STRING "Application version (...)")`；`APP_VERSION` 是唯一全局版本输入宏，旧 `<前缀>VERSION` 只作为兼容别名 |
+| 版本类型 | **禁止** `option(APP_VERSION …)`；必须用 `CACHE STRING` |
+| 版本范围 | `message(FATAL_ERROR "APP_VERSION must be 1-10")` 供导出脚本解析批量范围 |
+| 版本→驱动 | 在 `driver_catalog.cmake` 的 `DRIVER_CATALOG_<NAME>` 内用归一化后的 APP 版本局部变量 |
 | 版本→HAL | 在 **include(hal_options) 之前** 的 preamble 中 `set(HAL_* … FORCE)` |
-| 版本→C 宏 | `version_config.h` / `board_config.h` 顶部 `#ifndef XXX_VERSION`；导出时会改写数值 |
+| 版本→C 宏 | `version_config.h` 根据 `APP_VERSION` 输出 `VERSION_FEATURE_*`；`VERSION_FEATURE_*` 是唯一功能条件编译宏；导出时会改写 `APP_VERSION` 默认值 |
 
 #### 12.2.4 hal_options.cmake 扩展
 
@@ -814,7 +837,7 @@ set(DRIVER_CATALOG_MY_PROJECT
     ...
 )
 
-if(MY_PROJECT_VERSION GREATER_EQUAL 3)
+if(DRIVER_CATALOG_MY_PROJECT_VERSION GREATER_EQUAL 3)
     list(APPEND DRIVER_CATALOG_MY_PROJECT ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c)
 endif()
 ```
@@ -829,9 +852,10 @@ endif()
 | --- | --- |
 | 目录 | 应用代码仅放在 `projects/<NAME>/app/`；可被 `app/` 前缀解析 |
 | 板级配置 | 每工程独立 `board_config.h`；引脚/外设实例不写死在 `drivers/` |
-| 版本功能宏 | 在 `version_config.h` 用 `#if MY_PROJECT_VERSION >= N`；与 `driver_catalog` 条件保持一致 |
+| 版本功能宏 | 在 `version_config.h` 用 `#if APP_VERSION >= N` 生成 `VERSION_FEATURE_*`；应用层/板级代码只判断 `VERSION_FEATURE_*`，不直接判断版本号 |
 | 头文件依赖 | 新增驱动所需 `.h` 应位于 `target_include_directories` 已列目录下，或驱动同目录 `.h`（导出会随驱动复制） |
 | 条件编译 | 版本差异优先 `#if` + catalog 选源；**禁止**在 `common/`、`bsp/hal_wrapper/`、`drivers/` 源文件中 `#ifdef ZNCZ_001` / `#ifdef RTJK_001` |
+| JSON 协议 | 业务 JSON 字段必须通过 cJSON API 构建/解析，禁止 `sprintf`/字符串拼接生成 JSON |
 | 未链接驱动 | 应用层 `devmgr_get_*()` 必须判空；catalog 未编入的驱动不应被强依赖 |
 | 上位机特性资源 | `version_features.json` 的 glob 路径应保持可导出：所有条目都以相对路径（相对上位机根目录）书写，并可匹配到真实文件；排除规则使用 `!glob` 表示 |
 
@@ -867,19 +891,27 @@ endif()
 | 严禁 | 后果 |
 | --- | --- |
 | 在 `common/`、`drivers/` 写 `#ifdef <工程名>` | 导出版仍编译进错误分支 |
-| 应用源放在 `projects/<NAME>/` 根目录而非 `app/` | 路径解析/版本补丁失效 |
+| 在业务代码中直接判断 `APP_VERSION` 或旧项目版本宏 | 版本条件分散，功能裁剪不可审计 |
+| 新增 `XXX_VERSION` / `XXX_HAS_*` 作为主宏 | 破坏统一版本模型 |
+| 用 `sprintf` / `strcat` / 字符串模板拼业务 JSON | JSON 转义和缓冲区安全不可控 |
+| 应用源放在 `projects/<NAME>/` 根目录非 `app/` | 路径解析/版本补丁失效 |
 | 依赖未列入 CMake 的生成代码或外部树 | 导出目录缺文件 |
 | 仅存在于 `projects/` 的头文件却未加入 `target_include_directories` | 导出版编译找不到头文件 |
 
 ### 12.5 新建工程 Checklist
 
-1. `python tools/gen_project.py <NAME>` 或复制已有 `projects/*`。
+1. `python tools/gen_project.py <NAME>` 默认生成 Flutter 主上位机；如需微信小程序，再使用 `python tools/gen_project.py <NAME> --with-mini-program` 生成双栈。
 2. `cmake/driver_catalog.cmake` 增加 `DRIVER_CATALOG_<NAME>`（含版本条件）。
 3. `CMakeLists.txt`：`project(<NAME>)`、`DRIVER_SRCS`、`include(hal_options)` 顺序符合 §12.2。
-4. `app/version_config.h`、`app/board_config.h` 就绪。
-5. 模板内编译：`cmake -S projects/<NAME> -B build … && cmake --build build`。
-6. 导出：`python tools/export_project.py --project <NAME> … --extras readme.txt`。
-7. 对 `exports/<NAME>*/` 逐个配置并编译（§10.1）。
+4. `app/version_config.h`、`app/board_config.h` 就绪；版本输入统一为 `APP_VERSION`，功能输出统一为 `VERSION_FEATURE_*`。
+5. 如涉及 MQTT/BLE/串口 JSON 协议，确认字段构建/解析全部使用 cJSON API。
+6. Flutter 上位机：维护 `<NAME>_upper_ui_flutter/version_features.json`，执行 `flutter analyze` / `flutter test`，确认 Debug 才显示通信日志、Release/Profile 不显示也不采集原始 TX/RX 日志。
+7. 上位机通信必须使用真实 MQTT/BLE/平台通道；禁止 mock transport、模拟上报、本地随机遥测、缺少 Broker/remote 时自动回退模拟数据。
+8. 上位机页面需做窄屏/高字体缩放检查：卡片头、按钮行、表单行、长 URL/topic/JSON 必须换行且无像素溢出。
+9. 如含微信小程序：维护 `<NAME>_upper_ui/version_features.json` 与 `src/features/`，并验证 `npm run build:mp-weixin`。
+10. 模板内编译：`cmake -S projects/<NAME> -B build … && cmake --build build`。
+11. 导出：`python tools/export_project.py --project <NAME> … --extras readme.txt`。
+12. 对 `exports/<NAME>*/` 逐个配置并编译（§10.1）。
 
 ### 12.6 常用导出命令
 
@@ -904,4 +936,4 @@ python tools/export_project.py --project ZNCZ_001 --no-extras
 
 ---
 
-*最后更新：与 RTJK_001 多版本导出、sched_loop、硬件 SPI/DMA HAL、§11 限制清单同步。*
+*最后更新：补充 cJSON 构建 JSON 字段强制要求、统一 `APP_VERSION` → `VERSION_FEATURE_*` 条件编译宏规范。*

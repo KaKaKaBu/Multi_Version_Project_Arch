@@ -25,6 +25,9 @@ void app_mqtt_rx_callback(const char *topic,
 #endif
 
 #if VERSION_FEATURE_WIFI
+/*
+ * ESP8266 MQTT 连接参数：固件在 app_comm_setup() 中直接使用，避免在业务逻辑里散落硬编码。
+ */
 static const esp8266_mqtt_config_t app_mqtt_cfg = {
     BOARD_ESP8266_WIFI_SSID,
     BOARD_ESP8266_WIFI_PASS,
@@ -38,12 +41,17 @@ static const esp8266_mqtt_config_t app_mqtt_cfg = {
 };
 #endif
 
+/* app_logic_run：把 scheduler 传入的事件集中转交给 app_logic_loop，保持任务函数最精简。 */
 static void app_logic_run(sched_event_t events, void *ctx)
 {
     (void)ctx;
     app_logic_loop(events);
 }
 
+/*
+ * comm_loop_run：串口/网络通信线程，既负责处理 ESP8266 MQTT 轮询，也负责耗尽 comm_port 环形缓冲。
+ * 在 WIFI/BLE 功能关闭的版本中不会被注册。
+ */
 static void comm_loop_run(sched_event_t events, void *ctx)
 {
     unsigned char rx;
@@ -64,6 +72,10 @@ static void comm_loop_run(sched_event_t events, void *ctx)
     }
 }
 
+/*
+ * key_loop_run：对键值做 50ms 去抖，生成稳定键并触发 APP_EVENT_KEY。
+ * last_stable_key / pending_key 通过 static 变量跨函数调用保存状态。
+ */
 static void key_loop_run(sched_event_t events, void *ctx)
 {
     const input_driver_t *keys = devmgr_get_input("key");
@@ -101,6 +113,7 @@ static void key_loop_run(sched_event_t events, void *ctx)
     }
 }
 
+/* 传感器轮询：周期唤醒 app_logic，让传感器在单一位置采样，避免在多个任务中重复读取。 */
 static void sensor_loop_run(sched_event_t events, void *ctx)
 {
     (void)events;
@@ -146,6 +159,7 @@ static sched_loop_t key_loop = SCHED_LOOP_DEF(
     0U
 );
 
+/* 根据版本功能绑定默认通信设备，并在需要时注册 MQTT/BLE 回调。 */
 static void app_comm_setup(void)
 {
 #if VERSION_FEATURE_WIFI
@@ -172,6 +186,7 @@ static void app_comm_setup(void)
 
 void app_main(void)
 {
+    /* 固定启动顺序：BSP → 调度 → IRQ → 驱动 → 应用任务注册。 */
     bsp_init();
     sched_init();
     sched_loop_init();
@@ -188,6 +203,7 @@ void app_main(void)
 
     app_logic_init();
 
+    /* 任务注册的优先级由 SCHED_LOOP_DEF 中的 level 字段决定，高优先级逻辑任务先执行。 */
     (void)sched_loop_register(&logic_loop);
 #if VERSION_FEATURE_WIFI || VERSION_FEATURE_BLE
     (void)sched_loop_register(&comm_loop);

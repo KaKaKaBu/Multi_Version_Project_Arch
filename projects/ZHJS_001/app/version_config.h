@@ -3,6 +3,10 @@
 
 #include "scheduler.h"
 
+#ifndef APP_VERSION
+#define APP_VERSION 1
+#endif
+
 #define VERSION_NAME "ZHJS_001"
 
 #define VERSION_FEATURE_OLED_DISPLAY 1

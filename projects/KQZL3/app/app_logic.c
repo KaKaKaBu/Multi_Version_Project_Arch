@@ -8,57 +8,34 @@
 #include "input_if.h"
 #include "comm_if.h"
 #include "board_config.h"
-#include "tiny_printf.h"
+
+#if VERSION_FEATURE_WIFI || VERSION_FEATURE_BLE
+#include "comm_port.h"
+#endif
+#if VERSION_FEATURE_WIFI
+#include "esp8266_mqtt.h"
+#endif
 
 #include <string.h>
-
-/* Version feature flags based on KQZL3_VERSION */
-#if KQZL3_VERSION >= 2
-#define KQZL3_HAS_DHT11     1
-#else
-#define KQZL3_HAS_DHT11     0
-#endif
-
-#if KQZL3_VERSION >= 5
-#define KQZL3_HAS_MQ2       1
-#else
-#define KQZL3_HAS_MQ2       0
-#endif
-
-#if KQZL3_VERSION >= 11
-#define KQZL3_HAS_MQ7       1
-#else
-#define KQZL3_HAS_MQ7       0
-#endif
-
-#if (KQZL3_VERSION == 3) || (KQZL3_VERSION == 6) || (KQZL3_VERSION == 8) || \
-    (KQZL3_VERSION == 9) || (KQZL3_VERSION == 10) || (KQZL3_VERSION == 12) || (KQZL3_VERSION == 14)
-#define KQZL3_HAS_WIFI      1
-#else
-#define KQZL3_HAS_WIFI      0
-#endif
-
-#if (KQZL3_VERSION == 4) || (KQZL3_VERSION == 7) || (KQZL3_VERSION == 13)
-#define KQZL3_HAS_BLE       1
-#else
-#define KQZL3_HAS_BLE       0
-#endif
 
 /* Global context */
 app_context_t g_app;
 
 /* Driver instances */
 static const gas_sensor_t *pm25_sensor = NULL;
+#if VERSION_FEATURE_MQ2
 static const gas_sensor_t *mq2_sensor = NULL;
+#endif
+#if VERSION_FEATURE_MQ7
 static const gas_sensor_t *mq7_sensor = NULL;
+#endif
+#if VERSION_FEATURE_DHT11
 static const temp_hum_sensor_t *dht11_sensor = NULL;
+#endif
 static const relay_driver_t *relay_drv = NULL;
 static const misc_driver_t *buzzer_drv = NULL;
 static const misc_driver_t *led_drv = NULL;
 static const display_driver_t *display = NULL;
-
-/* Display line buffer */
-static char line_buf[4][17];  /* 4 lines x 16 chars + null */
 
 /* Default threshold values */
 #define DEFAULT_PM25_THRESHOLD      100
@@ -99,21 +76,21 @@ void app_logic_init(void)
         pm25_sensor->init();
     }
 
-#if KQZL3_HAS_DHT11
+#if VERSION_FEATURE_DHT11
     dht11_sensor = devmgr_get_temp_hum_sensor("dht11");
     if (dht11_sensor) {
         dht11_sensor->init();
     }
 #endif
 
-#if KQZL3_HAS_MQ2
+#if VERSION_FEATURE_MQ2
     mq2_sensor = devmgr_get_gas_sensor("mq2_smoke");
     if (mq2_sensor) {
         mq2_sensor->init();
     }
 #endif
 
-#if KQZL3_HAS_MQ7
+#if VERSION_FEATURE_MQ7
     mq7_sensor = devmgr_get_gas_sensor("mq7_co");
     if (mq7_sensor) {
         mq7_sensor->init();
@@ -160,7 +137,7 @@ void sensor_loop_run(sched_event_t events, void *ctx)
         updated = 1;
     }
 
-#if KQZL3_HAS_DHT11
+#if VERSION_FEATURE_DHT11
     /* Read temperature and humidity */
     if (dht11_sensor) {
         float temp = dht11_sensor->read_temperature();
@@ -171,7 +148,7 @@ void sensor_loop_run(sched_event_t events, void *ctx)
     }
 #endif
 
-#if KQZL3_HAS_MQ2
+#if VERSION_FEATURE_MQ2
     /* Read smoke */
     if (mq2_sensor) {
         g_app.smoke_ppm = mq2_sensor->read_ppm();
@@ -179,7 +156,7 @@ void sensor_loop_run(sched_event_t events, void *ctx)
     }
 #endif
 
-#if KQZL3_HAS_MQ7
+#if VERSION_FEATURE_MQ7
     /* Read CO */
     if (mq7_sensor) {
         g_app.co_ppm = mq7_sensor->read_ppm();
@@ -189,6 +166,9 @@ void sensor_loop_run(sched_event_t events, void *ctx)
 
     if (updated) {
         g_app.sensor_updated = 1;
+#if VERSION_FEATURE_WIFI || VERSION_FEATURE_BLE
+        app_logic_request_telemetry();
+#endif
     }
 }
 
@@ -212,7 +192,7 @@ void alarm_loop_run(sched_event_t events, void *ctx)
         alarm = 1;
     }
 
-#if KQZL3_HAS_DHT11
+#if VERSION_FEATURE_DHT11
     /* Check temperature threshold */
     if (g_app.temperature > g_app.temp_threshold) {
         alarm = 1;
@@ -224,14 +204,14 @@ void alarm_loop_run(sched_event_t events, void *ctx)
     }
 #endif
 
-#if KQZL3_HAS_MQ2
+#if VERSION_FEATURE_MQ2
     /* Check smoke threshold */
     if (g_app.smoke_ppm > g_app.smoke_threshold) {
         alarm = 1;
     }
 #endif
 
-#if KQZL3_HAS_MQ7
+#if VERSION_FEATURE_MQ7
     /* Check CO threshold */
     if (g_app.co_ppm > g_app.co_threshold) {
         alarm = 1;
@@ -280,32 +260,25 @@ void alarm_loop_run(sched_event_t events, void *ctx)
 
 static void format_auto_screen(void)
 {
-    /* Line 1: Mode and PM2.5 */
-    tiny_snprintf(line_buf[0], 17, "Mode:AUTO PM2.5:%d", g_app.pm25_ppm);
+    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "AUTO PM2.5:%d", g_app.pm25_ppm);
 
-#if KQZL3_HAS_DHT11
-    /* Line 2: Temperature and Humidity */
-    tiny_snprintf(line_buf[1], 17, "T:%dC H:%d%%", 
-                  g_app.temperature, g_app.humidity);
+#if VERSION_FEATURE_DHT11
+    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, "T:%dC H:%d%%", g_app.temperature, g_app.humidity);
 #else
-    tiny_snprintf(line_buf[1], 17, "PM2.5 Monitor");
+    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, "PM2.5 Monitor");
 #endif
 
-#if KQZL3_HAS_MQ2 && KQZL3_HAS_MQ7
-    /* Line 3: Smoke and CO */
-    tiny_snprintf(line_buf[2], 17, "SM:%d CO:%d", 
-                  g_app.smoke_ppm, g_app.co_ppm);
-#elif KQZL3_HAS_MQ2
-    tiny_snprintf(line_buf[2], 17, "Smoke:%d ppm", g_app.smoke_ppm);
-#elif KQZL3_HAS_MQ7
-    tiny_snprintf(line_buf[2], 17, "CO:%d ppm", g_app.co_ppm);
+#if VERSION_FEATURE_MQ2 && VERSION_FEATURE_MQ7
+    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "SM:%d CO:%d", g_app.smoke_ppm, g_app.co_ppm);
+#elif VERSION_FEATURE_MQ2
+    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "Smoke:%d ppm", g_app.smoke_ppm);
+#elif VERSION_FEATURE_MQ7
+    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "CO:%d ppm", g_app.co_ppm);
 #else
-    tiny_snprintf(line_buf[2], 17, "Status:%s", 
-                  g_app.alarm_active ? "ALARM" : "OK");
+    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "Status:%s", g_app.alarm_active ? "ALARM" : "OK");
 #endif
 
-    /* Line 4: Device states */
-    tiny_snprintf(line_buf[3], 17, "F:%s B:%s L:%s",
+    DISPLAY_PRINT(display, 0U, 3U, DISPLAY_FONT_SMALL, "F:%s B:%s L:%s",
                   g_app.fan_on ? "ON" : "off",
                   g_app.buzzer_on ? "ON" : "off",
                   g_app.light_on ? "ON" : "off");
@@ -314,55 +287,40 @@ static void format_auto_screen(void)
 static void format_manual_screen(void)
 {
     const char *device_names[] = {"Fan", "Buzzer", "Light"};
-
-    /* Line 1: Mode and selected device */
-    tiny_snprintf(line_buf[0], 17, "Mode:MANUAL");
-    
-    /* Line 2: Selected device indicator */
-    tiny_snprintf(line_buf[1], 17, ">%s", device_names[g_app.manual_selected_device]);
-    
-    /* Line 3: Current device state */
     uint8_t state = 0;
+
     switch (g_app.manual_selected_device) {
         case DEVICE_FAN: state = g_app.fan_on; break;
         case DEVICE_BUZZER: state = g_app.buzzer_on; break;
         case DEVICE_LIGHT: state = g_app.light_on; break;
     }
-    tiny_snprintf(line_buf[2], 17, "State: %s", state ? "ON" : "OFF");
-    
-    /* Line 4: Key hints */
-    tiny_snprintf(line_buf[3], 17, "K2:Sel K3:On K4:Off");
+
+    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Mode:MANUAL");
+    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, ">%s", device_names[g_app.manual_selected_device]);
+    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "State: %s", state ? "ON" : "OFF");
+    DISPLAY_PRINT(display, 0U, 3U, DISPLAY_FONT_SMALL, "K2:Sel K3:On K4:Off");
 }
 
 static void format_threshold_screen(void)
 {
     const char *thresh_names[] = {"PM2.5", "Temp", "Humid", "Smoke", "CO"};
-    
-    /* Determine which thresholds are available */
     uint8_t max_thresh = THRESH_PM25 + 1;
-#if KQZL3_HAS_DHT11
+    uint16_t value = 0;
+
+#if VERSION_FEATURE_DHT11
     max_thresh = THRESH_HUMIDITY + 1;
 #endif
-#if KQZL3_HAS_MQ2
+#if VERSION_FEATURE_MQ2
     max_thresh = THRESH_SMOKE + 1;
 #endif
-#if KQZL3_HAS_MQ7
+#if VERSION_FEATURE_MQ7
     max_thresh = THRESH_CO + 1;
 #endif
 
-    /* Clamp selection to available thresholds */
     if (g_app.thresh_selected_item >= max_thresh) {
         g_app.thresh_selected_item = 0;
     }
 
-    /* Line 1: Mode */
-    tiny_snprintf(line_buf[0], 17, "Mode:THRESHOLD");
-    
-    /* Line 2: Selected threshold */
-    tiny_snprintf(line_buf[1], 17, ">%s", thresh_names[g_app.thresh_selected_item]);
-    
-    /* Line 3: Current threshold value */
-    uint16_t value = 0;
     switch (g_app.thresh_selected_item) {
         case THRESH_PM25: value = g_app.pm25_threshold; break;
         case THRESH_TEMP: value = (uint16_t)g_app.temp_threshold; break;
@@ -370,10 +328,11 @@ static void format_threshold_screen(void)
         case THRESH_SMOKE: value = g_app.smoke_threshold; break;
         case THRESH_CO: value = g_app.co_threshold; break;
     }
-    tiny_snprintf(line_buf[2], 17, "Value: %d", value);
-    
-    /* Line 4: Key hints */
-    tiny_snprintf(line_buf[3], 17, "K2:Sel K3:+ K4:-");
+
+    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Mode:THRESHOLD");
+    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, ">%s", thresh_names[g_app.thresh_selected_item]);
+    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "Value: %d", value);
+    DISPLAY_PRINT(display, 0U, 3U, DISPLAY_FONT_SMALL, "K2:Sel K3:+ K4:-");
 }
 
 void display_loop_run(sched_event_t events, void *ctx)
@@ -389,12 +348,11 @@ void display_loop_run(sched_event_t events, void *ctx)
         return;
     }
 
-    /* Clear flags */
     g_app.display_refresh = 0;
     g_app.mode_changed = 0;
     g_app.sensor_updated = 0;
 
-    /* Format screen based on mode */
+    display->clear();
     switch (g_app.mode) {
         case MODE_AUTO:
             format_auto_screen();
@@ -406,13 +364,7 @@ void display_loop_run(sched_event_t events, void *ctx)
             format_threshold_screen();
             break;
     }
-
-    /* Update display */
-    display->clear();
-    display->print(0, 0, 1, line_buf[0]);
-    display->print(0, 1, 1, line_buf[1]);
-    display->print(0, 2, 1, line_buf[2]);
-    display->print(0, 3, 1, line_buf[3]);
+    display->update();
 }
 
 /* ============================================================================
@@ -453,18 +405,18 @@ void app_logic_on_key2_press(void)
         case MODE_THRESHOLD:
             /* Cycle through available thresholds */
             g_app.thresh_selected_item++;
-#if !KQZL3_HAS_DHT11
+#if !VERSION_FEATURE_DHT11
             if (g_app.thresh_selected_item == THRESH_TEMP || 
                 g_app.thresh_selected_item == THRESH_HUMIDITY) {
                 g_app.thresh_selected_item = THRESH_PM25;
             }
 #endif
-#if !KQZL3_HAS_MQ2
+#if !VERSION_FEATURE_MQ2
             if (g_app.thresh_selected_item == THRESH_SMOKE) {
                 g_app.thresh_selected_item = THRESH_PM25;
             }
 #endif
-#if !KQZL3_HAS_MQ7
+#if !VERSION_FEATURE_MQ7
             if (g_app.thresh_selected_item == THRESH_CO) {
                 g_app.thresh_selected_item = THRESH_PM25;
             }
@@ -587,51 +539,125 @@ void app_logic_on_key4_press(void)
  * Communication Loop (WiFi/BLE versions only)
  * ============================================================================ */
 
-#if KQZL3_HAS_WIFI || KQZL3_HAS_BLE
+#if VERSION_FEATURE_WIFI || VERSION_FEATURE_BLE
 
 #include "cJSON.h"
 #include "cjson_port.h"
 
+#define APP_TELEMETRY_BUFFER_SIZE 384U
+
+static void app_logic_publish_telemetry(void)
+{
+    char telemetry[APP_TELEMETRY_BUFFER_SIZE];
+    app_logic_build_telemetry(telemetry, sizeof(telemetry));
+
+#if VERSION_FEATURE_WIFI
+    if (esp8266_mqtt_is_ready() != 0) {
+        (void)esp8266_mqtt_publish_json(BOARD_ESP8266_MQTT_PUB_TOPIC, telemetry);
+        return;
+    }
+#endif
+
+#if VERSION_FEATURE_BLE
+    (void)comm_port_send((const unsigned char *)telemetry, (unsigned short)strlen(telemetry));
+    (void)comm_port_send((const unsigned char *)"\n", 1U);
+#endif
+}
+
+void app_logic_request_telemetry(void)
+{
+    g_app.telemetry_pending = 1U;
+    event_set(APP_EVENT_COMM_TX);
+}
+
 void comm_loop_run(sched_event_t events, void *ctx)
 {
-    (void)events;
+#if VERSION_FEATURE_BLE
+    unsigned char rx;
+#endif
+
     (void)ctx;
-    /* Poll for incoming MQTT/BLE data */
-    /* This would integrate with esp8266_mqtt_poll or jdy31_ble_poll */
+
+#if VERSION_FEATURE_WIFI
+    if ((events & (APP_EVENT_COMM_RX | APP_EVENT_TICK)) != 0U) {
+        esp8266_mqtt_poll();
+    }
+#endif
+
+#if VERSION_FEATURE_BLE
+    if ((events & APP_EVENT_COMM_RX) != 0U) {
+        while (comm_port_recv(&rx, 1U) > 0) {
+        }
+    }
+#endif
+
+    if (((events & (APP_EVENT_COMM_TX | APP_EVENT_TICK)) != 0U) && (g_app.telemetry_pending != 0U)) {
+        g_app.telemetry_pending = 0U;
+        app_logic_publish_telemetry();
+    }
 }
 
 void app_logic_build_telemetry(char *buf, size_t bufsize)
 {
-    cJSON *root = cJSON_CreateObject();
+    cJSON *root;
+    cJSON *thresholds;
+    char *json_str;
+    const char *mode_str;
+
+    if ((buf == 0) || (bufsize == 0U)) {
+        return;
+    }
+    buf[0] = '\0';
+
+    root = cJSON_CreateObject();
     if (!root) return;
 
+    cJSON_AddStringToObject(root, "version", VERSION_NAME);
+    cJSON_AddNumberToObject(root, "version_no", KQZL3_VERSION);
     cJSON_AddNumberToObject(root, "pm25", g_app.pm25_ppm);
-    
-#if KQZL3_HAS_DHT11
+
+#if VERSION_FEATURE_DHT11
     cJSON_AddNumberToObject(root, "temp", g_app.temperature);
     cJSON_AddNumberToObject(root, "humidity", g_app.humidity);
 #endif
 
-#if KQZL3_HAS_MQ2
+#if VERSION_FEATURE_MQ2
     cJSON_AddNumberToObject(root, "smoke", g_app.smoke_ppm);
 #endif
 
-#if KQZL3_HAS_MQ7
+#if VERSION_FEATURE_MQ7
     cJSON_AddNumberToObject(root, "co", g_app.co_ppm);
 #endif
 
     cJSON_AddNumberToObject(root, "fan", g_app.fan_on);
     cJSON_AddNumberToObject(root, "buzzer", g_app.buzzer_on);
     cJSON_AddNumberToObject(root, "light", g_app.light_on);
-    
-    const char *mode_str = (g_app.mode == MODE_AUTO) ? "auto" : 
-                           (g_app.mode == MODE_MANUAL) ? "manual" : "threshold";
+    cJSON_AddNumberToObject(root, "alarm", g_app.alarm_active);
+
+    mode_str = (g_app.mode == MODE_AUTO) ? "auto" :
+               (g_app.mode == MODE_MANUAL) ? "manual" : "threshold";
     cJSON_AddStringToObject(root, "mode", mode_str);
 
-    char *json_str = cJSON_PrintUnformatted(root);
+    thresholds = cJSON_CreateObject();
+    if (thresholds != 0) {
+        cJSON_AddNumberToObject(thresholds, "pm25", g_app.pm25_threshold);
+#if VERSION_FEATURE_DHT11
+        cJSON_AddNumberToObject(thresholds, "temp", g_app.temp_threshold);
+        cJSON_AddNumberToObject(thresholds, "humidity", g_app.humidity_threshold);
+#endif
+#if VERSION_FEATURE_MQ2
+        cJSON_AddNumberToObject(thresholds, "smoke", g_app.smoke_threshold);
+#endif
+#if VERSION_FEATURE_MQ7
+        cJSON_AddNumberToObject(thresholds, "co", g_app.co_threshold);
+#endif
+        cJSON_AddItemToObject(root, "thresholds", thresholds);
+    }
+
+    json_str = cJSON_PrintUnformatted(root);
     if (json_str) {
-        strncpy(buf, json_str, bufsize - 1);
-        buf[bufsize - 1] = '\0';
+        strncpy(buf, json_str, bufsize - 1U);
+        buf[bufsize - 1U] = '\0';
         cJSON_free(json_str);
     }
 
@@ -640,12 +666,12 @@ void app_logic_build_telemetry(char *buf, size_t bufsize)
 
 void app_logic_on_mqtt_rx(const char *json_data)
 {
-    cJSON *root = cJSON_Parse(json_data);
+    cJSON *root = cjson_parse(json_data, strlen(json_data));
     if (!root) return;
 
     cJSON *cmd_item = cJSON_GetObjectItem(root, "cmd");
     if (!cmd_item || !cJSON_IsString(cmd_item)) {
-        cJSON_Delete(root);
+        cjson_release(root);
         return;
     }
 
@@ -659,15 +685,16 @@ void app_logic_on_mqtt_rx(const char *json_data)
             else if (strcmp(mode, "manual") == 0) g_app.mode = MODE_MANUAL;
             else if (strcmp(mode, "threshold") == 0) g_app.mode = MODE_THRESHOLD;
             g_app.mode_changed = 1;
+            g_app.display_refresh = 1;
         }
     }
     else if (strcmp(cmd, "set_device") == 0) {
         cJSON *dev_item = cJSON_GetObjectItem(root, "device");
         cJSON *state_item = cJSON_GetObjectItem(root, "state");
-        if (dev_item && cJSON_IsString(dev_item) && state_item && cJSON_IsNumber(state_item)) {
+        if (dev_item && cJSON_IsString(dev_item) && state_item && ((state_item->type & cJSON_Number) != 0)) {
             uint8_t state = state_item->valueint ? 1 : 0;
             const char *device = dev_item->valuestring;
-            
+
             if (strcmp(device, "fan") == 0) {
                 g_app.fan_on = state;
                 if (relay_drv) relay_drv->set_state(state);
@@ -686,27 +713,33 @@ void app_logic_on_mqtt_rx(const char *json_data)
     else if (strcmp(cmd, "set_threshold") == 0) {
         cJSON *sensor_item = cJSON_GetObjectItem(root, "sensor");
         cJSON *value_item = cJSON_GetObjectItem(root, "value");
-        if (sensor_item && cJSON_IsString(sensor_item) && value_item && cJSON_IsNumber(value_item)) {
+        if (sensor_item && cJSON_IsString(sensor_item) && value_item && ((value_item->type & cJSON_Number) != 0)) {
             const char *sensor = sensor_item->valuestring;
             int value = value_item->valueint;
-            
-            if (strcmp(sensor, "pm25") == 0) g_app.pm25_threshold = value;
-            else if (strcmp(sensor, "temp") == 0) g_app.temp_threshold = value;
-            else if (strcmp(sensor, "humidity") == 0) g_app.humidity_threshold = value;
-            else if (strcmp(sensor, "smoke") == 0) g_app.smoke_threshold = value;
-            else if (strcmp(sensor, "co") == 0) g_app.co_threshold = value;
+
+            if (strcmp(sensor, "pm25") == 0) g_app.pm25_threshold = (uint16_t)value;
+            else if (strcmp(sensor, "temp") == 0) g_app.temp_threshold = (int8_t)value;
+            else if (strcmp(sensor, "humidity") == 0) g_app.humidity_threshold = (uint8_t)value;
+            else if (strcmp(sensor, "smoke") == 0) g_app.smoke_threshold = (uint16_t)value;
+            else if (strcmp(sensor, "co") == 0) g_app.co_threshold = (uint16_t)value;
             g_app.display_refresh = 1;
         }
     }
     else if (strcmp(cmd, "get_status") == 0) {
-        /* Request to send telemetry - handled by comm_loop */
         g_app.display_refresh = 1;
     }
 
-    cJSON_Delete(root);
+    app_logic_request_telemetry();
+    cjson_release(root);
 }
 
 #else
+
+void comm_loop_run(sched_event_t events, void *ctx)
+{
+    (void)events;
+    (void)ctx;
+}
 
 void app_logic_build_telemetry(char *buf, size_t bufsize)
 {
@@ -719,4 +752,8 @@ void app_logic_on_mqtt_rx(const char *json_data)
     (void)json_data;
 }
 
-#endif /* KQZL3_HAS_WIFI || KQZL3_HAS_BLE */
+void app_logic_request_telemetry(void)
+{
+}
+
+#endif /* VERSION_FEATURE_WIFI || VERSION_FEATURE_BLE */

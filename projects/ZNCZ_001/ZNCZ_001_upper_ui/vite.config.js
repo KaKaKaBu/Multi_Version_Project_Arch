@@ -23,5 +23,6 @@ export default defineConfig({
     __UPPER_VERSION__: JSON.stringify(process.env.UPPER_VERSION || ''),
     __UPPER_FEATURES__: JSON.stringify(ctx.list),
     __UPPER_FEATURE_FLAGS__: JSON.stringify(ctx.flags),
+    __UPPER_UI_DEBUG__: JSON.stringify(process.env.NODE_ENV !== 'production'),
   },
 })

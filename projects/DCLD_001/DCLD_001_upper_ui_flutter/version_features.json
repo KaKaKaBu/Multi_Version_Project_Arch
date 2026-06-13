@@ -1,0 +1,33 @@
+{
+  "_comment": "DCLD_001 Flutter upper UI features by firmware version. The legacy uni-app stack is retained only as historical fallback/reference.",
+  "defaultFeatures": ["common"],
+  "alwaysInclude": [
+    "pubspec.yaml",
+    "analysis_options.yaml",
+    "version_features.json",
+    "lib/**",
+    "android/**",
+    "web/**",
+    "test/**"
+  ],
+  "featureGlobs": {
+    "common": [],
+    "temp": [],
+    "voice": [],
+    "remote": [],
+    "wifi": [],
+    "ble": [],
+    "app": [],
+    "camera": []
+  },
+  "versions": {
+    "default": { "features": ["common"] },
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "temp"] },
+    "3": { "features": ["common", "temp", "voice"] },
+    "4": { "features": ["common", "temp", "remote", "wifi", "app"] },
+    "5": { "features": ["common", "temp", "remote", "ble", "app"] },
+    "6": { "features": ["common", "temp", "voice", "remote", "wifi", "app"] },
+    "7": { "features": ["common", "temp", "voice", "remote", "wifi", "app", "camera"] }
+  }
+}

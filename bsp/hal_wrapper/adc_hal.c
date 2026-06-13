@@ -87,6 +87,10 @@ hal_status_t adc_hal_init(const adc_hal_config_t *cfg)
     adc_hal_runtime.timeout_us = (cfg->timeout_us == 0U) ? ADC_HAL_DEFAULT_TIMEOUT_US : cfg->timeout_us;
     adc_hal_runtime.configured = 0U;
     adc_hal_runtime.channel_count = 0U;
+    for (uint8_t i = 0U; i < ADC_HAL_CHANNEL_TABLE_MAX; ++i) {
+        adc_hal_runtime.channels[i] = 0U;
+        adc_hal_runtime.sample_time_by_channel[i] = ADC_SampleTime_55Cycles5;
+    }
 
     RCC_ADCCLKConfig(RCC_PCLK2_Div6);
     adc_hal_clock_enable(cfg->instance);
@@ -129,12 +133,24 @@ hal_status_t adc_hal_config_channel(const adc_hal_channel_cfg_t *ch_cfg)
 
     if (rank <= ADC_HAL_CHANNEL_TABLE_MAX) {
         adc_hal_runtime.channels[rank - 1U] = ch_cfg->channel;
+        if (ch_cfg->channel < ADC_HAL_CHANNEL_TABLE_MAX) {
+            adc_hal_runtime.sample_time_by_channel[ch_cfg->channel] = adc_hal_sample_time_value(ch_cfg->sample_time);
+        }
         if (rank > adc_hal_runtime.channel_count) {
             adc_hal_runtime.channel_count = rank;
         }
     }
 
     return HAL_OK;
+}
+
+static uint8_t adc_hal_sample_time_for_channel(uint8_t channel)
+{
+    if (channel < ADC_HAL_CHANNEL_TABLE_MAX) {
+        return adc_hal_runtime.sample_time_by_channel[channel];
+    }
+
+    return ADC_SampleTime_55Cycles5;
 }
 
 hal_status_t adc_hal_read(uint8_t channel, uint16_t *value)
@@ -145,7 +161,7 @@ hal_status_t adc_hal_read(uint8_t channel, uint16_t *value)
         return HAL_ERR_PARAM;
     }
 
-    ADC_RegularChannelConfig(adc_hal_runtime.instance, channel, 1U, ADC_SampleTime_55Cycles5);
+    ADC_RegularChannelConfig(adc_hal_runtime.instance, channel, 1U, adc_hal_sample_time_for_channel(channel));
     ADC_SoftwareStartConvCmd(adc_hal_runtime.instance, ENABLE);
 
     status = adc_hal_wait_flag(adc_hal_runtime.instance, ADC_FLAG_EOC, adc_hal_runtime.timeout_us);

@@ -1,0 +1,43 @@
+{
+  "_comment": "DCLD_001 upper UI features by firmware version. Core runtime files stay in alwaysInclude so exported versions remain independently buildable.",
+  "defaultFeatures": ["common"],
+  "alwaysInclude": [
+    "package.json",
+    "package-lock.json",
+    "vite.config.js",
+    "index.html",
+    "capacitor.config.json",
+    "version_features.json",
+    "src/main.js",
+    "src/App.vue",
+    "src/manifest.json",
+    "src/pages.json",
+    "src/uni.scss",
+    "src/static/**",
+    "src/components/**",
+    "src/features/index.js",
+    "src/config/**",
+    "src/services/**",
+    "src/pages/**"
+  ],
+  "featureGlobs": {
+    "common": ["src/features/common.js"],
+    "temp": [],
+    "voice": [],
+    "remote": ["src/features/remote.js"],
+    "wifi": ["src/features/wifi.js"],
+    "ble": ["src/features/ble.js"],
+    "app": ["src/features/app.js"],
+    "camera": ["src/features/camera.js"]
+  },
+  "versions": {
+    "default": { "features": ["common"] },
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "temp"] },
+    "3": { "features": ["common", "temp", "voice"] },
+    "4": { "features": ["common", "temp", "remote", "wifi", "app"] },
+    "5": { "features": ["common", "temp", "remote", "ble", "app"] },
+    "6": { "features": ["common", "temp", "voice", "remote", "wifi", "app"] },
+    "7": { "features": ["common", "temp", "voice", "remote", "wifi", "app", "camera"] }
+  }
+}

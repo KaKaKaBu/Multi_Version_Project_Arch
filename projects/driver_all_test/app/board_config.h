@@ -85,12 +85,19 @@ static const hal_pin_t board_hw_spi1_miso = { GPIOA, GPIO_Pin_6, GPIO_HAL_MODE_I
 static const hal_pin_t board_adc0_pin = { GPIOA, GPIO_Pin_0, GPIO_HAL_MODE_ANALOG };
 static const hal_pin_t board_adc1_pin = { GPIOA, GPIO_Pin_1, GPIO_HAL_MODE_ANALOG };
 static const hal_pin_t board_pm25_adc_pin = { GPIOA, GPIO_Pin_2, GPIO_HAL_MODE_ANALOG };
+static const hal_pin_t board_pm25_led_pin = { GPIOB, GPIO_Pin_9, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_ph_adc_pin = { GPIOA, GPIO_Pin_4, GPIO_HAL_MODE_ANALOG };
 
 #define BOARD_ADC_INSTANCE ADC1
 #define BOARD_ADC0_CHANNEL ADC_Channel_0
 #define BOARD_ADC1_CHANNEL ADC_Channel_1
 #define BOARD_PM25_ADC_CHANNEL ADC_Channel_2
+#define BOARD_PM25_LED_ACTIVE_LEVEL 0U
+#define BOARD_PM25_ADC_VREF_MV 3300.0f
+#define BOARD_PM25_VOUT_SCALE 1.0f
+#define BOARD_PM25_DENSITY_SLOPE_UG_M3_PER_V 170.0f
+#define BOARD_PM25_DENSITY_OFFSET_UG_M3 (-100.0f)
+#define BOARD_PM25_DENSITY_MAX_UG_M3 500.0f
 #define BOARD_PH_ADC_CHANNEL ADC_Channel_4
 #define BOARD_PH_VOLTAGE_COEFF (-5.6342f)
 #define BOARD_PH_VOLTAGE_OFFSET 16.413f

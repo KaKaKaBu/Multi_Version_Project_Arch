@@ -120,7 +120,7 @@
       <button class="primary-btn" :loading="pending" @click="submitTime">发送 set_time 命令</button>
     </view>
 
-    <view class="card log-card">
+    <view v-if="showCommunicationLog" class="card log-card">
       <view class="card-header">
         <text class="card-title"> MQTT 命令日志 </text>
         <button class="ghost-btn" size="mini" @click="copyLogs">复制最近日志</button>
@@ -141,6 +141,8 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { boardMqttConfig, buildClientId } from '@/config/mqtt'
 import { createMqttClient } from '@/services/mqttClient'
 
+const showCommunicationLog = __UPPER_UI_DEBUG__
+
 const status = reactive({
   relay: 0,
   mode: 'manual',
@@ -158,7 +160,6 @@ const connection = reactive({
   password: boardMqttConfig.password,
   commandTopic: boardMqttConfig.commandTopic,
   telemetryTopic: boardMqttConfig.telemetryTopic,
-  mockMode: false,
   useTLS: boardMqttConfig.useTLS,
 })
 
@@ -179,12 +180,9 @@ const lastSync = ref('')
 const mqttStatus = reactive({ state: 'disconnected', lastError: '' })
 let mqttBridge = null
 
-const useMock = computed(() => connection.mockMode || !connection.host)
+const canUseMqtt = computed(() => Boolean(connection.host))
 
-const connectionSummary = computed(() => {
-  if (useMock.value) return '模拟模式 · 本地演练'
-  return `${connection.host}:${connection.port}`
-})
+const connectionSummary = computed(() => canUseMqtt.value ? `${connection.host}:${connection.port}` : '未配置 Broker')
 
 const wifiStateLabel = computed(() => {
   if (!status.wifi) return 'offline'
@@ -210,10 +208,8 @@ const lastSyncDisplay = computed(() => {
 })
 
 onMounted(() => {
-  if (!useMock.value) {
+  if (canUseMqtt.value) {
     connectMqtt()
-  } else {
-    refreshStatus()
   }
 })
 
@@ -221,22 +217,9 @@ onUnmounted(() => {
   disconnectMqtt()
 })
 
-function handleMockSwitch(event) {
-  connection.mockMode = !event.detail.value
-  if (!connection.mockMode && !connection.host) {
-    uni.showToast({ title: '请填写 Broker Host', icon: 'none' })
-    connection.mockMode = true
-  }
-  if (!connection.mockMode) {
-    connectMqtt()
-  } else {
-    disconnectMqtt()
-  }
-}
-
 async function connectMqtt() {
-  if (useMock.value) {
-    uni.showToast({ title: '当前为模拟模式', icon: 'none' })
+  if (!canUseMqtt.value) {
+    uni.showToast({ title: '请填写 Broker Host', icon: 'none' })
     return
   }
   disconnectMqtt()
@@ -285,9 +268,8 @@ async function testConnection() {
 
 async function refreshStatus() {
   statusLoading.value = true
-  if (useMock.value) {
-    pushLog('RX', { ...status })
-    lastSync.value = formatTimestamp(new Date())
+  if (!canUseMqtt.value) {
+    uni.showToast({ title: '请填写 Broker Host', icon: 'none' })
     statusLoading.value = false
     return
   }
@@ -344,11 +326,6 @@ async function sendCommand(cmd, extra = {}) {
   const payload = { cmd, ...extra }
   pushLog('TX', payload)
 
-  if (useMock.value) {
-    await mockRoundTrip(payload)
-    return
-  }
-
   if (!mqttBridge) {
     throw new Error('MQTT 未连接')
   }
@@ -365,33 +342,6 @@ async function sendCommand(cmd, extra = {}) {
   }
 }
 
-async function mockRoundTrip(payload) {
-  await sleep(200)
-  switch (payload.cmd) {
-    case 'relay':
-      status.relay = payload.state ? 1 : 0
-      status.mode = 'manual'
-      break
-    case 'set_on_time':
-      status.on_time = buildTime(payload)
-      scheduleForm.on_time = status.on_time
-      break
-    case 'set_off_time':
-      status.off_time = buildTime(payload)
-      scheduleForm.off_time = status.off_time
-      break
-    case 'set_time':
-      status.time = buildTime(payload)
-      break
-    case 'get_status':
-    default:
-      break
-  }
-  status.wifi = status.relay ? 'connected' : 'offline'
-  lastSync.value = formatTimestamp(new Date())
-  pushLog('RX', { ...status })
-}
-
 function applyStatus(payload) {
   if (!payload) return
   const keys = ['relay', 'mode', 'time', 'on_time', 'off_time', 'wifi']
@@ -406,6 +356,7 @@ function applyStatus(payload) {
 }
 
 function pushLog(direction, payload) {
+  if (!showCommunicationLog) return
   const text = typeof payload === 'string' ? payload : JSON.stringify(payload)
   logs.value.unshift({ id: `${Date.now()}-${Math.random()}`, direction, payload: text })
   if (logs.value.length > 20) {
@@ -464,10 +415,6 @@ function pad(num) {
   return String(num).padStart(2, '0')
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 async function copyToClipboard(text) {
   return new Promise((resolve, reject) => {
     uni.setClipboardData({
@@ -503,6 +450,7 @@ async function copyToClipboard(text) {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 24rpx;
 }
 

@@ -33,13 +33,258 @@ import re
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 TEMPLATE_ROOT_NAME = "project_template"
 DEFAULT_STM32_TOOLCHAIN_BIN = (
     "D:/ProgramFile/ST/STM32CubeCLT_1.20.0/GNU-tools-for-STM32/bin"
 )
+
+@dataclass
+class ProjectExportInfo:
+    project_dir: Path
+    project_name: str
+    version_var: Optional[str]
+    default_version: Optional[int]
+    version_range: Optional[Tuple[int, int]]
+    available_versions: List[int]
+    has_flutter_upper_ui: bool
+    has_uniapp_upper_ui: bool
+
+
+@dataclass
+class PruneStats:
+    folded_blocks: int = 0
+    removed_branches: int = 0
+    unknown_blocks: int = 0
+    warnings: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ExportPruneContext:
+    enabled: bool
+    macros: Dict[str, int]
+    stats: Dict[str, PruneStats] = field(default_factory=dict)
+    warnings: List[str] = field(default_factory=list)
+
+
+class PreprocessorExprParser:
+    def __init__(self, expr: str, macros: Dict[str, int]):
+        self.tokens = self._tokenize(expr)
+        self.macros = macros
+        self.pos = 0
+        self.unknown = False
+
+    @staticmethod
+    def _tokenize(expr: str) -> List[str]:
+        token_re = re.compile(
+            r"defined|0[xX][0-9A-Fa-f]+[uUlL]*|\d+[uUlL]*|[A-Za-z_]\w*|&&|\|\||==|!=|<=|>=|<<|>>|[()!<>+\-*/%&|^~]"
+        )
+        tokens = token_re.findall(expr)
+        consumed = "".join(tokens)
+        compact = re.sub(r"\s+", "", expr)
+        if consumed != compact:
+            return ["__UNKNOWN__"]
+        return tokens
+
+    def parse(self) -> Optional[int]:
+        if not self.tokens:
+            return None
+        value = self._parse_or()
+        if self.unknown or self.pos != len(self.tokens) or value is None:
+            return None
+        return 1 if value else 0
+
+    def _peek(self) -> Optional[str]:
+        if self.pos >= len(self.tokens):
+            return None
+        return self.tokens[self.pos]
+
+    def _take(self, token: Optional[str] = None) -> Optional[str]:
+        current = self._peek()
+        if current is None:
+            return None
+        if token is not None and current != token:
+            return None
+        self.pos += 1
+        return current
+
+    def _parse_or(self) -> Optional[int]:
+        left = self._parse_and()
+        while self._take("||"):
+            right = self._parse_and()
+            if left is not None and left != 0:
+                left = 1
+            elif right is not None and right != 0:
+                left = 1
+            elif left == 0 and right == 0:
+                left = 0
+            else:
+                left = None
+        return left
+
+    def _parse_and(self) -> Optional[int]:
+        left = self._parse_compare()
+        while self._take("&&"):
+            right = self._parse_compare()
+            if left == 0 or right == 0:
+                left = 0
+            elif left is not None and right is not None:
+                left = 1 if (left != 0 and right != 0) else 0
+            else:
+                left = None
+        return left
+
+    def _parse_compare(self) -> Optional[int]:
+        left = self._parse_add()
+        op = self._peek()
+        if op not in {"==", "!=", "<", "<=", ">", ">="}:
+            return left
+        self._take()
+        right = self._parse_add()
+        if left is None or right is None:
+            return None
+        if op == "==":
+            return 1 if left == right else 0
+        if op == "!=":
+            return 1 if left != right else 0
+        if op == "<":
+            return 1 if left < right else 0
+        if op == "<=":
+            return 1 if left <= right else 0
+        if op == ">":
+            return 1 if left > right else 0
+        return 1 if left >= right else 0
+
+    def _parse_add(self) -> Optional[int]:
+        left = self._parse_mul()
+        while self._peek() in {"+", "-", "|", "^"}:
+            op = self._take()
+            right = self._parse_mul()
+            if left is None or right is None:
+                left = None
+            elif op == "+":
+                left += right
+            elif op == "-":
+                left -= right
+            elif op == "|":
+                left |= right
+            else:
+                left ^= right
+        return left
+
+    def _parse_mul(self) -> Optional[int]:
+        left = self._parse_unary()
+        while self._peek() in {"*", "/", "%", "&", "<<", ">>"}:
+            op = self._take()
+            right = self._parse_unary()
+            if left is None or right is None:
+                left = None
+            elif op == "*":
+                left *= right
+            elif op == "/":
+                if right == 0:
+                    self.unknown = True
+                    return None
+                left //= right
+            elif op == "%":
+                if right == 0:
+                    self.unknown = True
+                    return None
+                left %= right
+            elif op == "&":
+                left &= right
+            elif op == "<<":
+                left <<= right
+            else:
+                left >>= right
+        return left
+
+    def _parse_unary(self) -> Optional[int]:
+        token = self._peek()
+        if token == "!":
+            self._take()
+            value = self._parse_unary()
+            if value is None:
+                return None
+            return 0 if value else 1
+        if token == "+":
+            self._take()
+            return self._parse_unary()
+        if token == "-":
+            self._take()
+            value = self._parse_unary()
+            return None if value is None else -value
+        if token == "~":
+            self._take()
+            value = self._parse_unary()
+            return None if value is None else ~value
+        return self._parse_primary()
+
+    def _parse_primary(self) -> Optional[int]:
+        token = self._peek()
+        if token is None:
+            self.unknown = True
+            return None
+        if token == "__UNKNOWN__":
+            self.unknown = True
+            self._take()
+            return None
+        if token == "(":
+            self._take("(")
+            value = self._parse_or()
+            if not self._take(")"):
+                self.unknown = True
+                return None
+            return value
+        if token == "defined":
+            self._take("defined")
+            if self._take("("):
+                name = self._take()
+                if not name or not re.match(r"^[A-Za-z_]\w*$", name) or not self._take(")"):
+                    self.unknown = True
+                    return None
+                return defined_macro_value(name, self.macros)
+            name = self._take()
+            if not name or not re.match(r"^[A-Za-z_]\w*$", name):
+                self.unknown = True
+                return None
+            return defined_macro_value(name, self.macros)
+        self._take()
+        if re.match(r"^0[xX][0-9A-Fa-f]+[uUlL]*$", token):
+            return int(re.sub(r"[uUlL]+$", "", token), 16)
+        if re.match(r"^\d+[uUlL]*$", token):
+            return int(re.sub(r"[uUlL]+$", "", token), 10)
+        if re.match(r"^[A-Za-z_]\w*$", token):
+            if token in self.macros:
+                return self.macros[token]
+            self.unknown = True
+            return None
+        self.unknown = True
+        return None
+
+
+def is_controlled_macro(name: str) -> bool:
+    return (
+        name == "APP_VERSION"
+        or name.endswith("VERSION")
+        or name.startswith("VERSION_FEATURE_")
+        or name.startswith("HAL_")
+    )
+
+
+def defined_macro_value(name: str, macros: Dict[str, int]) -> Optional[int]:
+    if name in macros:
+        return 1
+    if is_controlled_macro(name):
+        return 0
+    return None
+
+
+def eval_pp_expr(expr: str, macros: Dict[str, int]) -> Optional[int]:
+    return PreprocessorExprParser(expr, macros).parse()
 
 
 def find_template_root(start: Path) -> Path:
@@ -113,15 +358,26 @@ def parse_driver_catalog_ref(items: List[str]) -> Optional[str]:
 
 
 def parse_version_var(cmake_text: str) -> Optional[str]:
-    match = re.search(r"set\s*\(\s*(\w+VERSION)\s+\d+\s+CACHE\s+STRING", cmake_text)
+    app_match = re.search(r"set\s*\(\s*APP_VERSION\s+\"?(\d+)\"?\s+CACHE\s+STRING", cmake_text)
+    if app_match:
+        return "APP_VERSION"
+    match = re.search(r"set\s*\(\s*(\w+VERSION)\s+\"?(\d+)\"?\s+CACHE\s+STRING", cmake_text)
     if match:
         return match.group(1)
     return None
 
 
+def parse_legacy_version_var(cmake_text: str) -> Optional[str]:
+    for match in re.finditer(r"set\s*\(\s*(\w+VERSION)\s+[^)]*CACHE\s+STRING", cmake_text):
+        name = match.group(1)
+        if name != "APP_VERSION":
+            return name
+    return None
+
+
 def parse_version_default(cmake_text: str, version_var: str) -> int:
     match = re.search(
-        rf"set\s*\(\s*{re.escape(version_var)}\s+(\d+)\s+CACHE\s+STRING",
+        rf"set\s*\(\s*{re.escape(version_var)}\s+\"?(\d+)\"?\s+CACHE\s+STRING",
         cmake_text,
     )
     if match:
@@ -283,6 +539,10 @@ def run_cmake_export_resolve(
         args.append(f"-DPROJECT_HAL_PREAMBLE={preamble_file.resolve().as_posix()}")
     if version_var and version > 0:
         args.append(f"-D{version_var}={version}")
+        if version_var == "APP_VERSION":
+            legacy_version_var = parse_legacy_version_var(preamble_text)
+            if legacy_version_var:
+                args.append(f"-D{legacy_version_var}={version}")
     args.extend(["-P", str(script.resolve())])
 
     try:
@@ -459,9 +719,314 @@ def driver_local_headers(driver_sources: Iterable[Path]) -> Set[Path]:
     return headers
 
 
+def normalize_pp_expr(expr: str) -> str:
+    return re.sub(r"\\\s*\n", " ", expr).strip()
+
+
+def parse_pp_directive(line: str) -> Tuple[Optional[str], str]:
+    normalized = re.sub(r"\\\s*\n\s*", " ", line)
+    match = re.match(r"^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)$", normalized)
+    if not match:
+        return None, ""
+    return match.group(1), match.group(2).strip()
+
+
+def is_header_guard_name(name: str) -> bool:
+    return bool(re.match(r"^[A-Z][A-Z0-9_]*_H_?$", name))
+
+
+def directive_condition(kind: str, arg: str, macros: Dict[str, int]) -> Optional[int]:
+    if kind in {"ifdef", "ifndef"}:
+        parts = arg.split()
+        if not parts:
+            return None
+        if kind == "ifndef" and is_header_guard_name(parts[0]):
+            return None
+        value = defined_macro_value(parts[0], macros)
+        if value is None:
+            return None
+        return value if kind == "ifdef" else 0 if value else 1
+    return eval_pp_expr(normalize_pp_expr(arg), macros)
+
+
+def collect_logical_line(lines: List[str], index: int) -> Tuple[str, int]:
+    parts = [lines[index]]
+    end = index
+    while parts[-1].rstrip().endswith("\\") and end + 1 < len(lines):
+        end += 1
+        parts.append(lines[end])
+    return "".join(parts), end + 1
+
+
+def find_conditional_end(lines: List[str], start: int, stop: int) -> int:
+    depth = 0
+    index = start
+    while index < stop:
+        logical, next_index = collect_logical_line(lines, index)
+        kind, _ = parse_pp_directive(logical)
+        if kind in {"if", "ifdef", "ifndef"}:
+            depth += 1
+        elif kind == "endif":
+            depth -= 1
+            if depth == 0:
+                return next_index
+        index = next_index
+    return stop
+
+
+def parse_conditional_chain(lines: List[str], start: int, stop: int) -> Tuple[List[Tuple[str, str, int, int]], int, bool]:
+    first_logical, index = collect_logical_line(lines, start)
+    first_kind, first_arg = parse_pp_directive(first_logical)
+    if first_kind not in {"if", "ifdef", "ifndef"}:
+        return [], start + 1, False
+
+    branches: List[Tuple[str, str, int, int]] = []
+    current_kind = first_kind
+    current_arg = first_arg
+    body_start = index
+    depth = 0
+
+    while index < stop:
+        logical, next_index = collect_logical_line(lines, index)
+        kind, arg = parse_pp_directive(logical)
+        if kind in {"if", "ifdef", "ifndef"}:
+            depth += 1
+        elif kind == "endif":
+            if depth == 0:
+                branches.append((current_kind, current_arg, body_start, index))
+                return branches, next_index, True
+            depth -= 1
+        elif kind in {"elif", "else"} and depth == 0:
+            branches.append((current_kind, current_arg, body_start, index))
+            current_kind = kind
+            current_arg = arg
+            body_start = next_index
+        index = next_index
+
+    return branches, stop, False
+
+
+def prune_lines(lines: List[str], start: int, stop: int, macros: Dict[str, int], stats: PruneStats) -> List[str]:
+    output: List[str] = []
+    index = start
+    while index < stop:
+        logical, next_index = collect_logical_line(lines, index)
+        kind, _ = parse_pp_directive(logical)
+        if kind in {"if", "ifdef", "ifndef"}:
+            branches, after, complete = parse_conditional_chain(lines, index, stop)
+            if not complete:
+                output.extend(lines[index:next_index])
+                index = next_index
+                continue
+            pruned = prune_conditional_chain(lines, branches, macros, stats, index, after)
+            output.extend(pruned)
+            index = after
+            continue
+        output.extend(lines[index:next_index])
+        index = next_index
+    return output
+
+
+def preserve_unknown_conditional_chain(
+    lines: List[str],
+    branches: List[Tuple[str, str, int, int]],
+    macros: Dict[str, int],
+    stats: PruneStats,
+    chain_start: int,
+    chain_end: int,
+) -> List[str]:
+    output: List[str] = []
+    cursor = chain_start
+    for _, _, body_start, body_end in branches:
+        output.extend(lines[cursor:body_start])
+        output.extend(prune_lines(lines, body_start, body_end, macros, stats))
+        cursor = body_end
+    output.extend(lines[cursor:chain_end])
+    return output
+
+
+def prune_conditional_chain(
+    lines: List[str],
+    branches: List[Tuple[str, str, int, int]],
+    macros: Dict[str, int],
+    stats: PruneStats,
+    chain_start: int,
+    chain_end: int,
+) -> List[str]:
+    selected: Optional[Tuple[int, int]] = None
+    unknown = False
+    false_branches = 0
+
+    for kind, arg, body_start, body_end in branches:
+        if kind == "else":
+            if unknown:
+                break
+            selected = (body_start, body_end)
+            break
+        cond = directive_condition(kind, arg, macros)
+        if cond is None:
+            unknown = True
+            break
+        if cond != 0:
+            selected = (body_start, body_end)
+            break
+        false_branches += 1
+
+    if unknown:
+        stats.unknown_blocks += 1
+        return preserve_unknown_conditional_chain(lines, branches, macros, stats, chain_start, chain_end)
+
+    stats.folded_blocks += 1
+    stats.removed_branches += max(0, len(branches) - (1 if selected else 0))
+    if selected is None:
+        return []
+    body_start, body_end = selected
+    return prune_lines(lines, body_start, body_end, macros, stats)
+
+
+def prune_inactive_conditionals(text: str, ctx: ExportPruneContext, rel_path: Path) -> str:
+    lines = text.splitlines(keepends=True)
+    stats = PruneStats()
+    if re.search(r"^\s*#\s*(if|elif).*\bAPP_VERSION\b", text, re.MULTILINE):
+        stats.warnings.append(f"{rel_path.as_posix()}: direct APP_VERSION conditional remains in source")
+    pruned = "".join(prune_lines(lines, 0, len(lines), ctx.macros, stats))
+    if stats.folded_blocks or stats.removed_branches or stats.unknown_blocks or stats.warnings:
+        ctx.stats[rel_path.as_posix()] = stats
+        ctx.warnings.extend(stats.warnings)
+    return pruned
+
+
+def parse_numeric_define(line: str, macros: Dict[str, int]) -> Optional[Tuple[str, int]]:
+    match = re.match(r"^\s*#\s*define\s+([A-Za-z_]\w*)\s+(.+?)\s*$", line)
+    if not match:
+        return None
+    name, value_expr = match.groups()
+    value_expr = value_expr.split("/*", 1)[0].split("//", 1)[0].strip()
+    value = eval_pp_expr(value_expr, macros)
+    if value is None:
+        return None
+    return name, value
+
+
+def collect_version_feature_macros(version_config_path: Path, macros: Dict[str, int]) -> Dict[str, int]:
+    if not version_config_path.exists():
+        return {}
+    lines = read_text(version_config_path).splitlines(keepends=True)
+    collected: Dict[str, int] = {}
+    local_macros = dict(macros)
+    stack: List[Dict[str, object]] = []
+    active = True
+    index = 0
+
+    while index < len(lines):
+        logical, next_index = collect_logical_line(lines, index)
+        kind, arg = parse_pp_directive(logical)
+        if kind in {"if", "ifdef", "ifndef"}:
+            cond = directive_condition(kind, arg, local_macros)
+            if cond is None:
+                name = arg.split()[0] if arg.split() else ""
+                cond = 1 if kind == "ifndef" and is_header_guard_name(name) else 0
+            branch_active = active and cond != 0
+            stack.append({"parent": active, "active": branch_active, "taken": branch_active})
+            active = branch_active
+        elif kind == "elif" and stack:
+            frame = stack[-1]
+            if frame["taken"]:
+                active = False
+            else:
+                cond = directive_condition("if", arg, local_macros)
+                branch_active = bool(frame["parent"]) and cond is not None and cond != 0
+                frame["taken"] = branch_active
+                frame["active"] = branch_active
+                active = branch_active
+        elif kind == "else" and stack:
+            frame = stack[-1]
+            branch_active = bool(frame["parent"]) and not bool(frame["taken"])
+            frame["taken"] = True
+            frame["active"] = branch_active
+            active = branch_active
+        elif kind == "endif" and stack:
+            stack.pop()
+            active = bool(stack[-1]["active"]) if stack else True
+        elif active:
+            parsed = parse_numeric_define(logical, local_macros)
+            if parsed:
+                name, value = parsed
+                local_macros[name] = value
+                if name.startswith("VERSION_FEATURE_"):
+                    collected[name] = value
+        index = next_index
+    return collected
+
+
+def build_export_prune_context(
+    project_dir: Path,
+    cmake_text: str,
+    version_var: Optional[str],
+    version: int,
+    hal_options: Dict[str, bool],
+    enabled: bool,
+) -> ExportPruneContext:
+    macros: Dict[str, int] = {}
+    if version_var and version > 0:
+        macros[version_var] = version
+        macros["APP_VERSION"] = version
+        legacy = parse_legacy_version_var(cmake_text)
+        if legacy:
+            macros[legacy] = version
+    for name, value in hal_options.items():
+        macros[name] = 1 if value else 0
+    macros.update(collect_version_feature_macros(project_dir / "app" / "version_config.h", macros))
+    return ExportPruneContext(enabled=enabled, macros=macros)
+
+
+def is_prune_candidate(src: Path, template_root: Path, project_dir: Path) -> bool:
+    if src.suffix.lower() not in {".c", ".h"}:
+        return False
+    resolved = src.resolve()
+    template_root = template_root.resolve()
+    project_dir = project_dir.resolve()
+    excluded = [
+        template_root / "bsp" / "stm32f10x_std_lib",
+        template_root / "common" / "utils" / "cJSON.c",
+        template_root / "common" / "utils" / "cJSON.h",
+        template_root / "bsp" / "hal_wrapper" / "hal_features.h",
+        project_dir / "app" / "version_config.h",
+    ]
+    for item in excluded:
+        try:
+            if item.is_dir() and resolved.relative_to(item.resolve()):
+                return False
+        except ValueError:
+            pass
+        if resolved == item.resolve():
+            return False
+    include_roots = [
+        project_dir / "app",
+        template_root / "common",
+        template_root / "drivers",
+        template_root / "bsp" / "hal_wrapper",
+        template_root / "bsp" / "irq_handlers",
+    ]
+    for root in include_roots:
+        try:
+            resolved.relative_to(root.resolve())
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def patch_version_header(text: str, version_var: Optional[str], version: int) -> str:
     if not version_var:
         return text
+    patched = re.sub(
+        r"#ifndef\s+APP_VERSION\s*\n#define\s+APP_VERSION\s+\d+",
+        f"#ifndef APP_VERSION\n#define APP_VERSION {version}",
+        text,
+    )
+    if patched != text or version_var == "APP_VERSION":
+        return patched
     return re.sub(
         rf"#ifndef\s+{re.escape(version_var)}\s*\n#define\s+{re.escape(version_var)}\s+\d+",
         f"#ifndef {version_var}\n#define {version_var} {version}",
@@ -505,9 +1070,42 @@ def rel_export_path(path: Path, template_root: Path, project_dir: Path) -> Path:
         return resolved.relative_to(project_dir)
 
 
-def copy_app_file(src: Path, dst: Path, version_var: Optional[str], version: int) -> None:
+def append_prune_manifest(manifest_lines: List[str], prune_ctx: ExportPruneContext) -> None:
+    manifest_lines.extend(["", "[prune_macros]"])
+    manifest_lines.append(f"enabled={'1' if prune_ctx.enabled else '0'}")
+    for name in sorted(prune_ctx.macros):
+        if name == "APP_VERSION" or name.startswith("VERSION_FEATURE_") or name.startswith("HAL_") or name.endswith("VERSION"):
+            manifest_lines.append(f"{name}={prune_ctx.macros[name]}")
+
+    manifest_lines.extend(["", "[prune_stats]"])
+    for path, stats in sorted(prune_ctx.stats.items()):
+        manifest_lines.append(
+            f"{path}: folded={stats.folded_blocks}, removed={stats.removed_branches}, unknown={stats.unknown_blocks}"
+        )
+
+    if prune_ctx.warnings:
+        manifest_lines.extend(["", "[prune_warnings]"])
+        for warning in prune_ctx.warnings:
+            manifest_lines.append(warning)
+
+
+def copy_export_file(
+    src: Path,
+    dst: Path,
+    version_var: Optional[str],
+    version: int,
+    prune_ctx: ExportPruneContext,
+    template_root: Path,
+    project_dir: Path,
+) -> None:
     if src.suffix.lower() in {".h", ".c"}:
+        if not is_app_path(src, project_dir) and not (prune_ctx.enabled and is_prune_candidate(src, template_root, project_dir)):
+            copy_file(src, dst)
+            return
         content = patch_version_in_app_files(src.name, read_text(src), version_var, version)
+        rel = rel_export_path(src, template_root, project_dir)
+        if prune_ctx.enabled and is_prune_candidate(src, template_root, project_dir):
+            content = prune_inactive_conditionals(content, prune_ctx, rel)
         write_text(dst, content)
     else:
         copy_file(src, dst)
@@ -557,6 +1155,10 @@ def generate_standalone_cmake(
     compile_defs = list(parse_target_compile_definitions(src_cmake_text))
     if version_var and version > 0:
         compile_defs.append(f"{version_var}={version}")
+        if version_var == "APP_VERSION":
+            legacy_version_var = parse_legacy_version_var(src_cmake_text)
+            if legacy_version_var:
+                compile_defs.append(f"{legacy_version_var}={version}")
     compile_defs.extend(hal_compile_definitions(hal_options))
 
     cpu_flag_items = parse_set_block(src_cmake_text, "CPU_FLAGS")
@@ -728,6 +1330,18 @@ def resolve_version_feature_list(config: Dict, version: Optional[int]) -> List[s
     return seen
 
 
+def has_explicit_upper_version(config: Dict, version: Optional[int]) -> bool:
+    versions_cfg = config.get("versions", {})
+    key = str(version) if version is not None else "default"
+    return key in versions_cfg
+
+
+def is_flutter_upper_feature_set(features: List[str]) -> bool:
+    if "mpWeixin" not in features:
+        return True
+    return any(feature in features for feature in ("app", "web"))
+
+
 def collect_upper_feature_paths(
     upper_src: Path,
     config: Dict,
@@ -779,6 +1393,18 @@ def copy_relative_paths(paths: List[Path], source_root: Path, dest_root: Path) -
             shutil.copy2(path, dst)
 
 
+def npm_command(*args: str) -> List[str]:
+    if os.name == "nt":
+        return ["cmd", "/c", "npm", *args]
+    return ["npm", *args]
+
+
+def flutter_command(*args: str) -> List[str]:
+    if os.name == "nt":
+        return ["cmd", "/c", "flutter", *args]
+    return ["flutter", *args]
+
+
 def run_upper_builds(upper_src: Path, version: Optional[int], features: List[str]) -> None:
     dist_dir = upper_src / "dist"
     if dist_dir.exists():
@@ -788,8 +1414,34 @@ def run_upper_builds(upper_src: Path, version: Optional[int], features: List[str
     env["UPPER_VERSION"] = str(version if version is not None else 0)
     env["UPPER_FEATURES"] = ",".join(features)
 
-    subprocess.run(["cmd", "/c", "npm", "run", "build:h5"], cwd=upper_src, check=True, env=env)
-    subprocess.run(["cmd", "/c", "npm", "run", "build:mp-weixin"], cwd=upper_src, check=True, env=env)
+    subprocess.run(npm_command("run", "build:h5"), cwd=upper_src, check=True, env=env)
+    subprocess.run(npm_command("run", "build:mp-weixin"), cwd=upper_src, check=True, env=env)
+
+
+def run_upper_mp_weixin_build(upper_src: Path, version: Optional[int], features: List[str]) -> None:
+    dist_dir = upper_src / "dist" / "build" / "mp-weixin"
+    if dist_dir.exists():
+        shutil.rmtree(dist_dir)
+
+    env = os.environ.copy()
+    env["UPPER_VERSION"] = str(version if version is not None else 0)
+    env["UPPER_FEATURES"] = ",".join(features)
+    subprocess.run(npm_command("run", "build:mp-weixin"), cwd=upper_src, check=True, env=env)
+
+
+def run_flutter_upper_builds(flutter_src: Path, version: Optional[int], features: List[str]) -> None:
+    build_dir = flutter_src / "build"
+    if build_dir.exists():
+        shutil.rmtree(build_dir)
+
+    dart_defines = [
+        f"--dart-define=UPPER_VERSION={version if version is not None else 0}",
+        f"--dart-define=UPPER_FEATURES={','.join(features)}",
+    ]
+    subprocess.run(flutter_command("pub", "get"), cwd=flutter_src, check=True)
+    subprocess.run(flutter_command("build", "apk", "--debug", *dart_defines), cwd=flutter_src, check=True)
+    if features and "web" in features:
+        subprocess.run(flutter_command("build", "web", *dart_defines), cwd=flutter_src, check=True)
 
 
 def copy_upper_build_outputs(upper_src: Path, version_dir: Path) -> None:
@@ -821,6 +1473,71 @@ def export_single_upper_version(
     copy_upper_build_outputs(upper_src, version_dir)
 
 
+def export_single_upper_mp_weixin_version(
+    upper_src: Path,
+    base_dst: Path,
+    config: Dict,
+    version: Optional[int],
+) -> None:
+    label = f"version{version}" if version not in (None, 0) else "default"
+    version_dir = base_dst / label
+    if version_dir.exists():
+        shutil.rmtree(version_dir)
+    version_dir.mkdir(parents=True, exist_ok=True)
+
+    features = resolve_version_feature_list(config, version)
+    if "mpWeixin" not in features:
+        return
+    run_upper_mp_weixin_build(upper_src, version, features)
+    paths = collect_upper_feature_paths(upper_src, config, features)
+    copy_relative_paths(paths, upper_src, version_dir)
+    copy_upper_build_outputs(upper_src, version_dir)
+
+
+def export_single_flutter_upper_version(
+    flutter_src: Path,
+    base_dst: Path,
+    config: Dict,
+    version: Optional[int],
+) -> None:
+    label = f"version{version}" if version not in (None, 0) else "default"
+    version_dir = base_dst / label
+    if version_dir.exists():
+        shutil.rmtree(version_dir)
+    version_dir.mkdir(parents=True, exist_ok=True)
+
+    features = resolve_version_feature_list(config, version)
+    run_flutter_upper_builds(flutter_src, version, features)
+    ignored = shutil.ignore_patterns(".dart_tool", "build", ".git", ".idea")
+    shutil.copytree(flutter_src, version_dir, dirs_exist_ok=True, ignore=ignored)
+    build_dst = version_dir / "build_outputs"
+    copy_if_exists(flutter_src / "build" / "app" / "outputs" / "flutter-apk", build_dst / "flutter-apk")
+    if "web" in features:
+        copy_if_exists(flutter_src / "build" / "web", build_dst / "web")
+
+
+def export_flutter_upper_ui_versions(
+    flutter_src: Path,
+    project_export_root: Path,
+    versions: List[int],
+    clean: bool,
+) -> None:
+    flutter_dst = project_export_root / flutter_src.name
+    if clean and flutter_dst.exists():
+        shutil.rmtree(flutter_dst)
+    flutter_dst.mkdir(parents=True, exist_ok=True)
+    versions_dst = flutter_dst / "versions"
+    versions_dst.mkdir(parents=True, exist_ok=True)
+    config = load_upper_version_config(flutter_src) or {
+        "defaultFeatures": ["common"],
+        "versions": {"default": {"features": ["common"]}},
+    }
+    copy_if_exists(flutter_src / "version_features.json", flutter_dst / "version_features.json")
+    for ver in versions:
+        actual_version = ver if ver > 0 else None
+        export_single_flutter_upper_version(flutter_src, versions_dst, config, actual_version)
+
+
 def export_upper_ui_versions(
     project_dir: Path,
     project_export_root: Path,
@@ -829,6 +1546,16 @@ def export_upper_ui_versions(
 ) -> None:
     project_name = project_dir.name
     upper_src = project_dir / f"{project_name}_upper_ui"
+    flutter_src = project_dir / f"{project_name}_upper_ui_flutter"
+
+    if flutter_src.exists() and upper_src.exists():
+        export_dual_stack_upper_ui_versions(project_dir, project_export_root, versions, clean)
+        return
+
+    if flutter_src.exists():
+        export_flutter_upper_ui_versions(flutter_src, project_export_root, versions, clean)
+        return
+
     if not upper_src.exists():
         return
 
@@ -855,6 +1582,69 @@ def export_upper_ui_versions(
         export_single_upper_version(upper_src, versions_dst, config, actual_version)
 
 
+def export_dual_stack_upper_ui_versions(
+    project_dir: Path,
+    project_export_root: Path,
+    versions: List[int],
+    clean: bool,
+) -> None:
+    project_name = project_dir.name
+    upper_src = project_dir / f"{project_name}_upper_ui"
+    flutter_src = project_dir / f"{project_name}_upper_ui_flutter"
+    flutter_config = load_upper_version_config(flutter_src)
+    uniapp_config = load_upper_version_config(upper_src)
+    fallback_config = flutter_config or uniapp_config or {
+        "defaultFeatures": ["common"],
+        "versions": {"default": {"features": ["common"]}},
+    }
+    flutter_export_config = flutter_config or fallback_config
+    uniapp_export_config = uniapp_config or fallback_config
+
+    flutter_dst = project_export_root / flutter_src.name
+    if clean and flutter_dst.exists():
+        shutil.rmtree(flutter_dst)
+    flutter_dst.mkdir(parents=True, exist_ok=True)
+    copy_if_exists(flutter_src / "version_features.json", flutter_dst / "version_features.json")
+    flutter_versions_dst = flutter_dst / "versions"
+    flutter_versions_dst.mkdir(parents=True, exist_ok=True)
+    for ver in versions:
+        actual_version = ver if ver > 0 else None
+        features = resolve_version_feature_list(flutter_export_config, actual_version)
+        if flutter_config and not has_explicit_upper_version(flutter_export_config, actual_version):
+            continue
+        if not flutter_config and not is_flutter_upper_feature_set(features):
+            continue
+        export_single_flutter_upper_version(
+            flutter_src,
+            flutter_versions_dst,
+            flutter_export_config,
+            actual_version,
+        )
+
+    mp_weixin_versions = [
+        ver
+        for ver in versions
+        if "mpWeixin" in resolve_version_feature_list(uniapp_export_config, ver if ver > 0 else None)
+    ]
+    if not mp_weixin_versions:
+        return
+
+    upper_dst = project_export_root / upper_src.name
+    if clean and upper_dst.exists():
+        shutil.rmtree(upper_dst)
+    upper_dst.mkdir(parents=True, exist_ok=True)
+    copy_file(upper_src / "version_features.json", upper_dst / "version_features.json")
+    versions_dst = upper_dst / "versions"
+    versions_dst.mkdir(parents=True, exist_ok=True)
+    for ver in mp_weixin_versions:
+        export_single_upper_mp_weixin_version(
+            upper_src,
+            versions_dst,
+            uniapp_export_config,
+            ver if ver > 0 else None,
+        )
+
+
 def export_one_version(
     project_dir: Path,
     template_root: Path,
@@ -862,6 +1652,7 @@ def export_one_version(
     version: Optional[int],
     extras: List[str],
     toolchain_bin: str,
+    prune_conditionals: bool,
 ) -> Path:
     cmake_path = project_dir / "CMakeLists.txt"
     cmake_text = read_text(cmake_path)
@@ -876,6 +1667,14 @@ def export_one_version(
     )
     executable_groups = parse_executable_groups(cmake_text)
     include_dirs = collect_include_dirs(cmake_text, template_root, project_dir)
+    prune_ctx = build_export_prune_context(
+        project_dir,
+        cmake_text,
+        version_var,
+        version,
+        hal_options,
+        prune_conditionals,
+    )
 
     if version_var and version > 0:
         export_name = f"{project_name}_version{version}"
@@ -911,10 +1710,7 @@ def export_one_version(
             raise FileNotFoundError(f"源文件不存在: {src}")
         rel = rel_export_path(src, template_root, project_dir)
         dst = export_dir / rel
-        if is_app_path(src, project_dir):
-            copy_app_file(src, dst, version_var, version)
-        else:
-            copy_file(src, dst)
+        copy_export_file(src, dst, version_var, version, prune_ctx, template_root, project_dir)
         copied.add(dst.resolve())
         manifest_lines.append(rel.as_posix())
 
@@ -931,7 +1727,7 @@ def export_one_version(
         rel = rel_export_path(header, template_root, project_dir)
         dst = export_dir / rel
         if dst.resolve() not in copied:
-            copy_file(header, dst)
+            copy_export_file(header, dst, version_var, version, prune_ctx, template_root, project_dir)
             copied.add(dst.resolve())
         manifest_lines.append(rel.as_posix())
 
@@ -948,7 +1744,7 @@ def export_one_version(
         dst = export_dir / rel
         if dst.resolve() in copied:
             continue
-        copy_app_file(app_file, dst, version_var, version)
+        copy_export_file(app_file, dst, version_var, version, prune_ctx, template_root, project_dir)
         copied.add(dst.resolve())
         manifest_lines.append(rel.as_posix())
 
@@ -981,6 +1777,7 @@ def export_one_version(
             "  cmake --build build\n",
         )
 
+    append_prune_manifest(manifest_lines, prune_ctx)
     write_text(export_dir / "export_manifest.txt", "\n".join(manifest_lines) + "\n")
     return export_dir
 
@@ -993,24 +1790,66 @@ def export_project_versions(
     extras: List[str],
     toolchain_bin: str,
     clean: bool,
+    prune_conditionals: bool,
+    layout: str = "legacy",
+    export_root_name: Optional[str] = None,
+    log: Callable[[str], None] = print,
 ) -> None:
-    project_export_root = output_root / project_dir.name
-    if clean and project_export_root.exists():
-        shutil.rmtree(project_export_root)
+    if layout == "legacy":
+        project_export_root = output_root / project_dir.name
+        firmware_export_root = project_export_root
+        upper_export_root = project_export_root
+        clean_root = project_export_root
+    elif layout == "gui_package":
+        project_export_root = output_root / (export_root_name or f"export_{project_dir.name}")
+        firmware_export_root = project_export_root / "firmware"
+        upper_export_root = project_export_root / "upper_ui"
+        clean_root = project_export_root
+    else:
+        raise ValueError(f"未知导出布局: {layout}")
+
+    if clean and clean_root.exists():
+        shutil.rmtree(clean_root)
 
     for ver in versions:
         actual_version = ver if ver > 0 else None
         out = export_one_version(
             project_dir,
             template_root,
-            project_export_root,
+            firmware_export_root,
             actual_version,
             extras,
             toolchain_bin,
+            prune_conditionals,
         )
-        print(f"已导出: {out}")
+        log(f"已导出下位机: {out}")
 
-    export_upper_ui_versions(project_dir, project_export_root, versions, clean)
+    export_upper_ui_versions(project_dir, upper_export_root, versions, clean=False)
+    log(f"导出完成: {project_export_root}")
+
+
+def get_project_export_info(project_dir: Path, template_root: Path) -> ProjectExportInfo:
+    del template_root
+    cmake_text = read_text(project_dir / "CMakeLists.txt")
+    project_name = parse_project_name(cmake_text)
+    version_var = parse_version_var(cmake_text)
+    default_version: Optional[int] = None
+    version_range: Optional[Tuple[int, int]] = None
+    available_versions: List[int] = [0]
+    if version_var:
+        default_version = parse_version_default(cmake_text, version_var)
+        version_range = parse_version_range(cmake_text, version_var)
+        available_versions = list(range(version_range[0], version_range[1] + 1))
+    return ProjectExportInfo(
+        project_dir=project_dir,
+        project_name=project_name,
+        version_var=version_var,
+        default_version=default_version,
+        version_range=version_range,
+        available_versions=available_versions,
+        has_flutter_upper_ui=(project_dir / f"{project_dir.name}_upper_ui_flutter").exists(),
+        has_uniapp_upper_ui=(project_dir / f"{project_dir.name}_upper_ui").exists(),
+    )
 
 
 def discover_projects(template_root: Path) -> List[Path]:
@@ -1112,6 +1951,11 @@ def main() -> None:
         help="覆盖 STM32 工具链 bin 目录；亦可用环境变量 STM32_TOOLCHAIN_BIN",
     )
     parser.add_argument(
+        "--no-prune-conditionals",
+        action="store_true",
+        help="不裁剪导出源码中的已知未启用条件编译分支",
+    )
+    parser.add_argument(
         "--root",
         type=Path,
         default=Path(__file__).resolve().parents[1],
@@ -1139,6 +1983,7 @@ def main() -> None:
             extras,
             toolchain_bin,
             args.clean,
+            not args.no_prune_conditionals,
         )
         return
 
@@ -1173,6 +2018,7 @@ def main() -> None:
         extras,
         toolchain_bin,
         args.clean,
+        not args.no_prune_conditionals,
     )
 
 

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">My App</string>
-    <string name="title_activity_main">My App</string>
-    <string name="package_name">com.company.myapp</string>
-    <string name="custom_url_scheme">com.company.myapp</string>
+    <string name="app_name">KQZL3</string>
+    <string name="title_activity_main">KQZL3</string>
+    <string name="package_name">com.jbltech.kqzl3</string>
+    <string name="custom_url_scheme">com.jbltech.kqzl3</string>
 </resources>

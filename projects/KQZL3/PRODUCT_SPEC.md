@@ -26,7 +26,7 @@
 | CO传感器 | MQ-7 (ADC) | `gas_sensor_t` / "mq7_co" |
 | 继电器/风扇 | PA11 | `relay_driver_t` / "relay" |
 | 蜂鸣器 | PA8 | `buzzer_driver_t` / "buzzer" |
-| LED灯光 | PB3 | `led_driver_t` / "led" |
+| LED灯光 | PA6 | `led_driver_t` / "led" |
 | WiFi模块 | ESP-01S (USART3) | `comm_driver_t` / "esp8266" |
 | 蓝牙模块 | JDY-31 (USART2) | `comm_driver_t` / "jdy31" |
 | 按键 | 4个 (PB4/PB5/PB13/PB14) | GPIO direct |
@@ -95,13 +95,14 @@
 |------|------|------|
 | OLED SCL | PB6 | I2C时钟 |
 | OLED SDA | PB7 | I2C数据 |
-| DHT11 | PB12 | 温湿度数据 |
+| DHT11 | PA5 | 温湿度数据 |
 | PM2.5 ADC | PA0 | ADC通道0 |
+| PM2.5 LED | PA12 | GP2Y1014AU 红外 LED 控制，低电平点亮 |
 | MQ-2 ADC | PA1 | ADC通道1 (烟雾) |
-| MQ-7 ADC | PA2 | ADC通道2 (CO) |
+| MQ-7 ADC | PA4 | ADC通道4 (CO) |
 | 继电器/风扇 | PA11 | 排风控制 |
 | 蜂鸣器 | PA8 | 报警声音 |
-| LED灯光 | PB3 | 报警灯光 |
+| LED灯光 | PA6 | 报警灯光 |
 | 按键K1 | PB4 | 模式切换 |
 | 按键K2 | PB5 | 选择 |
 | 按键K3 | PB13 | 增加/开启 |
@@ -141,6 +142,20 @@
 | 设置阈值 | `{"cmd":"set_threshold","sensor":"pm25","value":100}` | 设置报警阈值 |
 | 查询状态 | `{"cmd":"get_status"}` | 请求发送遥测数据 |
 
+### 7.3 WiFi/网页/小程序/App 默认 MQTT 参数
+
+带有 WiFi/网页/小程序/App 的版本默认自动使用以下 MQTT 参数，与 `app/board_config.h` 保持一致：
+
+| 参数 | 值 |
+|------|----|
+| Broker | `121.40.131.194` |
+| Port | `1883` |
+| Client ID | `KQZL3` |
+| Username | `yskj` |
+| Password | `yskj@123` |
+| 设备订阅/上位机发布 Topic | `KQZL3` |
+| 设备发布/上位机订阅 Topic | `KQZL3/web` |
+
 ---
 
 ## 8. 软件架构
@@ -173,7 +188,7 @@ app/
 
 ### 9.1 编译指定版本
 ```bash
-cmake -S . -B build -G "Ninja" -DKQZL3_VERSION=5
+cmake -S . -B build -G "Ninja" -DAPP_VERSION=5
 cmake --build build
 ```
 

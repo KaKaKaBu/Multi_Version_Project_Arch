@@ -16,6 +16,7 @@
 /* Configuration defaults                                                     */
 /* -------------------------------------------------------------------------- */
 
+#if !defined(KEY_DRIVER_PIN_TABLE)
 static const hal_pin_t *const key_default_pins[] = {
     &board_key1_pin,
     &board_key2_pin,
@@ -23,8 +24,6 @@ static const hal_pin_t *const key_default_pins[] = {
     &board_key4_pin,
     &board_key5_pin
 };
-
-#if !defined(KEY_DRIVER_PIN_TABLE)
 #define KEY_DRIVER_PIN_TABLE key_default_pins
 #define KEY_DRIVER_HAS_DEFAULT_PIN_TABLE 1
 #endif

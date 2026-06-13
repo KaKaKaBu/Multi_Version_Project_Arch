@@ -3,43 +3,51 @@
 
 #include "scheduler.h"
 
+#if !defined(APP_VERSION) && defined(RTJK_VERSION)
+#define APP_VERSION RTJK_VERSION
+#endif
+
+#ifndef APP_VERSION
+#define APP_VERSION 10
+#endif
+
 #ifndef RTJK_VERSION
-#define RTJK_VERSION 10
+#define RTJK_VERSION APP_VERSION
 #endif
 
 #define VERSION_NAME "RTJK_001"
 
-#if (RTJK_VERSION >= 1) && (RTJK_VERSION <= 7)
+#if (APP_VERSION >= 1) && (APP_VERSION <= 7)
 #define VERSION_FEATURE_SPO2 1
 #else
 #define VERSION_FEATURE_SPO2 0
 #endif
 
-#if ((RTJK_VERSION >= 4) && (RTJK_VERSION <= 7)) || (RTJK_VERSION >= 9)
+#if ((APP_VERSION >= 4) && (APP_VERSION <= 7)) || (APP_VERSION >= 9)
 #define VERSION_FEATURE_TEMP 1
 #else
 #define VERSION_FEATURE_TEMP 0
 #endif
 
-#if (RTJK_VERSION == 2) || (RTJK_VERSION == 5)
+#if (APP_VERSION == 2) || (APP_VERSION == 5)
 #define VERSION_FEATURE_BLE 1
 #else
 #define VERSION_FEATURE_BLE 0
 #endif
 
-#if (RTJK_VERSION == 3) || (RTJK_VERSION == 6) || (RTJK_VERSION >= 10)
+#if (APP_VERSION == 3) || (APP_VERSION == 6) || (APP_VERSION >= 10)
 #define VERSION_FEATURE_WIFI 1
 #else
 #define VERSION_FEATURE_WIFI 0
 #endif
 
-#if RTJK_VERSION == 7
+#if APP_VERSION == 7
 #define VERSION_FEATURE_VOICE 1
 #else
 #define VERSION_FEATURE_VOICE 0
 #endif
 
-#if RTJK_VERSION >= 8
+#if APP_VERSION >= 8
 #define VERSION_FEATURE_BLOOD_PRESSURE 1
 #else
 #define VERSION_FEATURE_BLOOD_PRESSURE 0

@@ -1,0 +1,37 @@
+{
+  "_comment": "KQZL3 Flutter upper UI features by firmware version. v9 is intentionally omitted because it is delivered by the uni-app WeChat mini-program stack.",
+  "defaultFeatures": ["common"],
+  "alwaysInclude": [
+    "pubspec.yaml",
+    "analysis_options.yaml",
+    "version_features.json",
+    "lib/**",
+    "android/**",
+    "web/**",
+    "test/**"
+  ],
+  "featureGlobs": {
+    "common": [],
+    "dht11": [],
+    "mq2": [],
+    "mq7": [],
+    "remote": [],
+    "wifi": [],
+    "ble": [],
+    "app": [],
+    "aliyun": [],
+    "web": []
+  },
+  "versions": {
+    "default": { "features": ["common"] },
+    "3": { "features": ["common", "dht11", "remote", "wifi", "app"] },
+    "4": { "features": ["common", "dht11", "remote", "ble", "app"] },
+    "6": { "features": ["common", "dht11", "mq2", "remote", "wifi", "app"] },
+    "7": { "features": ["common", "dht11", "mq2", "remote", "ble", "app"] },
+    "8": { "features": ["common", "dht11", "mq2", "remote", "wifi", "aliyun", "app"] },
+    "10": { "features": ["common", "dht11", "mq2", "remote", "wifi", "web"] },
+    "12": { "features": ["common", "dht11", "mq2", "mq7", "remote", "wifi", "app"] },
+    "13": { "features": ["common", "dht11", "mq2", "mq7", "remote", "ble", "app"] },
+    "14": { "features": ["common", "dht11", "mq2", "mq7", "remote", "wifi", "aliyun", "app"] }
+  }
+}

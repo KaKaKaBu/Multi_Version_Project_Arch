@@ -66,6 +66,7 @@ typedef struct {
 
     /* Display state */
     uint8_t display_refresh;
+    uint8_t telemetry_pending;
 } app_context_t;
 
 /* Global application context */
@@ -80,7 +81,7 @@ void alarm_loop_run(sched_event_t events, void *ctx);
 void display_loop_run(sched_event_t events, void *ctx);
 void comm_loop_run(sched_event_t events, void *ctx);
 
-/* Key event handlers - called from key_loop */
+/* Key event handlers - called from key_service callback */
 void app_logic_on_key1_press(void);  /* Mode switch */
 void app_logic_on_key2_press(void);  /* Select */
 void app_logic_on_key3_press(void);  /* Add/On */
@@ -89,5 +90,6 @@ void app_logic_on_key4_press(void);  /* Sub/Off */
 /* Communication handlers */
 void app_logic_on_mqtt_rx(const char *json_data);
 void app_logic_build_telemetry(char *buf, size_t bufsize);
+void app_logic_request_telemetry(void);
 
 #endif /* APP_LOGIC_H */

@@ -9,7 +9,7 @@
 | 应用层 | `projects/<NAME>/app` | 业务逻辑（`app_logic`）、回调、任务注册 |
 | 板级配置 | `projects/<NAME>/app/board_config.h` | 引脚、外设实例、波特率、WiFi/MQTT、HAL 传输模式 |
 | 版本配置 | `projects/<NAME>/app/version_config.h` | `VERSION` 宏、功能/通讯开关、应用事件 |
-| 上位机多端脚手架 | `projects/<NAME>/<NAME>_upper_ui` | Vue3 + Vite + uni-app + Capacitor（Android），`version_features.json` 记录各版本功能清单，生成 H5 / 微信小程序 / Android 资源 |
+| 上位机多端脚手架 | `projects/<NAME>/<NAME>_upper_ui_flutter` / `projects/<NAME>/<NAME>_upper_ui` | 默认 Flutter 主上位机；仅在需要微信小程序或兼容历史项目时保留 Vue3 + Vite + uni-app + Capacitor 栈。KQZL3 Flutter 覆盖 App/Web 版本，uni-app 仅用于 v9 微信小程序，双栈各自用 `version_features.json` 记录版本功能清单 |
 | 设备管理层 | `common/device_manager` | 遍历驱动注册段，统一初始化与类型安全查询 |
 | 调度器层 | `common/scheduler` | 协作任务、`sched_loop` 周期 poll、事件阻塞/唤醒 |
 | 应用框架 | `common/app_framework` | `app_fsm`（**ZNCZ_001** UI 状态表驱动） |
@@ -177,7 +177,7 @@ spi_hal_transfer(0, tx, rx, len);
 
 ## ADC 采集
 
-启用 `HAL_ADC_ENABLE` 后轮询读取；`HAL_ADC_ENABLE_DMA` 支持连续 DMA 采集。RTJK_001 在 `RTJK_VERSION>=8` 时于 CMake preamble 打开 ADC，供 `msp20_bp` 血压采集。
+启用 `HAL_ADC_ENABLE` 后轮询读取；`HAL_ADC_ENABLE_DMA` 支持连续 DMA 采集。RTJK_001 在 `APP_VERSION>=8` 时于 CMake preamble 打开 ADC，供 `msp20_bp` 血压采集。
 
 ## 通讯抽象（comm_if + comm_port）
 
@@ -233,36 +233,42 @@ set(DRIVER_SRCS ${DRIVER_CATALOG_ZNCZ_001})   # 或 DRIVER_CATALOG_RTJK_001
 | 机制 | 说明 |
 | --- | --- |
 | `projects/<NAME>/` | 每产品线独立 `app/`、`CMakeLists.txt`、`board_config.h` |
-| `*VERSION` CACHE STRING | 数值版本号（禁止 `option()`） |
+| `APP_VERSION` CACHE STRING | 统一数值版本号（禁止 `option()`）；旧 `KQZL3_VERSION` / `RTJK_VERSION` 仅作兼容别名 |
 | `driver_catalog.cmake` | 按版本 `list(APPEND …)` 选驱动 |
-| `projects/<NAME>/<NAME>_upper_ui` | 上位机目录包含 `version_features.json`，描述版本→特性→路径 glob |
-| `export_project.py` | 导出结构：`exports/<NAME>/KQZL3_version1/`（嵌入式裸工厂树）+ `exports/<NAME>/<NAME>_upper_ui/versions/<versionX>/`（仅该版本的 UI 源码 + dist） |
+| `projects/<NAME>/<NAME>_upper_ui_flutter` | Flutter 主上位机目录；通过 `version_features.json` 描述固件版本→Flutter feature→构建参数 |
+| `projects/<NAME>/<NAME>_upper_ui` | 可选 uni-app 小程序/历史兼容目录；通过独立 `version_features.json` 描述小程序版本→feature→路径 glob |
+| `export_project.py` | 导出结构：`exports/<NAME>/KQZL3_version1/`（嵌入式裸工厂树）+ `exports/<NAME>/upper_ui/<NAME>_upper_ui_flutter/versions/<versionX>/`（Flutter 主上位机）+ 可选 `<NAME>_upper_ui/versions/<versionX>/`（uni-app 小程序） |
 
 ```bash
 python tools/export_project.py --project RTJK_001 --batch --versions 1-10 -o ../exports --clean \
     --extras readme.txt,PRODUCT_SPEC.md
 ```
 
-- 导出前 `export_project.py` 会在上位机目录执行 `npm run build:h5` 与 `npm run build:mp-weixin`，并为每个版本设置 `UPPER_VERSION` / `UPPER_FEATURES` 环境变量。
-- `version_features.json` 中的 `alwaysInclude` 与 `featureGlobs` 决定导出哪些上位机源码（匹配不到的路径会被忽略）。
-- Android Studio 工程（`android/`）与 Capacitor 配置始终保留在 `exports/<NAME>/<NAME>_upper_ui/` 根目录，供后续 `npx cap sync` 使用。
+- 导出前 `export_project.py` 会在上位机目录执行对应平台构建：Flutter 项目执行 `flutter build apk --debug`（包含 `web` feature 时同时执行 `flutter build web`）；uni-app 小程序/历史项目执行 `npm run build:mp-weixin`，uni-app-only 历史项目仍可执行 H5/小程序构建。
+- Flutter 与 uni-app 可分别拥有 `version_features.json`。Flutter 侧用于解析 `UPPER_VERSION` / `UPPER_FEATURES` 并决定导出哪些主上位机版本；uni-app 侧用于裁剪小程序源码与 dist。
+- 双栈项目中，Flutter 主上位机只导出 Flutter 矩阵中显式覆盖的版本；uni-app 只导出包含 `mpWeixin` feature 的版本。KQZL3 因此由 Flutter 导出 v3/v4/v6/v7/v8/v10/v12/v13/v14，由 uni-app 导出 v9 微信小程序。
+- Android Studio / 平台工程随各自栈保留：Flutter 的 `android/`、`web/` 保留在 `<NAME>_upper_ui_flutter/versions/<versionX>/`；uni-app 的 `android/` 与 Capacitor 配置仅用于小程序/历史兼容栈。
 
 约定与禁止行为详见 [maintenance_guide.md §12](./maintenance_guide.md)。
 
 ## 上位机脚手架与版本特性
 
-- `tools/gen_project.py` 在创建新项目时自动拉取 `uni-preset-vue`，安装依赖、添加 Capacitor（`appId = com.jbltech.<project_id>`）、并生成 `src/features/` 目录。
-- `vite.config.js` 注入 `__UPPER_VERSION__`、`__UPPER_FEATURES__`、`__UPPER_FEATURE_FLAGS__` 三个编译期常量。模板的 `src/features/index.js` 会根据这些 flag 注册对应能力（示例：`wifi`、`ble`）。
+- `tools/gen_project.py` 在创建新项目时默认生成 Flutter 上位机（`<NAME>_upper_ui_flutter/`），调用 `flutter create --platforms=android,web` 并生成 `lib/core/version/version_capabilities.dart`、`version_features.json` 与基础 widget test。只有传入 `--with-mini-program` 或产品需求明确包含微信小程序时，才额外生成 Vue3 + Vite + uni-app + Capacitor 小程序栈（`<NAME>_upper_ui/`）。
+- Flutter 侧通过 `--dart-define=UPPER_VERSION=<N>` 和 `--dart-define=UPPER_FEATURES=<list>` 注入版本与能力；页面和 service 只消费解析后的 capabilities，不在 Widget 中硬编码版本号。
+- Flutter 通信日志由 `lib/core/config/debug_flags.dart` 中的 `upperUiShowCommunicationLog = kDebugMode` 控制：Debug 显示，Release/Profile 隐藏且不采集原始 TX/RX 日志。
+- uni-app 侧的 `vite.config.js` 注入 `__UPPER_VERSION__`、`__UPPER_FEATURES__`、`__UPPER_FEATURE_FLAGS__`、`__UPPER_UI_DEBUG__` 四个编译期常量。模板的 `src/features/index.js` 会根据这些 flag 注册对应小程序能力（示例：`wifi`、`ble`）。
+- 上位机架构只包含真实 MQTT/BLE/平台通道通信；不提供 mock transport、模拟上报、本地随机遥测或缺少远程能力时的模拟回退。
+- 页面布局必须自适应窄屏：卡片头、按钮行、表单行、长 URL/topic/JSON 均需可换行，避免像素溢出。
 - `version_features.json` 结构：
-  - `defaultFeatures`：所有版本默认启用的 feature 名称。
-  - `featureGlobs`：每个 feature 对应的路径 glob，支持 `!` 前缀排除。
-  - `alwaysInclude`：不论版本都要导出的文件（package.json、capacitor.config.json、静态资源等）。
+  - `defaultFeatures`：未显式匹配版本时启用的 feature 名称。
+  - `featureGlobs`：每个 feature 对应的源码路径 glob，支持 `!` 前缀排除；主要用于 uni-app 小程序源码裁剪，Flutter 主工程通常整树复制但仍用该文件解析版本 feature。
+  - `alwaysInclude`：不论版本都要导出的文件（package.json、平台配置、静态资源等）。
   - `versions.<N>.features`：覆盖某版本的 feature 列表（`N` 与固件版本号对应；`default` 作为兜底条目）。
-- 命令行覆盖：执行 `npm run build:h5 -- --project-version=3` 之类的参数后，`export_project.py` 会自动将 `UPPER_VERSION=3` 注入并查找 `versions."3"`。
-- 新增特性时：
-  1. 在 `src/features/<feature>.js` 写安装函数，并在 `index.js` 注册。
-  2. 在 `version_features.json` 中追加 `featureGlobs.<feature>` 与目标版本。
-  3. 重新运行 `export_project.py`，检查 `exports/<NAME>/<NAME>_upper_ui/versions/<versionX>/` 是否只包含预期文件与 `dist`。
+- 新增 Flutter feature 时：
+  1. 在 `lib/features/<feature>/` 下创建页面、controller 或状态对象，跨 feature 共享模型放入 `lib/core/`，共享组件放入 `lib/widgets/`。
+  2. 在 Flutter 的 `version_features.json` 与版本解析层增加 feature/capabilities。
+  3. 重新运行 `export_project.py`，检查 `exports/<NAME>/upper_ui/<NAME>_upper_ui_flutter/versions/<versionX>/` 是否只包含预期 Flutter 版本。
+- 若项目含微信小程序，新增小程序 feature 时还需同步 `src/features/<feature>.js`、`src/features/index.js` 与 uni-app 侧 `version_features.json`，并验证 `<NAME>_upper_ui/versions/<versionX>/`。
 
 ## 参考应用
 
@@ -284,7 +290,7 @@ UI 导航由 `app_logic.c` 内 `app_ui_transitions[]` 驱动；RTC/继电器/JSO
 **规格**：[projects/RTJK_001/PRODUCT_SPEC.md](../projects/RTJK_001/PRODUCT_SPEC.md)
 
 - 默认 **V10**：心率 + 血压 + 体温 + WiFi MQTT + 声光报警
-- `RTJK_VERSION` 1–10：`version_config.h` + `DRIVER_CATALOG_RTJK_001` + CMake preamble（V8+ ADC）
+- `APP_VERSION` 1–10：`version_config.h` 生成 `VERSION_FEATURE_*` + `DRIVER_CATALOG_RTJK_001` + CMake preamble（V8+ ADC）
 - `sched_loop`：logic / sensor / key / comm（按版本启用）
 
 ## 维护与完成度
@@ -292,6 +298,7 @@ UI 导航由 `app_logic.c` 内 `app_ui_transitions[]` 驱动；RTC/继电器/JSO
 | 文档 | 用途 |
 | --- | --- |
 | [maintenance_guide.md](./maintenance_guide.md) | 驱动/BSP/多项目/export 约定、§11 限制 |
+| [upper_ui_guide.md](./upper_ui_guide.md) | 上位机 feature、version_features.json、vite 常量与代码规范 |
 | [project_status.md](./project_status.md) | 完成度、构建指标、缺口 |
 
 ---

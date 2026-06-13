@@ -128,13 +128,9 @@ static const hal_pin_t board_su03t_rx = { GPIOA, GPIO_Pin_10, GPIO_HAL_MODE_IN_F
 #define BOARD_VOICE_CMD_SPO2 2
 #define BOARD_VOICE_CMD_TEMP 3
 
-#ifndef RTJK_VERSION
-#define RTJK_VERSION 10
-#endif
-
-#if (RTJK_VERSION == 3) || (RTJK_VERSION == 6) || (RTJK_VERSION >= 10)
+#if VERSION_FEATURE_WIFI
 #define BOARD_COMM_DEVICE "esp8266"
-#elif (RTJK_VERSION == 2) || (RTJK_VERSION == 5)
+#elif VERSION_FEATURE_BLE
 #define BOARD_COMM_DEVICE "jdy31"
 #else
 #define BOARD_COMM_DEVICE "none"

@@ -53,15 +53,15 @@ static const hal_pin_t board_esp8266_ch_pd_pin = { GPIOB, GPIO_Pin_0, GPIO_HAL_M
 /** @brief ESP8266 reset pin (PB1). */
 static const hal_pin_t board_esp8266_rst_pin = { GPIOB, GPIO_Pin_1, GPIO_HAL_MODE_OUT_PP };
 
-#define BOARD_ESP8266_WIFI_SSID "WIFI_SSID"
-#define BOARD_ESP8266_WIFI_PASS "WIFI_PASSWORD"
-#define BOARD_ESP8266_MQTT_BROKER "broker.emqx.io"
+#define BOARD_ESP8266_WIFI_SSID "demo"
+#define BOARD_ESP8266_WIFI_PASS "12345678"
+#define BOARD_ESP8266_MQTT_BROKER "121.40.131.194"
 #define BOARD_ESP8266_MQTT_PORT 1883U
-#define BOARD_ESP8266_MQTT_CLIENT_ID "ZNCZ_001"
-#define BOARD_ESP8266_MQTT_USER ""
-#define BOARD_ESP8266_MQTT_PASS ""
-#define BOARD_ESP8266_MQTT_SUB_TOPIC "ZNCZ_001/cmd"
-#define BOARD_ESP8266_MQTT_PUB_TOPIC "ZNCZ_001/telemetry"
+#define BOARD_ESP8266_MQTT_CLIENT_ID "ZNCZ_001_client_01"
+#define BOARD_ESP8266_MQTT_USER "yskj"
+#define BOARD_ESP8266_MQTT_PASS "yskj@123"
+#define BOARD_ESP8266_MQTT_SUB_TOPIC "ZNCZ_001"
+#define BOARD_ESP8266_MQTT_PUB_TOPIC "ZNCZ_001/web"
 
 /** @name JDY-31 Bluetooth (USART2). */
 #define BOARD_JDY31_USART USART2
@@ -146,6 +146,8 @@ static const hal_pin_t board_hw_spi1_miso = { GPIOA, GPIO_Pin_6, GPIO_HAL_MODE_I
 #if HAL_ADC_ENABLE
 /** @brief PM2.5 sensor ADC input (PA0, ADC channel 0). */
 static const hal_pin_t board_pm25_adc_pin = { GPIOA, GPIO_Pin_0, GPIO_HAL_MODE_ANALOG };
+/** @brief PM2.5 infrared LED control pin (PA12, active low). */
+static const hal_pin_t board_pm25_led_pin = { GPIOA, GPIO_Pin_12, GPIO_HAL_MODE_OUT_PP };
 /** @brief MQ-2 smoke sensor ADC input (PA1, ADC channel 1). */
 static const hal_pin_t board_mq2_adc_pin = { GPIOA, GPIO_Pin_1, GPIO_HAL_MODE_ANALOG };
 /** @brief MQ-7 CO sensor ADC input (PA2, ADC channel 2). */
@@ -159,6 +161,12 @@ static const hal_pin_t board_adc1_pin = { GPIOA, GPIO_Pin_1, GPIO_HAL_MODE_ANALO
 
 #define BOARD_ADC_INSTANCE ADC1
 #define BOARD_PM25_ADC_CHANNEL ADC_Channel_0
+#define BOARD_PM25_LED_ACTIVE_LEVEL 0U
+#define BOARD_PM25_ADC_VREF_MV 3300.0f
+#define BOARD_PM25_VOUT_SCALE 1.0f
+#define BOARD_PM25_DENSITY_SLOPE_UG_M3_PER_V 170.0f
+#define BOARD_PM25_DENSITY_OFFSET_UG_M3 (-100.0f)
+#define BOARD_PM25_DENSITY_MAX_UG_M3 500.0f
 #define BOARD_MQ2_ADC_CHANNEL ADC_Channel_1
 #define BOARD_MQ7_ADC_CHANNEL ADC_Channel_2
 #define BOARD_ADC0_CHANNEL ADC_Channel_0

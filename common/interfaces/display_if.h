@@ -36,16 +36,28 @@ typedef struct display_driver {
     void (*print)(unsigned char x, unsigned char y, display_font_size_t size, const char *fmt, ...);
 } display_driver_t;
 
-/**
- * @brief display_driver_t::print 的便捷封装。
- * @param[in] display 显示驱动指针。
- * @param[in] x 列坐标。
- * @param[in] y 行坐标。
- * @param[in] size 字号（display_font_size_t）。
- * @param[in] ... printf 风格格式串及参数。
- */
-#define DISPLAY_PRINT(display, x, y, size, ...) \
-    ((display)->print((x), (y), (size), __VA_ARGS__))
+#define DISPLAY_SMALL_MAX_CHARS 21U
+#define DISPLAY_LARGE_MAX_CHARS 10U
+#define DISPLAY_MAX_CHARS(size) (((size) == DISPLAY_FONT_LARGE) ? DISPLAY_LARGE_MAX_CHARS : DISPLAY_SMALL_MAX_CHARS)
+
+#if defined(__GNUC__)
+#define DISPLAY_REQUIRE_LITERAL(fmt) \
+    ((void)sizeof(char[(!__builtin_types_compatible_p(__typeof__(fmt), char *) && \
+                         !__builtin_types_compatible_p(__typeof__(fmt), const char *)) ? 1 : -1]))
+#else
+#define DISPLAY_REQUIRE_LITERAL(fmt) ((void)0)
+#endif
+
+#define DISPLAY_CHECK_TEXT_FITS(x, size, fmt) \
+    ((void)sizeof(char[(((x) < DISPLAY_MAX_CHARS(size)) && \
+                         ((sizeof(fmt) - 1U) <= (DISPLAY_MAX_CHARS(size) - (x)))) ? 1 : -1]))
+
+#define DISPLAY_PRINT(display, x, y, size, fmt, ...) \
+    do { \
+        DISPLAY_REQUIRE_LITERAL(fmt); \
+        DISPLAY_CHECK_TEXT_FITS((x), (size), (fmt)); \
+        (display)->print((x), (y), (size), (fmt), ##__VA_ARGS__); \
+    } while (0)
 
 #ifdef __cplusplus
 }

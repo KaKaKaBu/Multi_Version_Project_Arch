@@ -64,13 +64,13 @@
 **CMake（推荐）**
 
 ```bash
-cmake -B build -DRTJK_VERSION=10
+cmake -B build -DAPP_VERSION=10
 cmake --build build
 ```
 
 **源码**
 
-修改 [`app/version_config.h`](app/version_config.h) 或 CMake 传入的 `RTJK_VERSION`。
+修改 [`app/version_config.h`](app/version_config.h) 或 CMake 传入的 `APP_VERSION`（`RTJK_VERSION` 仅兼容旧命令）。
 
 V8+ 自动启用 `HAL_ADC_ENABLE`（MSP20 血压 ADC）。
 

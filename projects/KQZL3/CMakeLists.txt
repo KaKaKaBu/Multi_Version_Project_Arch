@@ -4,10 +4,24 @@ set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR arm)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
-# KQZL3 version: 1-14 (default 14)
-set(KQZL3_VERSION 14 CACHE STRING "KQZL3 version (1-14)")
-
 project(KQZL3 C ASM)
+
+# Unified app version: 1-14 (legacy KQZL3_VERSION is still accepted)
+if(NOT DEFINED APP_VERSION AND DEFINED KQZL3_VERSION)
+    set(APP_VERSION "${KQZL3_VERSION}" CACHE STRING "Application version (1-14)")
+else()
+    set(APP_VERSION "14" CACHE STRING "Application version (1-14)")
+endif()
+if((APP_VERSION STREQUAL "" OR APP_VERSION STREQUAL "OFF" OR APP_VERSION STREQUAL "ON") AND DEFINED KQZL3_VERSION)
+    set(APP_VERSION "${KQZL3_VERSION}" CACHE STRING "Application version (1-14)" FORCE)
+endif()
+if(APP_VERSION STREQUAL "" OR APP_VERSION STREQUAL "OFF" OR APP_VERSION STREQUAL "ON")
+    set(APP_VERSION "14" CACHE STRING "Application version (1-14)" FORCE)
+endif()
+set(KQZL3_VERSION "${APP_VERSION}" CACHE STRING "Legacy KQZL3 version alias" FORCE)
+if(APP_VERSION LESS 1 OR APP_VERSION GREATER 14)
+    message(FATAL_ERROR "APP_VERSION must be 1-14, got '${APP_VERSION}'")
+endif()
 
 set(TEMPLATE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 
@@ -46,9 +60,11 @@ set(COMMON_SRCS
     ${TEMPLATE_ROOT}/common/utils/mem_pool.c
     ${TEMPLATE_ROOT}/common/utils/debug_uart.c
     ${TEMPLATE_ROOT}/common/utils/soft_uart.c
+    ${TEMPLATE_ROOT}/common/utils/comm_port.c
 )
 
 set(BSP_SRCS
+    ${TEMPLATE_ROOT}/bsp/syscalls/syscalls.c
     ${TEMPLATE_ROOT}/bsp/hal_wrapper/hal_common.c
     ${TEMPLATE_ROOT}/bsp/hal_wrapper/gpio_hal.c
     ${TEMPLATE_ROOT}/bsp/hal_wrapper/exti_hal.c
@@ -109,6 +125,7 @@ target_include_directories(${PROJECT_NAME}.elf PRIVATE
     ${TEMPLATE_ROOT}/common/app_framework
     ${TEMPLATE_ROOT}/common/irq_event
     ${TEMPLATE_ROOT}/common/utils
+    ${TEMPLATE_ROOT}/drivers/comm
     ${TEMPLATE_ROOT}/bsp/board
     ${TEMPLATE_ROOT}/bsp/hal_wrapper
     ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/CMSIS
@@ -118,7 +135,9 @@ target_include_directories(${PROJECT_NAME}.elf PRIVATE
 target_compile_definitions(${PROJECT_NAME}.elf PRIVATE
     STM32F10X_MD
     USE_STDPERIPH_DRIVER
-    KQZL3_VERSION=${KQZL3_VERSION}
+    CJSON_NESTING_LIMIT=32
+    APP_VERSION=${APP_VERSION}
+    KQZL3_VERSION=${APP_VERSION}
 )
 
 hal_apply_compile_definitions(${PROJECT_NAME}.elf)

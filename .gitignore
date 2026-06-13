@@ -42,6 +42,9 @@ compile_commands.json
 CTestTestfile.cmake
 _deps/
 Testing/
+build/
+build_*/
+exports_*/
 
 # ==================== Embedded Toolchain ====================
 *.elf

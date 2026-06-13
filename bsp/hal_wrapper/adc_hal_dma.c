@@ -75,6 +75,9 @@ hal_status_t adc_hal_dma_setup(const adc_hal_dma_config_t *cfg)
     for (i = 0U; i < cfg->channel_count; ++i) {
         ADC_RegularChannelConfig(runtime->instance, cfg->channels[i], (uint8_t)(i + 1U), ADC_SampleTime_55Cycles5);
         runtime->channels[i] = cfg->channels[i];
+        if (cfg->channels[i] < ADC_HAL_DMA_BUFFER_MAX) {
+            runtime->sample_time_by_channel[cfg->channels[i]] = ADC_SampleTime_55Cycles5;
+        }
     }
     runtime->channel_count = cfg->channel_count;
 

@@ -3,18 +3,63 @@
 
 #include "scheduler.h"
 
-/* Version info - KQZL3_VERSION is defined via CMake */
+#if !defined(APP_VERSION) && defined(KQZL3_VERSION)
+#define APP_VERSION KQZL3_VERSION
+#endif
+
+#ifndef APP_VERSION
+#define APP_VERSION 14
+#endif
+
 #ifndef KQZL3_VERSION
-#define KQZL3_VERSION 14
+#define KQZL3_VERSION APP_VERSION
 #endif
 
 #define VERSION_NAME "KQZL3"
 
-/* Application events */
+#if APP_VERSION >= 2
+#define VERSION_FEATURE_DHT11 1
+#else
+#define VERSION_FEATURE_DHT11 0
+#endif
+
+#if APP_VERSION >= 5
+#define VERSION_FEATURE_MQ2 1
+#else
+#define VERSION_FEATURE_MQ2 0
+#endif
+
+#if APP_VERSION >= 11
+#define VERSION_FEATURE_MQ7 1
+#else
+#define VERSION_FEATURE_MQ7 0
+#endif
+
+#if (APP_VERSION == 3) || (APP_VERSION == 6) || (APP_VERSION == 8) || \
+    (APP_VERSION == 9) || (APP_VERSION == 10) || (APP_VERSION == 12) || \
+    (APP_VERSION == 14)
+#define VERSION_FEATURE_WIFI 1
+#else
+#define VERSION_FEATURE_WIFI 0
+#endif
+
+#if (APP_VERSION == 4) || (APP_VERSION == 7) || (APP_VERSION == 13)
+#define VERSION_FEATURE_BLE 1
+#else
+#define VERSION_FEATURE_BLE 0
+#endif
+
+#define KQZL3_HAS_DHT11 VERSION_FEATURE_DHT11
+#define KQZL3_HAS_MQ2 VERSION_FEATURE_MQ2
+#define KQZL3_HAS_MQ7 VERSION_FEATURE_MQ7
+#define KQZL3_HAS_WIFI VERSION_FEATURE_WIFI
+#define KQZL3_HAS_BLE VERSION_FEATURE_BLE
+
 #define APP_EVENT_TICK          SCHED_EVENT_TICK
-#define APP_EVENT_KEY           0x01
-#define APP_EVENT_SENSOR_READY  0x02
-#define APP_EVENT_COMM_RX       0x04
-#define APP_EVENT_ALARM_TRIGGER 0x08
+#define APP_EVENT_KEY           0x02
+#define APP_EVENT_SENSOR_READY  0x04
+#define APP_EVENT_COMM_RX       0x08
+#define APP_EVENT_ALARM_TRIGGER 0x10
+#define APP_EVENT_COMM_TX       0x20
 
 #endif
