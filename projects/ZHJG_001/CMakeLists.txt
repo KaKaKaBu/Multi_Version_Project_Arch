@@ -2,25 +2,18 @@ cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/stm32-gcc-toolchain.cmake)
 
-project(DCLD_001 C ASM)
+project(ZHJG_001 C ASM)
 
-if(NOT DEFINED APP_VERSION AND DEFINED DCLD_VERSION)
-    set(APP_VERSION "${DCLD_VERSION}" CACHE STRING "Application version (1-7)")
-else()
-    set(APP_VERSION "7" CACHE STRING "Application version (1-7)")
-endif()
-if((APP_VERSION STREQUAL "" OR APP_VERSION STREQUAL "OFF" OR APP_VERSION STREQUAL "ON") AND DEFINED DCLD_VERSION)
-    set(APP_VERSION "${DCLD_VERSION}" CACHE STRING "Application version (1-7)" FORCE)
-endif()
+set(APP_VERSION "3" CACHE STRING "Application version (1-3)")
 if(APP_VERSION STREQUAL "" OR APP_VERSION STREQUAL "OFF" OR APP_VERSION STREQUAL "ON")
-    set(APP_VERSION "7" CACHE STRING "Application version (1-7)" FORCE)
+    set(APP_VERSION "3" CACHE STRING "Application version (1-3)" FORCE)
 endif()
-set(DCLD_VERSION "${APP_VERSION}" CACHE STRING "Legacy DCLD firmware version alias" FORCE)
-if(APP_VERSION LESS 1 OR APP_VERSION GREATER 7)
-    message(FATAL_ERROR "APP_VERSION must be 1-7, got '${APP_VERSION}'")
+if(APP_VERSION LESS 1 OR APP_VERSION GREATER 3)
+    message(FATAL_ERROR "APP_VERSION must be 1-3, got '${APP_VERSION}'")
 endif()
 
 set(TEMPLATE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
+set(HAL_ADC_ENABLE ON CACHE BOOL "Enable ADC" FORCE)
 option(HAL_DEBUG_UART_ENABLE "Enable GPIO bit-bang debug UART TX on PC13" ON)
 
 include(${TEMPLATE_ROOT}/cmake/hal_options.cmake)
@@ -64,7 +57,7 @@ set(BSP_SRCS
     ${TEMPLATE_ROOT}/bsp/irq_handlers/irq_handlers.c
 )
 
-set(DRIVER_SRCS ${DRIVER_CATALOG_DCLD_001})
+set(DRIVER_SRCS ${DRIVER_CATALOG_ZHJG_001})
 
 set(SPL_SRCS
     ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/CMSIS/system_stm32f10x.c
@@ -121,7 +114,6 @@ target_compile_definitions(${PROJECT_NAME}.elf PRIVATE
     USE_STDPERIPH_DRIVER
     CJSON_NESTING_LIMIT=32
     APP_VERSION=${APP_VERSION}
-    DCLD_VERSION=${APP_VERSION}
 )
 
 hal_apply_compile_definitions(${PROJECT_NAME}.elf)

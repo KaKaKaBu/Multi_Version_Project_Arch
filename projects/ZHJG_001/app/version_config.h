@@ -1,0 +1,48 @@
+#ifndef VERSION_CONFIG_H
+#define VERSION_CONFIG_H
+
+#include "scheduler.h"
+
+#ifndef APP_VERSION
+#define APP_VERSION 3
+#endif
+
+#define VERSION_NAME "ZHJG_001"
+
+#define VERSION_FEATURE_METHANE 1
+#define VERSION_FEATURE_WATER_LEVEL 1
+#define VERSION_FEATURE_TILT 1
+#define VERSION_FEATURE_OLED 1
+#define VERSION_FEATURE_BUZZER 1
+#define VERSION_FEATURE_LED 1
+#define VERSION_FEATURE_KEYS 1
+
+#if APP_VERSION >= 2
+#define VERSION_FEATURE_GPS 1
+#else
+#define VERSION_FEATURE_GPS 0
+#endif
+
+#if APP_VERSION == 2
+#define VERSION_FEATURE_SMS 1
+#else
+#define VERSION_FEATURE_SMS 0
+#endif
+
+#if APP_VERSION == 3
+#define VERSION_FEATURE_WIFI 1
+#define VERSION_FEATURE_REMOTE 1
+#else
+#define VERSION_FEATURE_WIFI 0
+#define VERSION_FEATURE_REMOTE 0
+#endif
+
+#define APP_EVENT_TICK        SCHED_EVENT_TICK
+#define APP_EVENT_KEY         0x02U
+#define APP_EVENT_SENSOR      0x04U
+#define APP_EVENT_ALARM       0x08U
+#define APP_EVENT_COMM_RX     0x10U
+#define APP_EVENT_COMM_TX     0x20U
+#define APP_EVENT_GNSS        0x40U
+
+#endif

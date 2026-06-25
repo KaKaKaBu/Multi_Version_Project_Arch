@@ -1,0 +1,14 @@
+{
+    "editor.semanticHighlighting.enabled": true,
+    "C_Cpp.enhancedColorization": "enabled",
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--background-index",
+        "--clang-tidy",
+        "--completion-style=detailed"
+    ],
+    "editor.fontFamily": "JetBrains Mono",
+    "editor.fontLigatures": true,
+    "editor.formatOnSave": true,
+    "cmake.sourceDirectory": "/home/zhu/projectJBL/PerfabProj/projects/KQZL3"
+}

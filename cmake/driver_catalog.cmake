@@ -25,7 +25,9 @@ set(DRIVER_CATALOG_SENSORS
     ${TEMPLATE_ROOT}/drivers/sensors/max30102.c
     ${TEMPLATE_ROOT}/drivers/sensors/pm25.c
     ${TEMPLATE_ROOT}/drivers/sensors/mq2_smoke.c
+    ${TEMPLATE_ROOT}/drivers/sensors/mq4_methane.c
     ${TEMPLATE_ROOT}/drivers/sensors/mq7_co.c
+    ${TEMPLATE_ROOT}/drivers/sensors/water_level.c
     ${TEMPLATE_ROOT}/drivers/sensors/ph_sensor.c
     ${TEMPLATE_ROOT}/drivers/sensors/co2_uart.c
     ${TEMPLATE_ROOT}/drivers/sensors/hcsr04.c
@@ -45,6 +47,7 @@ set(DRIVER_CATALOG_COMM
     ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
     ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c
     ${TEMPLATE_ROOT}/drivers/comm/su03t_voice.c
+    ${TEMPLATE_ROOT}/drivers/comm/a7670c_sms.c
     ${TEMPLATE_ROOT}/drivers/comm/l76k_gnss.c
     ${TEMPLATE_ROOT}/drivers/comm/nrf24l01.c
 )
@@ -199,5 +202,34 @@ endif()
 
 if(DRIVER_CATALOG_DCLD_001_VERSION EQUAL 5)
     list(APPEND DRIVER_CATALOG_DCLD_001 ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c)
+endif()
+
+# ZHJG_001 — 智能井盖（APP_VERSION 1-3 条件编译）
+driver_catalog_resolve_app_version(DRIVER_CATALOG_ZHJG_001_VERSION _ZHJG_001_UNUSED_LEGACY_VERSION 3)
+
+set(DRIVER_CATALOG_ZHJG_001
+    ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
+    ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306.c
+    ${TEMPLATE_ROOT}/drivers/sensors/mq4_methane.c
+    ${TEMPLATE_ROOT}/drivers/sensors/water_level.c
+    ${TEMPLATE_ROOT}/drivers/sensors/mpu6050.c
+    ${TEMPLATE_ROOT}/drivers/misc/key.c
+    ${TEMPLATE_ROOT}/drivers/misc/buzzer.c
+    ${TEMPLATE_ROOT}/drivers/misc/led.c
+)
+
+if(DRIVER_CATALOG_ZHJG_001_VERSION GREATER_EQUAL 2)
+    list(APPEND DRIVER_CATALOG_ZHJG_001 ${TEMPLATE_ROOT}/drivers/comm/l76k_gnss.c)
+endif()
+
+if(DRIVER_CATALOG_ZHJG_001_VERSION EQUAL 2)
+    list(APPEND DRIVER_CATALOG_ZHJG_001 ${TEMPLATE_ROOT}/drivers/comm/a7670c_sms.c)
+endif()
+
+if(DRIVER_CATALOG_ZHJG_001_VERSION EQUAL 3)
+    list(APPEND DRIVER_CATALOG_ZHJG_001
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
+    )
 endif()
 

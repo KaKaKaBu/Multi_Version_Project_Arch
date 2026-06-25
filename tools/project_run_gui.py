@@ -24,7 +24,7 @@ try:
         read_text,
         resolve_version_feature_list,
     )
-    from gui_common import append_log, command_exists, drain_events, open_path
+    from gui_common import append_log, command_exists, drain_events, find_flutter, open_path
 except ImportError:
     from tools.export_project import (
         discover_projects,
@@ -33,7 +33,7 @@ except ImportError:
         read_text,
         resolve_version_feature_list,
     )
-    from tools.gui_common import append_log, command_exists, drain_events, open_path
+    from tools.gui_common import append_log, command_exists, drain_events, find_flutter, open_path
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OPENOCD_CFG = str(TEMPLATE_ROOT / "stm32f103c8_blue_pill.cfg")
@@ -85,6 +85,11 @@ class CommandWorker:
                         raise RuntimeError("任务已取消")
                     resolved_args = args() if callable(args) else args
                     self._run_one(resolved_args, cwd, env)
+            except RuntimeError as exc:
+                if str(exc) == "任务已取消":
+                    self.events.put(("done", f"{title} 已取消"))
+                else:
+                    self.events.put(("error", f"{title} 失败: {exc}"))
             except Exception as exc:  # noqa: BLE001 - GUI should surface worker errors
                 self.events.put(("error", f"{title} 失败: {exc}"))
             else:
@@ -131,6 +136,8 @@ class CommandWorker:
         for line in self.process.stdout:
             self.events.put(("log", line.rstrip()))
         returncode = self.process.wait()
+        if self._stop_requested:
+            raise RuntimeError("任务已取消")
         if returncode != 0:
             raise RuntimeError(f"命令退出码 {returncode}: {pretty}")
 
@@ -170,6 +177,22 @@ def parse_device_rows(text: str) -> List[str]:
         if parts:
             rows.append(parts[0])
     return rows
+
+
+def parse_flutter_devices_machine(output: str) -> List[tuple[str, str, str]]:
+    """Parse `flutter devices --machine` JSON, return [(id, name, targetPlatform), ...]."""
+    try:
+        data = json.loads(output)
+    except json.JSONDecodeError:
+        return []
+    result = []
+    for device in data:
+        device_id = device.get("id", "")
+        name = device.get("name", device_id)
+        platform = device.get("targetPlatform", "")
+        if device.get("isSupported", False):
+            result.append((device_id, name, platform))
+    return result
 
 
 class ProjectRunGui:
@@ -420,10 +443,39 @@ class ProjectRunGui:
         self._start_commands("ADB devices", [(command("adb", "devices"), self._template_root(), None)])
 
     def _flutter_devices(self) -> None:
-        if not command_exists("flutter"):
-            messagebox.showerror("校验失败", "未找到 flutter 命令")
+        flutter_exe = find_flutter()
+        if not flutter_exe:
+            messagebox.showerror("校验失败", "未找到 flutter 命令——请安装 Flutter 或将 ~/development/flutter/bin 加入 PATH")
             return
-        self._start_commands("Flutter devices", [(command("flutter", "devices"), self._template_root(), None)])
+        try:
+            result = subprocess.run(
+                [flutter_exe, "devices", "--machine"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=str(self._template_root()),
+            )
+            if result.returncode != 0:
+                self._log(f"flutter devices 失败: {result.stderr}")
+                messagebox.showerror("Flutter devices", result.stderr.strip() or "未知错误")
+                return
+            devices = parse_flutter_devices_machine(result.stdout)
+            if not devices:
+                self._log("Flutter devices: 未找到支持的设备")
+                self.device_combo.configure(values=[])
+                self.device_var.set("")
+                messagebox.showinfo("Flutter devices", "未找到支持的 Flutter 设备")
+                return
+            ids = [dev[0] for dev in devices]
+            labels = [f"{dev[1]} ({dev[2]})" for dev in devices]
+            self.device_combo.configure(values=ids)
+            self.device_var.set(ids[0])
+            self._log(f"Flutter devices: {len(devices)} 个设备")
+            for dev in devices:
+                self._log(f"  {dev[0]:20s} {dev[1]:20s} {dev[2]}")
+        except Exception as exc:
+            self._log(f"Flutter devices 异常: {exc}")
+            messagebox.showerror("Flutter devices", str(exc))
 
     def _cmake_build(self) -> None:
         project = self._selected_project()
@@ -520,28 +572,30 @@ class ProjectRunGui:
         flutter_dir = self._flutter_dir()
         if flutter_dir is None:
             return
-        if not command_exists("flutter"):
-            messagebox.showerror("校验失败", "未找到 flutter 命令")
+        flutter_exe = find_flutter()
+        if not flutter_exe:
+            messagebox.showerror("校验失败", "未找到 flutter 命令——请安装 Flutter 或将 ~/development/flutter/bin 加入 PATH")
             return
         version = self._selected_version()
         features = self._resolve_features()
         dart_defines = [f"--dart-define=UPPER_VERSION={version}", f"--dart-define=UPPER_FEATURES={','.join(features)}"]
         target = self.flutter_target_var.get()
         if target == "web":
-            args = command("flutter", "run", "-d", "chrome", *dart_defines)
+            args = [flutter_exe, "run", "-d", "chrome", *dart_defines]
         else:
-            device = self.device_var.get().strip() or self.adb_target_var.get().strip()
+            device = self.device_var.get().strip()
             if not device:
-                messagebox.showerror("校验失败", "请选择 Flutter/ADB 设备或填写 ADB 地址")
+                messagebox.showerror("校验失败", "请先点击「flutter devices」获取设备列表，再选择设备")
                 return
-            args = command("flutter", "run", "-d", device, *dart_defines)
-        self._start_commands("Flutter 运行", [(command("flutter", "pub", "get"), flutter_dir, None), (args, flutter_dir, None)])
+            args = [flutter_exe, "run", "-d", device, *dart_defines]
+        self._start_commands("Flutter 运行", [([flutter_exe, "pub", "get"], flutter_dir, None), (args, flutter_dir, None)])
 
     def _stop_task(self) -> None:
         if not self.worker.running():
             self._log("当前没有正在执行的任务")
             return
         self._log("正在停止任务...")
+        self.stop_button.configure(state=tk.DISABLED)
         self.worker.stop()
 
     def _open_project(self) -> None:

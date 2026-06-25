@@ -10,7 +10,7 @@
 .history/
 *.vsix
 *.code-workspace
-
+.cache
 # JetBrains CLion — keep project structure, ignore personal/generated
 .idea/**/workspace.xml
 .idea/**/tasks.xml
@@ -75,3 +75,8 @@ Thumbs.db
 desktop.ini
 *~
 ~$*
+
+# ==================AI AGENT ==================
+.claude/
+.codex/
+.reasonix/

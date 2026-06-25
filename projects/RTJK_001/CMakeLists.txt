@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_SYSTEM_NAME Generic)
-set(CMAKE_SYSTEM_PROCESSOR arm)
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/stm32-gcc-toolchain.cmake)
 
 project(RTJK_001 C ASM)
 
@@ -33,17 +31,8 @@ endif()
 include(${TEMPLATE_ROOT}/cmake/hal_options.cmake)
 include(${TEMPLATE_ROOT}/cmake/driver_catalog.cmake)
 
-set(STM32_TOOLCHAIN_BIN "D:/ProgramFile/ST/STM32CubeCLT_1.20.0/GNU-tools-for-STM32/bin" CACHE PATH "STM32 GNU toolchain bin directory")
 set(LINKER_SCRIPT ${TEMPLATE_ROOT}/bsp/linker_scripts/STM32F103XX_FLASH.ld)
 set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/startup/startup_stm32f103xb.s)
-
-if(NOT CMAKE_OBJCOPY)
-    set(CMAKE_OBJCOPY ${STM32_TOOLCHAIN_BIN}/arm-none-eabi-objcopy.exe)
-endif()
-
-if(NOT CMAKE_SIZE)
-    set(CMAKE_SIZE ${STM32_TOOLCHAIN_BIN}/arm-none-eabi-size.exe)
-endif()
 
 set(CPU_FLAGS
     -mcpu=cortex-m3

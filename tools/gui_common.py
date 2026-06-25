@@ -94,6 +94,34 @@ def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
 
+_FLUTTER_CANDIDATES = [
+    os.path.expanduser("~/development/flutter/bin/flutter"),
+    os.path.expanduser("~/flutter/bin/flutter"),
+    "/usr/local/flutter/bin/flutter",
+    "/opt/flutter/bin/flutter",
+]
+
+
+def find_flutter() -> Optional[str]:
+    """Return the full path to the flutter executable, or None if not found."""
+    path = shutil.which("flutter")
+    if path:
+        return path
+    for candidate in _FLUTTER_CANDIDATES:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    env_paths = [
+        os.environ.get("FLUTTER_ROOT", ""),
+        os.environ.get("FLUTTER_HOME", ""),
+    ]
+    for env_path in env_paths:
+        if env_path:
+            candidate = os.path.join(env_path, "bin", "flutter")
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    return None
+
+
 def parse_comma_list(value: str) -> List[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 

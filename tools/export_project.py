@@ -38,9 +38,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 TEMPLATE_ROOT_NAME = "project_template"
-DEFAULT_STM32_TOOLCHAIN_BIN = (
-    "D:/ProgramFile/ST/STM32CubeCLT_1.20.0/GNU-tools-for-STM32/bin"
-)
+DEFAULT_STM32_TOOLCHAIN_BIN = ""
 
 @dataclass
 class ProjectExportInfo:
@@ -306,13 +304,9 @@ def write_text(path: Path, content: str) -> None:
 
 
 def find_cmake_executable() -> str:
-    candidates = [
-        shutil.which("cmake"),
-        r"D:/ProgramFile/ST/STM32CubeCLT_1.20.0/CMake/bin/cmake.exe",
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return candidate
+    candidate = shutil.which("cmake")
+    if candidate:
+        return candidate
     raise FileNotFoundError("未找到 cmake，请安装 CMake 或将其加入 PATH")
 
 
@@ -454,7 +448,7 @@ def resolve_toolchain_bin(
     parsed = parse_cmake_quoted_value(src_cmake_text, "STM32_TOOLCHAIN_BIN")
     if parsed:
         return parsed.replace("\\", "/")
-    return DEFAULT_STM32_TOOLCHAIN_BIN
+    return ""
 
 
 def parse_extras_list(extras_arg: Optional[List[str]], no_extras: bool) -> List[str]:
@@ -1176,24 +1170,13 @@ def generate_standalone_cmake(
     lines: List[str] = [
         "cmake_minimum_required(VERSION 3.20)",
         "",
-        "set(CMAKE_SYSTEM_NAME Generic)",
-        "set(CMAKE_SYSTEM_PROCESSOR arm)",
-        "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)",
+        "include(${CMAKE_CURRENT_LIST_DIR}/cmake/stm32-gcc-toolchain.cmake)",
         "",
         f"project({project_name} C ASM)",
         "",
         "set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR})",
         "",
-        f'set(STM32_TOOLCHAIN_BIN "{toolchain_bin}" CACHE PATH "STM32 GNU toolchain bin directory")',
         f"set(LINKER_SCRIPT ${{PROJECT_ROOT}}/{linker_items[0] if linker_items else 'bsp/linker_scripts/STM32F103XX_FLASH.ld'})",
-        "",
-        "if(NOT CMAKE_OBJCOPY)",
-        "    set(CMAKE_OBJCOPY ${STM32_TOOLCHAIN_BIN}/arm-none-eabi-objcopy.exe)",
-        "endif()",
-        "",
-        "if(NOT CMAKE_SIZE)",
-        "    set(CMAKE_SIZE ${STM32_TOOLCHAIN_BIN}/arm-none-eabi-size.exe)",
-        "endif()",
         "",
         "set(CPU_FLAGS",
     ]
@@ -1772,8 +1755,7 @@ def export_one_version(
             f"版本: {version if version_var else 'default'}\n\n"
             "构建:\n"
             "  cmake -S . -B build -G Ninja "
-            "-DCMAKE_TOOLCHAIN_FILE=cmake/stm32-gcc-toolchain.cmake "
-            "-DCMAKE_MAKE_PROGRAM=<Ninja路径>/ninja.exe\n"
+            "-DCMAKE_TOOLCHAIN_FILE=cmake/stm32-gcc-toolchain.cmake\n"
             "  cmake --build build\n",
         )
 
