@@ -1,3 +1,4 @@
+/* ZHJG_001 应用状态、阈值项和调度回调声明。 */
 #ifndef APP_LOGIC_H
 #define APP_LOGIC_H
 

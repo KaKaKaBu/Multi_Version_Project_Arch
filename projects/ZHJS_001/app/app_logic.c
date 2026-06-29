@@ -1,3 +1,4 @@
+/* ZHJS_001 智慧照明业务逻辑：光照采样、人体检测、灯路控制、显示和按键处理。 */
 #include "app_logic.h"
 #include "devmgr.h"
 #include "version_config.h"

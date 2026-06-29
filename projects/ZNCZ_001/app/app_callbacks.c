@@ -1,3 +1,4 @@
+/* ZNCZ_001 通讯回调：缓存串口/MQTT 下行数据，供业务逻辑按事件解析。 */
 #include "version_config.h"
 #include "scheduler.h"
 #include "debug_log.h"

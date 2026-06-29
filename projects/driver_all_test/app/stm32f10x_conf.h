@@ -1,3 +1,4 @@
+/* driver_all_test 标准外设库裁剪配置：声明全集成测试需要包含的 SPL 头文件。 */
 #ifndef STM32F10X_CONF_H
 #define STM32F10X_CONF_H
 

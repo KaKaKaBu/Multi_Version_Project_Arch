@@ -1,3 +1,4 @@
+/* driver_all_test 板级配置：为全集成驱动提供默认引脚，便于编译和冒烟测试。 */
 #ifndef BOARD_CONFIG_H
 #define BOARD_CONFIG_H
 

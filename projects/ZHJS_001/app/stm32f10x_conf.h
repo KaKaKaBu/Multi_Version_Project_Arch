@@ -1,3 +1,4 @@
+/* ZHJS_001 标准外设库裁剪配置：声明本项目需要包含的 SPL 头文件。 */
 #ifndef STM32F10X_CONF_H
 #define STM32F10X_CONF_H
 

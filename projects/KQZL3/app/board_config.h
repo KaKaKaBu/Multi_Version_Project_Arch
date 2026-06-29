@@ -3,6 +3,7 @@
  * @brief KQZL3 board pin map, peripheral instances, and HAL feature overrides.
  */
 
+/* KQZL3 板级配置：集中定义传感器、执行器、通讯端口和 MQTT 参数。 */
 #ifndef BOARD_CONFIG_H
 #define BOARD_CONFIG_H
 

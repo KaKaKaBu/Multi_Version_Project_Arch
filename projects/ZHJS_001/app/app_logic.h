@@ -1,3 +1,4 @@
+/* ZHJS_001 应用业务入口和调度回调声明。 */
 #ifndef APP_LOGIC_H
 #define APP_LOGIC_H
 

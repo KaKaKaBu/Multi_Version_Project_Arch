@@ -1,3 +1,4 @@
+/* ZNCZ_001 智能插座业务逻辑：继电器、RTC 定时、WiFi 协议、显示和状态机处理。 */
 #include "app_logic.h"
 #include "app_fsm.h"
 #include "board_config.h"

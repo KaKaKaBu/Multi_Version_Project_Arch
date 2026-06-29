@@ -233,3 +233,86 @@ if(DRIVER_CATALOG_ZHJG_001_VERSION EQUAL 3)
     )
 endif()
 
+# WXCS_001 — Vehicle exhaust gas detection (APP_VERSION 1-3)
+driver_catalog_resolve_app_version(DRIVER_CATALOG_WXCS_001_VERSION _WXCS_001_UNUSED_LEGACY_VERSION 3)
+
+set(DRIVER_CATALOG_WXCS_001
+    ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
+    ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306.c
+    ${TEMPLATE_ROOT}/drivers/sensors/mq135.c
+    ${TEMPLATE_ROOT}/drivers/sensors/mq7_co.c
+    ${TEMPLATE_ROOT}/drivers/sensors/ds18b20.c
+    ${TEMPLATE_ROOT}/drivers/actuators/relay.c
+    ${TEMPLATE_ROOT}/drivers/misc/buzzer.c
+    ${TEMPLATE_ROOT}/drivers/misc/led.c
+    ${TEMPLATE_ROOT}/drivers/misc/key.c
+)
+
+if(DRIVER_CATALOG_WXCS_001_VERSION EQUAL 2)
+    list(APPEND DRIVER_CATALOG_WXCS_001
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
+    )
+endif()
+
+if(DRIVER_CATALOG_WXCS_001_VERSION EQUAL 3)
+    list(APPEND DRIVER_CATALOG_WXCS_001 ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c)
+endif()
+
+# SMZL_001 — Sleep monitor for elderly (APP_VERSION 1-3)
+driver_catalog_resolve_app_version(DRIVER_CATALOG_SMZL_001_VERSION _SMZL_001_UNUSED_LEGACY_VERSION 3)
+
+set(DRIVER_CATALOG_SMZL_001
+    ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
+    ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306.c
+    ${TEMPLATE_ROOT}/drivers/sensors/mpu6050.c
+    ${TEMPLATE_ROOT}/drivers/sensors/max30102.c
+    ${TEMPLATE_ROOT}/drivers/sensors/ds18b20.c
+    ${TEMPLATE_ROOT}/drivers/misc/buzzer.c
+    ${TEMPLATE_ROOT}/drivers/misc/led.c
+    ${TEMPLATE_ROOT}/drivers/misc/key.c
+)
+
+if(DRIVER_CATALOG_SMZL_001_VERSION EQUAL 2)
+    list(APPEND DRIVER_CATALOG_SMZL_001 ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c)
+endif()
+
+if(DRIVER_CATALOG_SMZL_001_VERSION EQUAL 3)
+    list(APPEND DRIVER_CATALOG_SMZL_001
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
+    )
+endif()
+
+# ZNLYJ_001 — Smart clothes drying rack (APP_VERSION 1-4)
+driver_catalog_resolve_app_version(DRIVER_CATALOG_ZNLYJ_001_VERSION _ZNLYJ_001_UNUSED_LEGACY_VERSION 4)
+
+set(DRIVER_CATALOG_ZNLYJ_001
+    ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
+    ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306.c
+    ${TEMPLATE_ROOT}/drivers/sensors/dht11.c
+    ${TEMPLATE_ROOT}/drivers/sensors/e18_presence.c
+    ${TEMPLATE_ROOT}/drivers/sensors/ir_clothes.c
+    ${TEMPLATE_ROOT}/drivers/actuators/stepmotor.c
+    ${TEMPLATE_ROOT}/drivers/misc/buzzer.c
+    ${TEMPLATE_ROOT}/drivers/misc/key.c
+)
+
+if(DRIVER_CATALOG_ZNLYJ_001_VERSION GREATER_EQUAL 2)
+    list(APPEND DRIVER_CATALOG_ZNLYJ_001
+        ${TEMPLATE_ROOT}/drivers/sensors/gl5506_light.c
+        ${TEMPLATE_ROOT}/drivers/sensors/hx711.c
+    )
+endif()
+
+if(DRIVER_CATALOG_ZNLYJ_001_VERSION EQUAL 3)
+    list(APPEND DRIVER_CATALOG_ZNLYJ_001 ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c)
+endif()
+
+if(DRIVER_CATALOG_ZNLYJ_001_VERSION EQUAL 4)
+    list(APPEND DRIVER_CATALOG_ZNLYJ_001
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
+    )
+endif()
+

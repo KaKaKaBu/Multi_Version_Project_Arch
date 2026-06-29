@@ -1,3 +1,4 @@
+/* KQZL3 应用状态、模式枚举和调度回调声明。 */
 #ifndef APP_LOGIC_H
 #define APP_LOGIC_H
 

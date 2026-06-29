@@ -1,3 +1,4 @@
+/* KQZL3 通讯回调：负责串口/MQTT 接收组帧，并把 JSON 命令转交业务逻辑。 */
 #include "version_config.h"
 #include "scheduler.h"
 #include "debug_log.h"

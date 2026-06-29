@@ -1,3 +1,4 @@
+/* KQZL3 空气质量检测业务逻辑：传感器采样、报警、显示、按键和远程协议处理。 */
 #include "app_logic.h"
 #include "devmgr.h"
 #include "gas_if.h"

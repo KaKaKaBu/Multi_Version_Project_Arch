@@ -1,3 +1,4 @@
+/* ZNCZ_001 固件入口：初始化 BSP、设备管理、WiFi、按键、RTC 和调度循环。 */
 #include "devmgr.h"
 #include "comm_port.h"
 #include "board_config.h"

@@ -383,6 +383,9 @@ VERSION_CONFIG = '''#ifndef VERSION_CONFIG_H
 #define VERSION_FEATURE_DISPLAY 1
 #define VERSION_FEATURE_COMM    0
 
+/* Enable concrete drivers here, then driver_features.h defaults the rest to 0. */
+#include "driver_features.h"
+
 /* Application events (extend per project needs) */
 #define APP_EVENT_TICK          SCHED_EVENT_TICK
 #define APP_EVENT_SENSOR_READY  0x01

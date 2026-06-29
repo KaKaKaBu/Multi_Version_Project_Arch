@@ -1,3 +1,4 @@
+/* DCLD_001 板级配置：集中定义外设引脚、通讯端口和 MQTT 参数。 */
 /**
  * @file board_config.h
  * @brief DCLD_001 reverse-radar board pin map and communication settings.

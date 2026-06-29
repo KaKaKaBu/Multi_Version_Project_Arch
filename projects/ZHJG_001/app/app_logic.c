@@ -1,3 +1,4 @@
+/* ZHJG_001 智能井盖业务逻辑：甲烷、水位、倾斜、定位、报警和远程协议处理。 */
 #include "app_logic.h"
 #include "devmgr.h"
 #include "gas_if.h"
@@ -297,7 +298,7 @@ static const cJSON *zhjg_json_params(const cJSON *root)
     const cJSON *params;
 
     params = cJSON_GetObjectItem(root, "params");
-    if ((params != 0) && cJSON_IsObject(params)) {
+    if ((params != 0) && ((params->type & cJSON_Object) != 0)) {
         return params;
     }
 
@@ -309,21 +310,21 @@ static void zhjg_apply_threshold_json(const cJSON *params)
     const cJSON *item;
 
     item = cJSON_GetObjectItem(params, "methane_ppm");
-    if ((item != 0) && cJSON_IsNumber(item)) {
+    if ((item != 0) && ((item->type & cJSON_Number) != 0)) {
         g_zhjg.methane_threshold_ppm = zhjg_clamp_u16((uint16_t)item->valueint,
                                                        ZHJG_MIN_METHANE_THRESHOLD_PPM,
                                                        ZHJG_MAX_METHANE_THRESHOLD_PPM);
     }
 
     item = cJSON_GetObjectItem(params, "water_level_percent");
-    if ((item != 0) && cJSON_IsNumber(item)) {
+    if ((item != 0) && ((item->type & cJSON_Number) != 0)) {
         g_zhjg.water_threshold_percent = zhjg_clamp_float((float)item->valuedouble,
                                                           ZHJG_MIN_WATER_THRESHOLD_PERCENT,
                                                           ZHJG_MAX_WATER_THRESHOLD_PERCENT);
     }
 
     item = cJSON_GetObjectItem(params, "tilt_degree");
-    if ((item != 0) && cJSON_IsNumber(item)) {
+    if ((item != 0) && ((item->type & cJSON_Number) != 0)) {
         g_zhjg.tilt_threshold_degree = zhjg_clamp_float((float)item->valuedouble,
                                                         ZHJG_MIN_TILT_THRESHOLD_DEGREE,
                                                         ZHJG_MAX_TILT_THRESHOLD_DEGREE);

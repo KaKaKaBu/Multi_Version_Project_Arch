@@ -1,0 +1,9 @@
+{
+  "_comment": "Features per firmware version.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "ble", "monitor"] },
+    "3": { "features": ["common", "wifi", "monitor"] }
+  }
+}

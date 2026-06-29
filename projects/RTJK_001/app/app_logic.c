@@ -1,3 +1,4 @@
+/* RTJK_001 健康监测业务逻辑：心率血氧、体温、血压、报警、显示和远程协议处理。 */
 #include "app_logic.h"
 #include "board_config.h"
 #include "cjson_port.h"

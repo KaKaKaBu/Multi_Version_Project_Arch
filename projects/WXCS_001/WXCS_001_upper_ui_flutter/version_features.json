@@ -1,0 +1,9 @@
+{
+  "_comment": "Features per firmware version. defaultFeatures applies when a version entry is missing.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "wifi", "control"] },
+    "3": { "features": ["common", "ble", "control"] }
+  }
+}

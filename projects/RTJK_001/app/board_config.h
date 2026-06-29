@@ -1,3 +1,4 @@
+/* RTJK_001 板级配置：集中定义健康传感器、报警、按键和通讯引脚。 */
 #ifndef BOARD_CONFIG_H
 #define BOARD_CONFIG_H
 

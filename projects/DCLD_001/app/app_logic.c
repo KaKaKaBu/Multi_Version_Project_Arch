@@ -1,3 +1,4 @@
+/* DCLD_001 倒车雷达业务逻辑：测距、温度补偿、报警、显示和远程协议处理。 */
 #include "app_logic.h"
 #include "devmgr.h"
 #include "distance_if.h"

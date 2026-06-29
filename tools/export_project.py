@@ -40,6 +40,50 @@ from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 TEMPLATE_ROOT_NAME = "project_template"
 DEFAULT_STM32_TOOLCHAIN_BIN = ""
 
+DRIVER_FEATURE_MACRO_BY_FILE = {
+    "a7670c_sms.c": "VERSION_FEATURE_DRIVER_A7670C_SMS",
+    "bmp180.c": "VERSION_FEATURE_DRIVER_BMP180",
+    "buzzer.c": "VERSION_FEATURE_DRIVER_BUZZER",
+    "co2_uart.c": "VERSION_FEATURE_DRIVER_CO2_UART",
+    "dht11.c": "VERSION_FEATURE_DRIVER_DHT11",
+    "ds1302_rtc.c": "VERSION_FEATURE_DRIVER_DS1302_RTC",
+    "ds18b20.c": "VERSION_FEATURE_DRIVER_DS18B20",
+    "e18_presence.c": "VERSION_FEATURE_DRIVER_E18_PRESENCE",
+    "esp8266_mqtt.c": "VERSION_FEATURE_DRIVER_ESP8266_MQTT",
+    "esp8266_wifi.c": "VERSION_FEATURE_DRIVER_ESP8266_WIFI",
+    "gl5506_light.c": "VERSION_FEATURE_DRIVER_GL5506_LIGHT",
+    "hc595_seg.c": "VERSION_FEATURE_DRIVER_HC595_SEG",
+    "hcsr04.c": "VERSION_FEATURE_DRIVER_HCSR04",
+    "hx711.c": "VERSION_FEATURE_DRIVER_HX711",
+    "ir_clothes.c": "VERSION_FEATURE_DRIVER_IR_CLOTHES",
+    "jdy31_ble.c": "VERSION_FEATURE_DRIVER_JDY31_BLE",
+    "key.c": "VERSION_FEATURE_DRIVER_KEY",
+    "key_4ch.c": "VERSION_FEATURE_DRIVER_KEY_4CH",
+    "l76k_gnss.c": "VERSION_FEATURE_DRIVER_L76K_GNSS",
+    "led.c": "VERSION_FEATURE_DRIVER_LED",
+    "light_channel.c": "VERSION_FEATURE_DRIVER_LIGHT_CHANNEL",
+    "max30102.c": "VERSION_FEATURE_DRIVER_MAX30102",
+    "mpu6050.c": "VERSION_FEATURE_DRIVER_MPU6050",
+    "mq135.c": "VERSION_FEATURE_DRIVER_MQ135",
+    "mq2_smoke.c": "VERSION_FEATURE_DRIVER_MQ2_SMOKE",
+    "mq4_methane.c": "VERSION_FEATURE_DRIVER_MQ4_METHANE",
+    "mq7_co.c": "VERSION_FEATURE_DRIVER_MQ7_CO",
+    "msp20_bp.c": "VERSION_FEATURE_DRIVER_MSP20_BP",
+    "nrf24l01.c": "VERSION_FEATURE_DRIVER_NRF24L01",
+    "oled_font.c": "VERSION_FEATURE_DRIVER_OLED_FONT",
+    "oled_ssd1306.c": "VERSION_FEATURE_DRIVER_OLED_SSD1306",
+    "ph_sensor.c": "VERSION_FEATURE_DRIVER_PH_SENSOR",
+    "pm25.c": "VERSION_FEATURE_DRIVER_PM25",
+    "relay.c": "VERSION_FEATURE_DRIVER_RELAY",
+    "rfid_rc522.c": "VERSION_FEATURE_DRIVER_RFID_RC522",
+    "sg90.c": "VERSION_FEATURE_DRIVER_SG90",
+    "stepmotor.c": "VERSION_FEATURE_DRIVER_STEPMOTOR",
+    "su03t_voice.c": "VERSION_FEATURE_DRIVER_SU03T_VOICE",
+    "water_level.c": "VERSION_FEATURE_DRIVER_WATER_LEVEL",
+}
+
+ALL_DRIVER_FEATURE_MACROS = sorted(set(DRIVER_FEATURE_MACRO_BY_FILE.values()))
+
 @dataclass
 class ProjectExportInfo:
     project_dir: Path
@@ -287,6 +331,8 @@ def eval_pp_expr(expr: str, macros: Dict[str, int]) -> Optional[int]:
 
 def find_template_root(start: Path) -> Path:
     for parent in [start, *start.parents]:
+        if (parent / "cmake" / "driver_catalog.cmake").is_file() and (parent / "tools" / "export_project.py").is_file():
+            return parent
         if parent.name == TEMPLATE_ROOT_NAME:
             return parent
         if (parent / TEMPLATE_ROOT_NAME).is_dir():
@@ -318,6 +364,13 @@ def parse_project_name(cmake_text: str) -> str:
 
 
 def parse_set_block(cmake_text: str, var_name: str) -> List[str]:
+    def split_items(body: str) -> List[str]:
+        return [
+            item.strip().strip('"')
+            for item in re.findall(r'"[^"]*"|\S+', body)
+            if item.strip()
+        ]
+
     single = re.search(
         rf"set\s*\(\s*{re.escape(var_name)}\s+([^)\n]+)\)",
         cmake_text,
@@ -325,7 +378,7 @@ def parse_set_block(cmake_text: str, var_name: str) -> List[str]:
     if single:
         body = single.group(1).strip()
         if body:
-            return [body]
+            return split_items(body)
 
     multi = re.search(
         rf"set\s*\(\s*{re.escape(var_name)}\s+(.*?)\n\)",
@@ -339,7 +392,7 @@ def parse_set_block(cmake_text: str, var_name: str) -> List[str]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        items.append(line)
+        items.extend(split_items(line))
     return items
 
 
@@ -390,7 +443,7 @@ def parse_version_range(cmake_text: str, version_var: str) -> Tuple[int, int]:
 
 def parse_executable_groups(cmake_text: str) -> List[str]:
     match = re.search(
-        r"add_executable\s*\(\s*\$\{PROJECT_NAME\}\.elf\s+(.*?)\n\)",
+        r"add_executable\s*\((.*?)\)",
         cmake_text,
         re.DOTALL,
     )
@@ -398,10 +451,9 @@ def parse_executable_groups(cmake_text: str) -> List[str]:
         return ["APP_SRCS", "COMMON_SRCS", "BSP_SRCS", "DRIVER_SRCS", "SPL_SRCS"]
 
     groups: List[str] = []
-    for line in match.group(1).splitlines():
-        ref = re.search(r"\$\{(\w+)\}", line.strip())
-        if ref:
-            groups.append(ref.group(1))
+    for ref in re.findall(r"\$\{(\w+)\}", match.group(1)):
+        if ref != "PROJECT_NAME" and ref not in groups:
+            groups.append(ref)
     return groups
 
 
@@ -489,6 +541,8 @@ def extract_hal_preamble(cmake_text: str) -> str:
         if not stripped or stripped.startswith("#"):
             continue
         if any(stripped.startswith(prefix) for prefix in skip_prefixes):
+            continue
+        if "stm32-gcc-toolchain.cmake" in stripped:
             continue
         if re.match(r"set\s*\(\s*TEMPLATE_ROOT\s", stripped):
             continue
@@ -953,12 +1007,22 @@ def collect_version_feature_macros(version_config_path: Path, macros: Dict[str, 
     return collected
 
 
+def collect_driver_feature_macros(driver_sources: Iterable[Path]) -> Dict[str, int]:
+    collected = {name: 0 for name in ALL_DRIVER_FEATURE_MACROS}
+    for src in driver_sources:
+        macro = DRIVER_FEATURE_MACRO_BY_FILE.get(src.name)
+        if macro:
+            collected[macro] = 1
+    return collected
+
+
 def build_export_prune_context(
     project_dir: Path,
     cmake_text: str,
     version_var: Optional[str],
     version: int,
     hal_options: Dict[str, bool],
+    driver_sources: Iterable[Path],
     enabled: bool,
 ) -> ExportPruneContext:
     macros: Dict[str, int] = {}
@@ -971,6 +1035,7 @@ def build_export_prune_context(
     for name, value in hal_options.items():
         macros[name] = 1 if value else 0
     macros.update(collect_version_feature_macros(project_dir / "app" / "version_config.h", macros))
+    macros.update(collect_driver_feature_macros(driver_sources))
     return ExportPruneContext(enabled=enabled, macros=macros)
 
 
@@ -1656,6 +1721,7 @@ def export_one_version(
         version_var,
         version,
         hal_options,
+        source_groups.get("DRIVER_SRCS", []),
         prune_conditionals,
     )
 

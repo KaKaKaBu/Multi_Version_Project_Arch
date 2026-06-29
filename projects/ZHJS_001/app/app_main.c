@@ -1,3 +1,4 @@
+/* ZHJS_001 固件入口：初始化 BSP、设备管理、按键和调度循环。 */
 #include "devmgr.h"
 #include "hal_common.h"
 #include "input_if.h"

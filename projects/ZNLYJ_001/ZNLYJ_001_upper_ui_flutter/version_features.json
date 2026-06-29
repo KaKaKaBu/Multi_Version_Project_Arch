@@ -1,0 +1,10 @@
+{
+  "_comment": "Features per firmware version.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "light", "weight"] },
+    "3": { "features": ["common", "light", "weight", "ble", "control"] },
+    "4": { "features": ["common", "light", "weight", "wifi", "control"] }
+  }
+}
