@@ -6,6 +6,10 @@
 #ifndef BOARD_CONFIG_H
 #define BOARD_CONFIG_H
 
+#if defined(PLATFORM_MCS51)
+#include "board_config_mcs51.h"
+#else
+
 #include "version_config.h"
 #include "gpio_hal.h"
 #include "usart_hal.h"
@@ -135,6 +139,8 @@ static const hal_pin_t board_jdy31_rx = { GPIOA, GPIO_Pin_3, GPIO_HAL_MODE_IN_FL
 #define BOARD_COMM_DEVICE "jdy31"
 #else
 #define BOARD_COMM_DEVICE ""
+#endif
+
 #endif
 
 #endif

@@ -36,6 +36,7 @@ set(CPU_FLAGS
 
 set(COMMON_SRCS
     ${TEMPLATE_ROOT}/common/device_manager/devmgr.c
+    ${TEMPLATE_ROOT}/common/device_manager/driver_registry_gcc.c
     ${TEMPLATE_ROOT}/common/scheduler/scheduler.c
     ${TEMPLATE_ROOT}/common/scheduler/sched_loop.c
     ${TEMPLATE_ROOT}/common/irq_event/irq_event.c

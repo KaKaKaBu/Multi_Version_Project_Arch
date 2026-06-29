@@ -46,6 +46,16 @@ hal_status_t hal_wait_flag_us(hal_poll_fn_t poll, void *ctx, uint32_t timeout_us
  */
 uint32_t hal_get_us(void);
 
+/**
+ * @brief Enters a short critical section and returns the previous IRQ state.
+ */
+uint32_t hal_irq_lock(void);
+
+/**
+ * @brief Restores the IRQ state returned by hal_irq_lock().
+ */
+void hal_irq_unlock(uint32_t irq_state);
+
 #ifdef __cplusplus
 }
 #endif

@@ -6,7 +6,11 @@
 #include "misc_if.h"
 #include "display_if.h"
 #include "board_config.h"
+#if !defined(PLATFORM_MCS51)
 #include "tiny_printf.h"
+#else
+#include "mcs51_memory.h"
+#endif
 
 #if VERSION_FEATURE_REMOTE
 #include "cJSON.h"
@@ -40,7 +44,11 @@
 
 #define APP_TELEMETRY_INTERVAL_MS 3000U
 
+#if defined(PLATFORM_MCS51)
+MCS51_XDATA app_context_t g_ctx;
+#else
 app_context_t g_ctx;
+#endif
 
 static const gas_sensor_t *aq_sensor;
 static const gas_sensor_t *co_sensor;
@@ -82,7 +90,11 @@ static void app_auto_assess(void)
     fan = 0U;
     alarm = 0U;
 
+    #if defined(PLATFORM_MCS51)
+    if (g_ctx.temperature > (int)g_ctx.temp_threshold) {
+    #else
     if (g_ctx.temperature > (float)g_ctx.temp_threshold) {
+    #endif
         fan = 1U;
         alarm = 1U;
     }
@@ -133,15 +145,108 @@ static const char *app_threshold_name(void)
     }
 }
 
+#if defined(PLATFORM_MCS51)
+static char *app_copy_text(char *dst, const char *src)
+{
+    while (*src != '\0') {
+        *dst = *src;
+        ++dst;
+        ++src;
+    }
+    *dst = '\0';
+    return dst;
+}
+
+static void app_u16_to_text(unsigned int value, char *buf)
+{
+    char tmp[6];
+    unsigned char i = 0U;
+
+    if (value == 0U) {
+        buf[0] = '0';
+        buf[1] = '\0';
+        return;
+    }
+
+    while ((value > 0U) && (i < sizeof(tmp))) {
+        tmp[i++] = (char)('0' + (value % 10U));
+        value /= 10U;
+    }
+
+    while (i > 0U) {
+        --i;
+        *buf++ = tmp[i];
+    }
+    *buf = '\0';
+}
+
+static void app_line_label_text(char *line, const char *label, const char *text)
+{
+    char *out = app_copy_text(line, label);
+    (void)app_copy_text(out, text);
+}
+
+static void app_line_label_u16(char *line, const char *label, unsigned int value, const char *suffix)
+{
+    char *out = app_copy_text(line, label);
+    app_u16_to_text(value, out);
+    while (*out != '\0') {
+        ++out;
+    }
+    (void)app_copy_text(out, suffix);
+}
+#endif
+
 /* 按当前模式刷新 OLED：自动/手动显示实时值，阈值模式显示可调项。 */
 static void app_display_refresh(void)
 {
+#if defined(PLATFORM_MCS51)
+    char line[24];
+#endif
+
     if ((display == 0) || (g_ctx.display_dirty == 0U)) {
         return;
     }
 
     display->clear();
 
+#if defined(PLATFORM_MCS51)
+    app_line_label_text(line, "Mode:", app_mode_text());
+    display->print(0U, 0U, DISPLAY_FONT_SMALL, line);
+
+    if (g_ctx.mode == APP_MODE_THRESHOLD) {
+        app_line_label_text(line, "Set ", app_threshold_name());
+        display->print(0U, 2U, DISPLAY_FONT_SMALL, line);
+        if (g_ctx.selected_threshold == APP_THRESHOLD_TEMP) {
+            app_line_label_u16(line, "", (unsigned int)g_ctx.temp_threshold, "C");
+            display->print(0U, 4U, DISPLAY_FONT_LARGE, line);
+        } else if (g_ctx.selected_threshold == APP_THRESHOLD_AQ) {
+            app_line_label_u16(line, "", (unsigned int)g_ctx.aq_threshold_ppm, "ppm");
+            display->print(0U, 4U, DISPLAY_FONT_LARGE, line);
+        } else {
+            app_line_label_u16(line, "", (unsigned int)g_ctx.co_threshold_ppm, "ppm");
+            display->print(0U, 4U, DISPLAY_FONT_LARGE, line);
+        }
+        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2 Sel K3+ K4-");
+    } else {
+        app_line_label_u16(line, "Temp:", (unsigned int)g_ctx.temperature, "C");
+        display->print(0U, 2U, DISPLAY_FONT_SMALL, line);
+        app_line_label_u16(line, "AQ:", (unsigned int)g_ctx.air_quality_ppm, "ppm");
+        display->print(0U, 3U, DISPLAY_FONT_SMALL, line);
+        app_line_label_u16(line, "CO:", (unsigned int)g_ctx.co_ppm, "ppm");
+        display->print(0U, 4U, DISPLAY_FONT_SMALL, line);
+
+        if (g_ctx.mode == APP_MODE_MANUAL) {
+            app_line_label_text(line, "Dev:",
+                                (g_ctx.selected_device == APP_DEVICE_FAN) ? "FAN" : "ALARM");
+            display->print(0U, 5U, DISPLAY_FONT_SMALL, line);
+            display->print(0U, 6U, DISPLAY_FONT_SMALL, "K2 Sel K3 Toggle");
+        }
+
+        display->print(0U, 7U, DISPLAY_FONT_SMALL,
+                       (g_ctx.alarm_on != 0U) ? "ALARM!" : "SAFE");
+    }
+#else
     display->print(0U, 0U, DISPLAY_FONT_SMALL, "Mode:%s", app_mode_text());
 
     if (g_ctx.mode == APP_MODE_THRESHOLD) {
@@ -171,6 +276,7 @@ static void app_display_refresh(void)
         display->print(0U, 7U, DISPLAY_FONT_SMALL,
                        (g_ctx.alarm_on != 0U) ? "ALARM!" : "SAFE");
     }
+#endif
 
     display->update();
     g_ctx.display_dirty = 0U;
@@ -468,7 +574,11 @@ void app_logic_init(void)
     g_ctx.selected_threshold = APP_THRESHOLD_TEMP;
     g_ctx.fan_on = 0U;
     g_ctx.alarm_on = 0U;
+    #if defined(PLATFORM_MCS51)
+    g_ctx.temperature = 0;
+    #else
     g_ctx.temperature = 0.0f;
+    #endif
     g_ctx.air_quality_ppm = 0U;
     g_ctx.co_ppm = 0U;
     g_ctx.temp_threshold = APP_DEFAULT_TEMP_THRESHOLD;

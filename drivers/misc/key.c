@@ -11,6 +11,7 @@
 #include "scheduler.h"
 #include "irq_event.h"
 #include "exti_hal.h"
+#include "hal_common.h"
 
 /* -------------------------------------------------------------------------- */
 /* Configuration defaults                                                     */
@@ -50,8 +51,12 @@ typedef char key_driver_requires_at_least_one_button[(KEY_DRIVER_BUTTON_COUNT > 
 #define KEY_DRIVER_LONG_PRESS_MS 800U
 #endif
 
-#ifndef KEY_DRIVER_NVIC_PRIORITY
-#define KEY_DRIVER_NVIC_PRIORITY 5U
+#ifndef KEY_DRIVER_IRQ_PRIORITY
+#ifdef KEY_DRIVER_NVIC_PRIORITY
+#define KEY_DRIVER_IRQ_PRIORITY KEY_DRIVER_NVIC_PRIORITY
+#else
+#define KEY_DRIVER_IRQ_PRIORITY 5U
+#endif
 #endif
 
 #ifndef KEY_DRIVER_TASK_PRIORITY
@@ -74,8 +79,6 @@ typedef struct key_button_state {
     const hal_pin_t *pin;
     uint32_t exti_line_mask;
     exti_hal_irq_channel_t irq_channel;
-    uint8_t port_source;
-    uint8_t pin_source;
     uint8_t index;
     uint8_t edge_valid;
     volatile uint8_t pressed;
@@ -114,137 +117,26 @@ static driver_task_t key_service_task = {
 /* Utility helpers                                                            */
 /* -------------------------------------------------------------------------- */
 
-#if defined(__GNUC__)
-static uint32_t key_read_primask(void)
-{
-    uint32_t primask;
-    __asm volatile("MRS %0, primask" : "=r"(primask));
-    return primask;
-}
-#else
-static uint32_t key_read_primask(void)
-{
-    return __get_PRIMASK();
-}
-#endif
-
 static uint32_t key_enter_critical(void)
 {
-    uint32_t primask = key_read_primask();
-    __disable_irq();
-    return primask;
+    return hal_irq_lock();
 }
 
-static void key_exit_critical(uint32_t primask)
+static void key_exit_critical(uint32_t irq_state)
 {
-    if ((primask & 1U) == 0U) {
-        __enable_irq();
-    }
+    hal_irq_unlock(irq_state);
 }
 
-static uint8_t key_port_source_from_gpio(GPIO_TypeDef *port)
+static uint8_t key_line_from_mask(uint32_t line_mask)
 {
-    if (port == GPIOA) {
-        return GPIO_PortSourceGPIOA;
-    }
-    if (port == GPIOB) {
-        return GPIO_PortSourceGPIOB;
-    }
-    if (port == GPIOC) {
-        return GPIO_PortSourceGPIOC;
-    }
-    if (port == GPIOD) {
-        return GPIO_PortSourceGPIOD;
-    }
-    if (port == GPIOE) {
-        return GPIO_PortSourceGPIOE;
+    uint8_t line;
+
+    for (line = 0U; line < 16U; ++line) {
+        if (line_mask == (uint32_t)(1UL << line)) {
+            return line;
+        }
     }
     return 0xFFU;
-}
-
-static uint8_t key_pin_source_from_mask(uint16_t pin)
-{
-    switch (pin) {
-    case GPIO_Pin_0:
-        return GPIO_PinSource0;
-    case GPIO_Pin_1:
-        return GPIO_PinSource1;
-    case GPIO_Pin_2:
-        return GPIO_PinSource2;
-    case GPIO_Pin_3:
-        return GPIO_PinSource3;
-    case GPIO_Pin_4:
-        return GPIO_PinSource4;
-    case GPIO_Pin_5:
-        return GPIO_PinSource5;
-    case GPIO_Pin_6:
-        return GPIO_PinSource6;
-    case GPIO_Pin_7:
-        return GPIO_PinSource7;
-    case GPIO_Pin_8:
-        return GPIO_PinSource8;
-    case GPIO_Pin_9:
-        return GPIO_PinSource9;
-    case GPIO_Pin_10:
-        return GPIO_PinSource10;
-    case GPIO_Pin_11:
-        return GPIO_PinSource11;
-    case GPIO_Pin_12:
-        return GPIO_PinSource12;
-    case GPIO_Pin_13:
-        return GPIO_PinSource13;
-    case GPIO_Pin_14:
-        return GPIO_PinSource14;
-    case GPIO_Pin_15:
-        return GPIO_PinSource15;
-    default:
-        return 0xFFU;
-    }
-}
-
-static int8_t key_line_from_pin(uint16_t pin)
-{
-    switch (pin) {
-    case GPIO_Pin_0:
-        return 0;
-    case GPIO_Pin_1:
-        return 1;
-    case GPIO_Pin_2:
-        return 2;
-    case GPIO_Pin_3:
-        return 3;
-    case GPIO_Pin_4:
-        return 4;
-    case GPIO_Pin_5:
-        return 5;
-    case GPIO_Pin_6:
-        return 6;
-    case GPIO_Pin_7:
-        return 7;
-    case GPIO_Pin_8:
-        return 8;
-    case GPIO_Pin_9:
-        return 9;
-    case GPIO_Pin_10:
-        return 10;
-    case GPIO_Pin_11:
-        return 11;
-    case GPIO_Pin_12:
-        return 12;
-    case GPIO_Pin_13:
-        return 13;
-    case GPIO_Pin_14:
-        return 14;
-    case GPIO_Pin_15:
-        return 15;
-    default:
-        return -1;
-    }
-}
-
-static exti_hal_irq_channel_t key_irq_channel_from_line(uint8_t line)
-{
-    return exti_hal_irq_channel_from_line(line);
 }
 
 static void key_enable_irq_channel(exti_hal_irq_channel_t channel)
@@ -261,7 +153,7 @@ static void key_enable_irq_channel(exti_hal_irq_channel_t channel)
         key_enabled_irqs[key_enabled_irq_count++] = channel;
     }
 
-    exti_hal_enable_irq(channel, KEY_DRIVER_NVIC_PRIORITY);
+    exti_hal_enable_irq(channel, KEY_DRIVER_IRQ_PRIORITY);
 }
 
 static uint8_t key_deadline_reached(uint32_t now, uint32_t deadline)
@@ -448,30 +340,25 @@ static uint8_t key_configure_buttons(void)
     uint8_t configured = 0U;
     uint8_t i;
 
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
-
     for (i = 0U; i < KEY_DRIVER_BUTTON_COUNT; ++i) {
         key_button_state_t *btn = &key_buttons[i];
         const hal_pin_t *pin = KEY_DRIVER_PIN_TABLE[i];
-        int8_t line;
+        uint8_t line;
 
         btn->pin = 0;
         if ((pin == 0) || (pin->port == 0)) {
             continue;
         }
 
-        line = key_line_from_pin(pin->pin);
-        btn->port_source = key_port_source_from_gpio(pin->port);
-        btn->pin_source = key_pin_source_from_mask(pin->pin);
-
-        if ((line < 0) || (btn->port_source == 0xFFU) || (btn->pin_source == 0xFFU)) {
+        btn->exti_line_mask = exti_hal_line_mask_from_pin(pin);
+        line = key_line_from_mask(btn->exti_line_mask);
+        if (line == 0xFFU) {
             continue;
         }
 
         btn->pin = pin;
         btn->index = (uint8_t)(i + 1U);
-        btn->exti_line_mask = (uint32_t)(1UL << (uint32_t)line);
-        btn->irq_channel = key_irq_channel_from_line((uint8_t)line);
+        btn->irq_channel = exti_hal_irq_channel_from_line(line);
         btn->edge_valid = 0U;
         btn->pressed = 0U;
         btn->long_reported = 0U;
@@ -488,8 +375,10 @@ static uint8_t key_configure_buttons(void)
             gpio_hal_config_pin(&cfg);
         }
 
-        exti_hal_select_pin(btn->port_source, btn->pin_source);
-        exti_hal_configure_line(btn->exti_line_mask, EXTI_HAL_TRIGGER_BOTH);
+        if (exti_hal_configure_gpio_pin(pin, EXTI_HAL_TRIGGER_BOTH) == 0U) {
+            btn->pin = 0;
+            continue;
+        }
 
         key_enable_irq_channel(btn->irq_channel);
         ++configured;

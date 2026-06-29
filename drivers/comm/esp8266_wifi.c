@@ -13,7 +13,6 @@
 #include "debug_log.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 #include <string.h>
 

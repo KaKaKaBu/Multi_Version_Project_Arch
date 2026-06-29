@@ -7,8 +7,7 @@
 #define HCSR04_ECHO_TIMEOUT_US 30000U
 
 typedef struct hcsr04_poll_ctx {
-    GPIO_TypeDef *port;
-    uint16_t pin;
+    const hal_pin_t *pin;
     uint8_t expect_high;
 } hcsr04_poll_ctx_t;
 
@@ -17,7 +16,7 @@ static unsigned short hcsr04_distance_cache;
 static uint8_t hcsr04_echo_poll(void *ctx)
 {
     hcsr04_poll_ctx_t *poll = (hcsr04_poll_ctx_t *)ctx;
-    uint8_t level = gpio_hal_read(poll->port, poll->pin);
+    uint8_t level = gpio_hal_read(poll->pin->port, poll->pin->pin);
 
     if (poll->expect_high != 0U) {
         return level;
@@ -38,8 +37,7 @@ static unsigned short hcsr04_measure_cm(void)
     uint32_t start_us;
     uint32_t duration_us;
 
-    ctx.port = board_hcsr04_echo_pin.port;
-    ctx.pin = board_hcsr04_echo_pin.pin;
+    ctx.pin = &board_hcsr04_echo_pin;
 
     hcsr04_trigger();
 

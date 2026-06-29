@@ -7,7 +7,8 @@
 #include "gpio_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
+#if !defined(PLATFORM_MCS51)
+#endif
 
 /** @brief Configures relay GPIO and drives the coil off at startup. */
 static void relay_init(void)
@@ -26,7 +27,7 @@ static void relay_set_state(unsigned char on)
 }
 
 /** @brief actuator_if.h relay driver instance registered as RELAY. */
-static const relay_driver_t relay_drv = {
+const relay_driver_t relay_drv = {
     "relay",
     relay_init,
     relay_set_state

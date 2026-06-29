@@ -7,12 +7,11 @@
 #include "adc_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 #if HAL_ADC_ENABLE
 
 #define GL5506_FILTER_SIZE 8U
-#define GL5506_ADC_SAMPLE_TIME ADC_SampleTime_239Cycles5
+#define GL5506_ADC_SAMPLE_TIME ADC_HAL_SAMPLE_TIME_LONG
 
 static float gl5506_filter_buffer[GL5506_FILTER_SIZE];
 static unsigned char gl5506_filter_index;

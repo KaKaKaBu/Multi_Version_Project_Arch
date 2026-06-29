@@ -14,6 +14,12 @@
 extern "C" {
 #endif
 
+#if defined(__SDCC)
+#define DISPLAY_IF_REENTRANT __reentrant
+#else
+#define DISPLAY_IF_REENTRANT
+#endif
+
 /** @brief display_print 使用的字号选择。 */
 typedef enum display_font_size {
     DISPLAY_FONT_SMALL = 0U,  ///< 小号字体。
@@ -33,7 +39,11 @@ typedef struct display_driver {
      * @param[in] size 字号（display_font_size_t）。
      * @param[in] fmt printf 风格格式串。
      */
+    #if defined(PLATFORM_MCS51)
+    void (*print)(unsigned char x, unsigned char y, display_font_size_t size, const char *text) DISPLAY_IF_REENTRANT;
+    #else
     void (*print)(unsigned char x, unsigned char y, display_font_size_t size, const char *fmt, ...);
+    #endif
 } display_driver_t;
 
 #define DISPLAY_SMALL_MAX_CHARS 21U

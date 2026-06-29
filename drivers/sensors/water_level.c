@@ -7,12 +7,11 @@
 #include "adc_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 #if HAL_ADC_ENABLE
 
 #define WATER_LEVEL_FILTER_SIZE 8U
-#define WATER_LEVEL_ADC_SAMPLE_TIME ADC_SampleTime_239Cycles5
+#define WATER_LEVEL_ADC_SAMPLE_TIME ADC_HAL_SAMPLE_TIME_LONG
 
 static float water_level_filter_buffer[WATER_LEVEL_FILTER_SIZE];
 static unsigned char water_level_filter_index;

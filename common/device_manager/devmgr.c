@@ -43,13 +43,14 @@ static int devmgr_name_match(const char *a, const char *b)
 /**
  * @brief 生成 devmgr_get_<name_field>(const char *name) 函数体。
  *
- * 扫描 [__driver_list_start, __driver_list_end)，匹配 type_enum 且 obj->name 与参数相等。
+ * 扫描当前平台驱动注册表，匹配 type_enum 且 obj->name 与参数相等。
  */
 #define DEVMGR_GET_IMPL(return_type, struct_type, type_enum, name_field) \
     const return_type *devmgr_get_##name_field(const char *name) \
     { \
-        const driver_registry_entry_t *entry = __driver_list_start; \
-        while (entry < __driver_list_end) { \
+        const driver_registry_entry_t *entry = driver_registry_begin(); \
+        const driver_registry_entry_t *end = driver_registry_end(); \
+        while (entry < end) { \
             if (entry->type == type_enum) { \
                 const struct_type *obj = (const struct_type *)entry->instance; \
                 if ((obj != 0) && devmgr_name_match(obj->name, name)) { \
@@ -68,9 +69,10 @@ static int devmgr_name_match(const char *a, const char *b)
  */
 void devmgr_init_all(void)
 {
-    const driver_registry_entry_t *entry = __driver_list_start;
+    const driver_registry_entry_t *entry = driver_registry_begin();
+    const driver_registry_entry_t *end = driver_registry_end();
 
-    while (entry < __driver_list_end) {
+    while (entry < end) {
         if (entry->instance != 0) {
             switch (entry->type) {
             DEVMGR_INIT_CASE(DRIVER_TYPE_TEMP_HUM_SENSOR, temp_hum_sensor_t, init);
@@ -139,8 +141,9 @@ const radio_driver_t *devmgr_get_radio(const char *name)
     }
 
     {
-        const driver_registry_entry_t *entry = __driver_list_start;
-        while (entry < __driver_list_end) {
+        const driver_registry_entry_t *entry = driver_registry_begin();
+        const driver_registry_entry_t *end = driver_registry_end();
+        while (entry < end) {
             if (entry->type == DRIVER_TYPE_RADIO) {
                 const radio_driver_t *obj = (const radio_driver_t *)entry->instance;
                 if ((obj != 0) && devmgr_name_match(obj->name, name)) {
@@ -157,5 +160,5 @@ DEVMGR_GET_IMPL(gnss_driver_t, gnss_driver_t, DRIVER_TYPE_GNSS, gnss)
 
 unsigned short devmgr_count(void)
 {
-    return (unsigned short)(__driver_list_end - __driver_list_start);
+    return (unsigned short)(driver_registry_end() - driver_registry_begin());
 }

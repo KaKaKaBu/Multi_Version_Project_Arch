@@ -1,8 +1,14 @@
 #ifndef APP_LOGIC_H
 #define APP_LOGIC_H
 
-#include "scheduler.h"
 #include "version_config.h"
+
+#if defined(PLATFORM_MCS51)
+#include "mcs51_memory.h"
+typedef unsigned long sched_event_t;
+#else
+#include "scheduler.h"
+#endif
 
 /* 页面/控制模式：自动判定、手动控制、阈值设置三种界面共用一套按键。 */
 typedef enum {
@@ -25,7 +31,11 @@ typedef struct {
     app_threshold_t selected_threshold;
     unsigned char fan_on;
     unsigned char alarm_on;
+    #if defined(PLATFORM_MCS51)
+    int temperature;
+    #else
     float temperature;
+    #endif
     unsigned short air_quality_ppm;
     unsigned short co_ppm;
     unsigned char temp_threshold;
@@ -38,7 +48,11 @@ typedef struct {
 #endif
 } app_context_t;
 
+#if defined(PLATFORM_MCS51)
+extern MCS51_XDATA app_context_t g_ctx;
+#else
 extern app_context_t g_ctx;
+#endif
 
 /* 业务入口：初始化、主逻辑循环、按键处理和周期采样。 */
 void app_logic_init(void);

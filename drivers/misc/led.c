@@ -8,7 +8,8 @@
 #include "board_config.h"
 #include "debug_uart.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
+#if !defined(PLATFORM_MCS51)
+#endif
 
 /** @brief Initializes LED GPIO unless the pin is shared with debug UART. */
 static void led_init(void)
@@ -35,7 +36,7 @@ static void led_set_state(unsigned char on)
 }
 
 /** @brief misc_if.h LED driver instance registered as MISC. */
-static const misc_driver_t led_drv = {
+const misc_driver_t led_drv = {
     "led",
     led_init,
     led_set_state

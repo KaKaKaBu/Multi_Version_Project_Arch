@@ -65,6 +65,22 @@ uint32_t hal_get_us(void)
     return HAL_DWT_CYCCNT / hal_cycles_per_us();
 }
 
+uint32_t hal_irq_lock(void)
+{
+    uint32_t primask;
+
+    __asm volatile("MRS %0, primask" : "=r"(primask));
+    __disable_irq();
+    return primask;
+}
+
+void hal_irq_unlock(uint32_t irq_state)
+{
+    if ((irq_state & 1U) == 0U) {
+        __enable_irq();
+    }
+}
+
 /**
  * @brief Blocks for the specified number of microseconds using the DWT cycle counter.
  * @param us Delay duration in microseconds.

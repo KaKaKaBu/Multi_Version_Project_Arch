@@ -2,12 +2,11 @@
 #include "adc_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 #if HAL_ADC_ENABLE
 
 #define MSP20_FILTER_SIZE 8U
-#define MSP20_ADC_SAMPLE_TIME ADC_SampleTime_239Cycles5
+#define MSP20_ADC_SAMPLE_TIME ADC_HAL_SAMPLE_TIME_LONG
 
 static float msp20_volt_filter[MSP20_FILTER_SIZE];
 static unsigned char msp20_filter_index;

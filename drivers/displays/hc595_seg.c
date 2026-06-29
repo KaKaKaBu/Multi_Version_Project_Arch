@@ -3,7 +3,6 @@
 #include "timer_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 static const unsigned char hc595_seg_tab[] = {
     0xC0U, 0xCFU, 0xA4U, 0xB0U, 0x99U, 0x92U, 0x82U, 0xF8U, 0x80U, 0x90U,

@@ -3,7 +3,6 @@
 #include "timer_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 static void stepmotor_write_phase(unsigned char a, unsigned char b, unsigned char c, unsigned char d)
 {

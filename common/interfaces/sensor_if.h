@@ -23,12 +23,20 @@ typedef struct temp_hum_sensor {
      * @brief 读取摄氏温度。
      * @return 温度值（摄氏度）。
      */
+    #if defined(PLATFORM_MCS51)
+    int (*read_temperature)(void);
+    #else
     float (*read_temperature)(void);
+    #endif
     /**
      * @brief 读取相对湿度。
      * @return 湿度值（百分比）。
      */
+    #if defined(PLATFORM_MCS51)
+    int (*read_humidity)(void);
+    #else
     float (*read_humidity)(void);
+    #endif
 } temp_hum_sensor_t;
 
 #ifdef __cplusplus

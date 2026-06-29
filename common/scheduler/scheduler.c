@@ -13,7 +13,9 @@
 
 #include <stdio.h>
 
+#if !defined(PLATFORM_MCS51)
 #include "stm32f10x.h"
+#endif
 
 /** 按优先级排序的任务链表头指针；空闲时 null。 */
 static driver_task_t *sched_task_list;
@@ -37,11 +39,15 @@ static volatile sched_event_t sched_isr_pending_events;
  */
 static uint32_t sched_irq_lock(void)
 {
+#if defined(PLATFORM_MCS51)
+    return 0U;
+#else
     uint32_t primask;
 
     __asm volatile ("MRS %0, PRIMASK" : "=r" (primask) :: "memory");
     __asm volatile ("cpsid i" ::: "memory");
     return primask;
+#endif
 }
 
 /**
@@ -51,9 +57,13 @@ static uint32_t sched_irq_lock(void)
  */
 static void sched_irq_unlock(uint32_t primask)
 {
+#if defined(PLATFORM_MCS51)
+    (void)primask;
+#else
     if ((primask & 1U) == 0U) {
         __asm volatile ("cpsie i" ::: "memory");
     }
+#endif
 }
 
 /* -------------------------------------------------------------------------- */

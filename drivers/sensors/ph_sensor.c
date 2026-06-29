@@ -2,12 +2,11 @@
 #include "adc_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 #if HAL_ADC_ENABLE
 
 #define PH_SENSOR_FILTER_SIZE 8U
-#define PH_SENSOR_ADC_SAMPLE_TIME ADC_SampleTime_239Cycles5
+#define PH_SENSOR_ADC_SAMPLE_TIME ADC_HAL_SAMPLE_TIME_LONG
 #define PH_SENSOR_DEFAULT_VALUE 7.0f
 #define PH_SENSOR_CALIBRATION_FACTOR 1.0f
 #define PH_SENSOR_TEMPERATURE 25.0f

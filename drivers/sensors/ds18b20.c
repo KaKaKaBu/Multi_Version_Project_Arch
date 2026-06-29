@@ -172,7 +172,7 @@ static float ds18b20_read_humidity(void)
     return -1.0f;
 }
 
-static const temp_hum_sensor_t ds18b20_drv = {
+const temp_hum_sensor_t ds18b20_drv = {
     "ds18b20",
     ds18b20_init,
     ds18b20_read_temperature,

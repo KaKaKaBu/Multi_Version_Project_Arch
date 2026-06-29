@@ -1,7 +1,12 @@
 #ifndef VERSION_CONFIG_H
 #define VERSION_CONFIG_H
 
+#if defined(PLATFORM_MCS51)
+#define VERSION_SCHED_EVENT_TICK (1UL << 0U)
+#else
 #include "scheduler.h"
+#define VERSION_SCHED_EVENT_TICK SCHED_EVENT_TICK
+#endif
 
 /* 固件版本入口：APP_VERSION 由 CMake 传入，默认按基础版 v1 编译。 */
 #ifndef APP_VERSION
@@ -54,7 +59,7 @@
 #include "driver_features.h"
 
 /* 应用事件位：调度循环通过这些事件触发按键、采样、通讯和遥测发送。 */
-#define APP_EVENT_TICK SCHED_EVENT_TICK
+#define APP_EVENT_TICK VERSION_SCHED_EVENT_TICK
 #define APP_EVENT_KEY 0x00000004U
 #define APP_EVENT_SENSOR 0x00000008U
 #define APP_EVENT_COMM_RX 0x00000010U

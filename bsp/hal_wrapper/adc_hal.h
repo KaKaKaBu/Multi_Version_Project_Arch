@@ -16,6 +16,8 @@ extern "C" {
 
 #define ADC_HAL_DEFAULT_TIMEOUT_US HAL_DEFAULT_TIMEOUT_US
 #define ADC_HAL_DMA_BUFFER_MAX 16U
+#define ADC_HAL_SAMPLE_TIME_DEFAULT 0U
+#define ADC_HAL_SAMPLE_TIME_LONG ADC_SampleTime_239Cycles5
 
 typedef struct adc_hal_config {
     ADC_TypeDef *instance;

@@ -2,7 +2,6 @@
 #include "timer_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 static unsigned short sg90_angle_cache;
 

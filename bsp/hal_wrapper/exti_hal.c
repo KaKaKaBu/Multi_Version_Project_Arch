@@ -20,10 +20,61 @@ static void exti_hal_enable_afio_clock(void)
     }
 }
 
+static uint8_t exti_hal_port_source_from_gpio(GPIO_TypeDef *port)
+{
+    if (port == GPIOA) {
+        return GPIO_PortSourceGPIOA;
+    }
+    if (port == GPIOB) {
+        return GPIO_PortSourceGPIOB;
+    }
+    if (port == GPIOC) {
+        return GPIO_PortSourceGPIOC;
+    }
+    if (port == GPIOD) {
+        return GPIO_PortSourceGPIOD;
+    }
+    if (port == GPIOE) {
+        return GPIO_PortSourceGPIOE;
+    }
+    return 0xFFU;
+}
+
+static uint8_t exti_hal_pin_source_from_mask(uint16_t pin)
+{
+    uint8_t source;
+
+    for (source = 0U; source < 16U; ++source) {
+        if (pin == (uint16_t)(1UL << source)) {
+            return source;
+        }
+    }
+    return 0xFFU;
+}
+
 void exti_hal_select_pin(uint8_t port_source, uint8_t pin_source)
 {
     exti_hal_enable_afio_clock();
     GPIO_EXTILineConfig(port_source, pin_source);
+}
+
+uint8_t exti_hal_select_gpio_pin(const hal_pin_t *pin)
+{
+    uint8_t port_source;
+    uint8_t pin_source;
+
+    if (pin == 0) {
+        return 0U;
+    }
+
+    port_source = exti_hal_port_source_from_gpio(pin->port);
+    pin_source = exti_hal_pin_source_from_mask(pin->pin);
+    if ((port_source == 0xFFU) || (pin_source == 0xFFU)) {
+        return 0U;
+    }
+
+    exti_hal_select_pin(port_source, pin_source);
+    return 1U;
 }
 
 void exti_hal_configure_line(uint32_t line_mask, exti_hal_trigger_t trigger)
@@ -49,6 +100,34 @@ void exti_hal_configure_line(uint32_t line_mask, exti_hal_trigger_t trigger)
     exti.EXTI_LineCmd = ENABLE;
     EXTI_Init(&exti);
     EXTI_ClearITPendingBit(line_mask);
+}
+
+uint32_t exti_hal_line_mask_from_pin(const hal_pin_t *pin)
+{
+    uint8_t pin_source;
+
+    if (pin == 0) {
+        return 0U;
+    }
+
+    pin_source = exti_hal_pin_source_from_mask(pin->pin);
+    if (pin_source == 0xFFU) {
+        return 0U;
+    }
+
+    return (uint32_t)(1UL << pin_source);
+}
+
+uint8_t exti_hal_configure_gpio_pin(const hal_pin_t *pin, exti_hal_trigger_t trigger)
+{
+    uint32_t line_mask = exti_hal_line_mask_from_pin(pin);
+
+    if ((line_mask == 0U) || (exti_hal_select_gpio_pin(pin) == 0U)) {
+        return 0U;
+    }
+
+    exti_hal_configure_line(line_mask, trigger);
+    return 1U;
 }
 
 uint8_t exti_hal_get_it_status(uint32_t line_mask)

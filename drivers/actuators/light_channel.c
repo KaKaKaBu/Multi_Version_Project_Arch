@@ -7,7 +7,6 @@
 #include "gpio_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 #if BOARD_LIGHT_CHANNEL_COUNT >= 1U
 static void light1_init(void)

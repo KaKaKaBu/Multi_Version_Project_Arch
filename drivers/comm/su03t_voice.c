@@ -2,7 +2,6 @@
 #include "usart_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 static comm_rx_callback_t su03t_rx_callback;
 

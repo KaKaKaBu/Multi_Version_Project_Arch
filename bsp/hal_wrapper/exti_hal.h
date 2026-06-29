@@ -7,6 +7,7 @@
 #define EXTI_HAL_H
 
 #include <stdint.h>
+#include "gpio_hal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,11 +40,26 @@ typedef enum exti_hal_irq_channel {
 void exti_hal_select_pin(uint8_t port_source, uint8_t pin_source);
 
 /**
+ * @brief Connects a HAL pin descriptor to the matching EXTI line selector.
+ */
+uint8_t exti_hal_select_gpio_pin(const hal_pin_t *pin);
+
+/**
  * @brief Configures an EXTI line for interrupt mode and clears pending status.
  * @param line_mask Bit mask for the EXTI line (1u << line number).
  * @param trigger Trigger edge selection.
  */
 void exti_hal_configure_line(uint32_t line_mask, exti_hal_trigger_t trigger);
+
+/**
+ * @brief Configures the EXTI line that belongs to a HAL pin descriptor.
+ */
+uint8_t exti_hal_configure_gpio_pin(const hal_pin_t *pin, exti_hal_trigger_t trigger);
+
+/**
+ * @brief Returns the EXTI line mask that belongs to a HAL pin descriptor.
+ */
+uint32_t exti_hal_line_mask_from_pin(const hal_pin_t *pin);
 
 /**
  * @brief Returns SET when the specified EXTI line has a pending interrupt.

@@ -4,12 +4,11 @@
 #include "board_config.h"
 #include "driver_core.h"
 #include <math.h>
-#include "stm32f10x.h"
 
 #if HAL_ADC_ENABLE
 
 #define MQ135_READ_TIMES 10U
-#define MQ135_ADC_SAMPLE_TIME ADC_SampleTime_239Cycles5
+#define MQ135_ADC_SAMPLE_TIME ADC_HAL_SAMPLE_TIME_LONG
 
 static unsigned short mq135_ppm_cache;
 

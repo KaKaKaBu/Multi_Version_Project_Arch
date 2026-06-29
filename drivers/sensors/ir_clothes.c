@@ -2,7 +2,6 @@
 #include "gpio_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
 
 static void ir_clothes_init(void)
 {

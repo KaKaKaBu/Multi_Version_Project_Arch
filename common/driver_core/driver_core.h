@@ -89,7 +89,10 @@ typedef struct driver_registry_entry {
     const void *instance;    ///< 指向 const 驱动对象（如 display_driver_t）。
 } driver_registry_entry_t;
 
-#if defined(__GNUC__)
+#if defined(DRIVER_REGISTRY_STATIC)
+#define DRIVER_USED
+#define DRIVER_SECTION
+#elif defined(__GNUC__)
 /** @brief 防止 LTO/--gc-sections 丢弃未被 C 代码直接引用的注册项。 */
 #define DRIVER_USED __attribute__((used))
 /** @brief 将静态常量放入 .driver_list，由链接脚本聚合成数组。 */
@@ -113,16 +116,26 @@ typedef struct driver_registry_entry {
  * REGISTER_DRIVER(display, g_oled);
  * @endcode
  */
+#if defined(DRIVER_REGISTRY_STATIC)
+#define REGISTER_DRIVER(type, instance) \
+    typedef char DRIVER_CONCAT(__driver_registry_static_marker_, instance)
+#else
 #define REGISTER_DRIVER(type, instance) \
     static const driver_registry_entry_t DRIVER_CONCAT(__driver_entry_, instance) DRIVER_USED DRIVER_SECTION = { \
         DRIVER_TYPE_##type, \
-        &(instance) \
+        &instance \
     }
+#endif
 
 /** @brief 链接脚本提供的注册表起始（含首元素）。 */
 extern const driver_registry_entry_t __driver_list_start[];
 /** @brief 注册表尾后首地址（半开区间 [start, end)）。 */
 extern const driver_registry_entry_t __driver_list_end[];
+
+/** @brief 返回当前平台驱动注册表首元素。 */
+const driver_registry_entry_t *driver_registry_begin(void);
+/** @brief 返回当前平台驱动注册表尾后元素。 */
+const driver_registry_entry_t *driver_registry_end(void);
 
 #ifdef __cplusplus
 }

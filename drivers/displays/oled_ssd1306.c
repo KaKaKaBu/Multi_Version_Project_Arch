@@ -9,7 +9,8 @@
 #include "i2c_hal.h"
 #include "board_config.h"
 #include "driver_core.h"
-#include "stm32f10x.h"
+#if !defined(PLATFORM_MCS51)
+#endif
 #include <stdarg.h>
 
 /** @brief Panel horizontal resolution in pixels. */
@@ -246,6 +247,16 @@ static void oled_print_text(unsigned char x, unsigned char y, display_font_size_
  * @param fmt printf-style format string.
  * @param ... Arguments for fmt.
  */
+#if defined(PLATFORM_MCS51)
+static void oled_print(unsigned char x, unsigned char y, display_font_size_t size, const char *text) DISPLAY_IF_REENTRANT
+{
+    if (text == 0) {
+        return;
+    }
+
+    oled_print_text(x, y, size, text);
+}
+#else
 static void oled_print(unsigned char x, unsigned char y, display_font_size_t size, const char *fmt, ...)
 {
     char buffer[OLED_PRINT_BUF_SIZE];
@@ -262,6 +273,7 @@ static void oled_print(unsigned char x, unsigned char y, display_font_size_t siz
     buffer[OLED_PRINT_BUF_SIZE - 1U] = '\0';
     oled_print_text(x, y, size, buffer);
 }
+#endif
 
 /** @brief Flushes the framebuffer to the SSD1306 over I2C page by page. */
 static void oled_update(void)
@@ -277,7 +289,7 @@ static void oled_update(void)
 }
 
 /** @brief display_if.h driver instance registered as DISPLAY. */
-static const display_driver_t oled_drv = {
+const display_driver_t oled_drv = {
     "oled",
     oled_init,
     oled_clear,

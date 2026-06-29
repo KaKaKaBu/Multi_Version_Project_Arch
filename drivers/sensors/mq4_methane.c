@@ -9,12 +9,11 @@
 #include "board_config.h"
 #include "driver_core.h"
 #include <math.h>
-#include "stm32f10x.h"
 
 #if HAL_ADC_ENABLE
 
 #define MQ4_READ_TIMES 10U
-#define MQ4_ADC_SAMPLE_TIME ADC_SampleTime_239Cycles5
+#define MQ4_ADC_SAMPLE_TIME ADC_HAL_SAMPLE_TIME_LONG
 #define MQ4_RL_KOHM 10.0f
 #define MQ4_R0_KOHM 4.4f
 #define MQ4_PPM_MAX 10000.0f

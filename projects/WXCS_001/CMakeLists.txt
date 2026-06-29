@@ -1,10 +1,19 @@
 cmake_minimum_required(VERSION 3.20)
 
-include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/stm32-gcc-toolchain.cmake)
+set(TARGET_PLATFORM "stm32f1" CACHE STRING "Target platform: stm32f1 or mcs51_sdcc")
+if(TARGET_PLATFORM STREQUAL "mcs51_sdcc")
+    include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/platforms/mcs51-sdcc-toolchain.cmake)
+else()
+    include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/stm32-gcc-toolchain.cmake)
+endif()
 
 project(WXCS_001 C ASM)
 
-set(APP_VERSION "3" CACHE STRING "Application version (1-3)")
+if(TARGET_PLATFORM STREQUAL "mcs51_sdcc")
+    set(APP_VERSION "1" CACHE STRING "Application version (1-3)" FORCE)
+else()
+    set(APP_VERSION "3" CACHE STRING "Application version (1-3)")
+endif()
 if(APP_VERSION STREQUAL "" OR APP_VERSION STREQUAL "OFF" OR APP_VERSION STREQUAL "ON")
     set(APP_VERSION "3" CACHE STRING "Application version (1-3)" FORCE)
 endif()
@@ -13,6 +22,93 @@ if(APP_VERSION LESS 1 OR APP_VERSION GREATER 3)
 endif()
 
 set(TEMPLATE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
+
+if(TARGET_PLATFORM STREQUAL "mcs51_sdcc")
+    set(APP_SRCS
+        app/app_main_mcs51.c
+        app/app_logic.c
+        app/driver_registry_mcs51.c
+    )
+
+    set(COMMON_SRCS
+        ${TEMPLATE_ROOT}/common/device_manager/devmgr.c
+    )
+
+    set(BSP_SRCS
+        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper/hal_common.c
+        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper/gpio_hal.c
+        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper/i2c_hal_soft.c
+    )
+
+    set(DRIVER_SRCS
+        ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
+        ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306_mcs51.c
+        ${TEMPLATE_ROOT}/drivers/sensors/adc0832.c
+        ${TEMPLATE_ROOT}/drivers/sensors/mq_adc0832.c
+        ${TEMPLATE_ROOT}/drivers/sensors/ds18b20_mcs51.c
+        ${TEMPLATE_ROOT}/drivers/actuators/relay.c
+        ${TEMPLATE_ROOT}/drivers/misc/buzzer.c
+        ${TEMPLATE_ROOT}/drivers/misc/led.c
+        ${TEMPLATE_ROOT}/drivers/misc/key_poll.c
+    )
+
+    add_executable(${PROJECT_NAME}
+        ${APP_SRCS}
+        ${COMMON_SRCS}
+        ${BSP_SRCS}
+        ${DRIVER_SRCS}
+    )
+
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        C_STANDARD 99
+        C_STANDARD_REQUIRED ON
+    )
+
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        app
+        ${TEMPLATE_ROOT}/common/interfaces
+        ${TEMPLATE_ROOT}/common/driver_core
+        ${TEMPLATE_ROOT}/common/device_manager
+        ${TEMPLATE_ROOT}/common/scheduler
+        ${TEMPLATE_ROOT}/common/irq_event
+        ${TEMPLATE_ROOT}/common/utils
+        ${TEMPLATE_ROOT}/drivers/displays
+        ${TEMPLATE_ROOT}/drivers/sensors
+        ${TEMPLATE_ROOT}/drivers/actuators
+        ${TEMPLATE_ROOT}/drivers/misc
+        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper
+    )
+
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        PLATFORM_MCS51=1
+        DRIVER_REGISTRY_STATIC=1
+        APP_VERSION=${APP_VERSION}
+        HAL_I2C_USE_SOFT=1
+        HAL_DEBUG_UART_ENABLE=0
+        HAL_USART_ENABLE=0
+        HAL_ADC_ENABLE=0
+        HAL_ADC_ENABLE_DMA=0
+        HAL_USART_ENABLE_DMA=0
+        HAL_SPI_ENABLE=0
+    )
+
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        $<$<COMPILE_LANGUAGE:C>:--model-small>
+        $<$<COMPILE_LANGUAGE:C>:--stack-auto>
+        $<$<COMPILE_LANGUAGE:C>:--opt-code-size>
+    )
+
+    target_link_options(${PROJECT_NAME} PRIVATE
+        --model-small
+        --stack-auto
+        --iram-size
+        256
+        --stack-size
+        64
+    )
+
+    return()
+endif()
 
 set(HAL_ADC_ENABLE ON CACHE BOOL "Enable ADC for MQ135 and MQ-7" FORCE)
 
@@ -29,6 +125,7 @@ set(CPU_FLAGS
 
 set(COMMON_SRCS
     ${TEMPLATE_ROOT}/common/device_manager/devmgr.c
+    ${TEMPLATE_ROOT}/common/device_manager/driver_registry_gcc.c
     ${TEMPLATE_ROOT}/common/scheduler/scheduler.c
     ${TEMPLATE_ROOT}/common/scheduler/sched_loop.c
     ${TEMPLATE_ROOT}/common/irq_event/irq_event.c
