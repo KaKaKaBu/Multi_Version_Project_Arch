@@ -1,241 +1,29 @@
 cmake_minimum_required(VERSION 3.20)
 
 set(TARGET_PLATFORM "stm32f1" CACHE STRING "Target platform: stm32f1 or mcs51_sdcc")
+set_property(CACHE TARGET_PLATFORM PROPERTY STRINGS stm32f1 mcs51_sdcc)
+
 if(TARGET_PLATFORM STREQUAL "mcs51_sdcc")
     include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/platforms/mcs51-sdcc-toolchain.cmake)
-else()
+    project(WXCS_001 C)
+elseif(TARGET_PLATFORM STREQUAL "stm32f1")
     include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/stm32-gcc-toolchain.cmake)
-endif()
-
-project(WXCS_001 C ASM)
-
-if(TARGET_PLATFORM STREQUAL "mcs51_sdcc")
-    set(APP_VERSION "1" CACHE STRING "Application version (1-3)" FORCE)
+    project(WXCS_001 C ASM)
 else()
-    set(APP_VERSION "3" CACHE STRING "Application version (1-3)")
-endif()
-if(APP_VERSION STREQUAL "" OR APP_VERSION STREQUAL "OFF" OR APP_VERSION STREQUAL "ON")
-    set(APP_VERSION "3" CACHE STRING "Application version (1-3)" FORCE)
-endif()
-if(APP_VERSION LESS 1 OR APP_VERSION GREATER 3)
-    message(FATAL_ERROR "APP_VERSION must be 1-3, got '${APP_VERSION}'")
+    message(FATAL_ERROR "TARGET_PLATFORM must be stm32f1 or mcs51_sdcc, got '${TARGET_PLATFORM}'")
 endif()
 
-set(TEMPLATE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/project_template.cmake)
 
 if(TARGET_PLATFORM STREQUAL "mcs51_sdcc")
-    set(APP_SRCS
-        app/app_main_mcs51.c
-        app/app_logic.c
-        app/driver_registry_mcs51.c
+    mvp_resolve_app_version(DEFAULT 1 MIN 1 MAX 1 FORCE_DEFAULT)
+    mvp_add_mcs51_polling_project(${PROJECT_NAME}
+        DRIVER_CATALOG_VAR DRIVER_CATALOG_WXCS_001_MCS51
     )
-
-    set(COMMON_SRCS
-        ${TEMPLATE_ROOT}/common/device_manager/devmgr.c
+else()
+    mvp_resolve_app_version(DEFAULT 3 MIN 1 MAX 3)
+    set(HAL_ADC_ENABLE ON CACHE BOOL "Enable ADC for MQ135 and MQ-7" FORCE)
+    mvp_add_stm32f1_project(${PROJECT_NAME}
+        DRIVER_CATALOG_VAR DRIVER_CATALOG_WXCS_001
     )
-
-    set(BSP_SRCS
-        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper/hal_common.c
-        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper/gpio_hal.c
-        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper/i2c_hal_soft.c
-    )
-
-    set(DRIVER_SRCS
-        ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
-        ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306_mcs51.c
-        ${TEMPLATE_ROOT}/drivers/sensors/adc0832.c
-        ${TEMPLATE_ROOT}/drivers/sensors/mq_adc0832.c
-        ${TEMPLATE_ROOT}/drivers/sensors/ds18b20_mcs51.c
-        ${TEMPLATE_ROOT}/drivers/actuators/relay.c
-        ${TEMPLATE_ROOT}/drivers/misc/buzzer.c
-        ${TEMPLATE_ROOT}/drivers/misc/led.c
-        ${TEMPLATE_ROOT}/drivers/misc/key_poll.c
-    )
-
-    add_executable(${PROJECT_NAME}
-        ${APP_SRCS}
-        ${COMMON_SRCS}
-        ${BSP_SRCS}
-        ${DRIVER_SRCS}
-    )
-
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        C_STANDARD 99
-        C_STANDARD_REQUIRED ON
-    )
-
-    target_include_directories(${PROJECT_NAME} PRIVATE
-        app
-        ${TEMPLATE_ROOT}/common/interfaces
-        ${TEMPLATE_ROOT}/common/driver_core
-        ${TEMPLATE_ROOT}/common/device_manager
-        ${TEMPLATE_ROOT}/common/scheduler
-        ${TEMPLATE_ROOT}/common/irq_event
-        ${TEMPLATE_ROOT}/common/utils
-        ${TEMPLATE_ROOT}/drivers/displays
-        ${TEMPLATE_ROOT}/drivers/sensors
-        ${TEMPLATE_ROOT}/drivers/actuators
-        ${TEMPLATE_ROOT}/drivers/misc
-        ${TEMPLATE_ROOT}/bsp/mcs51/hal_wrapper
-    )
-
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PLATFORM_MCS51=1
-        DRIVER_REGISTRY_STATIC=1
-        APP_VERSION=${APP_VERSION}
-        HAL_I2C_USE_SOFT=1
-        HAL_DEBUG_UART_ENABLE=0
-        HAL_USART_ENABLE=0
-        HAL_ADC_ENABLE=0
-        HAL_ADC_ENABLE_DMA=0
-        HAL_USART_ENABLE_DMA=0
-        HAL_SPI_ENABLE=0
-    )
-
-    target_compile_options(${PROJECT_NAME} PRIVATE
-        $<$<COMPILE_LANGUAGE:C>:--model-small>
-        $<$<COMPILE_LANGUAGE:C>:--stack-auto>
-        $<$<COMPILE_LANGUAGE:C>:--opt-code-size>
-    )
-
-    target_link_options(${PROJECT_NAME} PRIVATE
-        --model-small
-        --stack-auto
-        --iram-size
-        256
-        --stack-size
-        64
-    )
-
-    return()
 endif()
-
-set(HAL_ADC_ENABLE ON CACHE BOOL "Enable ADC for MQ135 and MQ-7" FORCE)
-
-include(${TEMPLATE_ROOT}/cmake/hal_options.cmake)
-include(${TEMPLATE_ROOT}/cmake/driver_catalog.cmake)
-
-set(LINKER_SCRIPT ${TEMPLATE_ROOT}/bsp/linker_scripts/STM32F103XX_FLASH.ld)
-set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/startup/startup_stm32f103xb.s)
-
-set(CPU_FLAGS
-    -mcpu=cortex-m3
-    -mthumb
-)
-
-set(COMMON_SRCS
-    ${TEMPLATE_ROOT}/common/device_manager/devmgr.c
-    ${TEMPLATE_ROOT}/common/device_manager/driver_registry_gcc.c
-    ${TEMPLATE_ROOT}/common/scheduler/scheduler.c
-    ${TEMPLATE_ROOT}/common/scheduler/sched_loop.c
-    ${TEMPLATE_ROOT}/common/irq_event/irq_event.c
-    ${TEMPLATE_ROOT}/common/utils/tiny_printf.c
-    ${TEMPLATE_ROOT}/common/utils/mem_pool.c
-    ${TEMPLATE_ROOT}/common/utils/cJSON.c
-    ${TEMPLATE_ROOT}/common/utils/cjson_port.c
-    ${TEMPLATE_ROOT}/common/utils/soft_uart.c
-    ${TEMPLATE_ROOT}/common/utils/debug_uart.c
-    ${TEMPLATE_ROOT}/common/utils/comm_port.c
-)
-
-set(BSP_SRCS
-    ${TEMPLATE_ROOT}/bsp/syscalls/syscalls.c
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/hal_common.c
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/gpio_hal.c
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/exti_hal.c
-    ${BSP_HAL_I2C_SRC}
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/usart_hal.c
-    ${BSP_HAL_USART_DMA_SRC}
-    ${BSP_HAL_ADC_SRC}
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/timer_hal.c
-    ${TEMPLATE_ROOT}/bsp/irq_handlers/irq_handlers.c
-)
-
-set(DRIVER_SRCS ${DRIVER_CATALOG_WXCS_001})
-
-set(SPL_SRCS
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/CMSIS/system_stm32f10x.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/misc.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_gpio.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_exti.c
-    ${SPL_HAL_I2C_SRC}
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_rcc.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_tim.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_usart.c
-    ${SPL_HAL_ADC_SRC}
-)
-
-set(APP_SRCS
-    app/app_main.c
-    app/app_callbacks.c
-    app/app_logic.c
-)
-
-add_executable(${PROJECT_NAME}.elf
-    ${APP_SRCS}
-    ${COMMON_SRCS}
-    ${BSP_SRCS}
-    ${DRIVER_SRCS}
-    ${SPL_SRCS}
-    ${STARTUP_FILE}
-)
-
-set_target_properties(${PROJECT_NAME}.elf PROPERTIES
-    C_STANDARD 99
-    C_STANDARD_REQUIRED ON
-    SUFFIX ""
-)
-
-target_include_directories(${PROJECT_NAME}.elf PRIVATE
-    app
-    ${TEMPLATE_ROOT}/common/interfaces
-    ${TEMPLATE_ROOT}/common/driver_core
-    ${TEMPLATE_ROOT}/common/device_manager
-    ${TEMPLATE_ROOT}/common/scheduler
-    ${TEMPLATE_ROOT}/common/irq_event
-    ${TEMPLATE_ROOT}/common/utils
-    ${TEMPLATE_ROOT}/drivers/comm
-    ${TEMPLATE_ROOT}/bsp/board
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/CMSIS
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/inc
-)
-
-target_compile_definitions(${PROJECT_NAME}.elf PRIVATE
-    STM32F10X_MD
-    USE_STDPERIPH_DRIVER
-    CJSON_NESTING_LIMIT=32
-    APP_VERSION=${APP_VERSION}
-)
-
-hal_apply_compile_definitions(${PROJECT_NAME}.elf)
-
-target_compile_options(${PROJECT_NAME}.elf PRIVATE
-    ${CPU_FLAGS}
-    $<$<COMPILE_LANGUAGE:C>:-Wall>
-    $<$<COMPILE_LANGUAGE:C>:-Wextra>
-    $<$<COMPILE_LANGUAGE:C>:-Os>
-    $<$<COMPILE_LANGUAGE:C>:-ffunction-sections>
-    $<$<COMPILE_LANGUAGE:C>:-fdata-sections>
-    $<$<COMPILE_LANGUAGE:ASM>:-x>
-    $<$<COMPILE_LANGUAGE:ASM>:assembler-with-cpp>
-)
-
-target_link_libraries(${PROJECT_NAME}.elf PRIVATE m)
-
-target_link_options(${PROJECT_NAME}.elf PRIVATE
-    ${CPU_FLAGS}
-    -T${LINKER_SCRIPT}
-    -Wl,--gc-sections
-    -Wl,-Map=${PROJECT_NAME}.map
-    -Wl,--print-memory-usage
-    -Wl,-u,malloc
-    -Wl,-u,_malloc_r
-    -Wl,-u,cjson_port_init
-)
-
-add_custom_command(TARGET ${PROJECT_NAME}.elf POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${PROJECT_NAME}.elf> ${PROJECT_NAME}.bin
-    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${PROJECT_NAME}.elf>
-    BYPRODUCTS ${PROJECT_NAME}.bin ${PROJECT_NAME}.map
-)

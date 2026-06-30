@@ -1,29 +1,39 @@
 #include "sensor_if.h"
 #include "gpio_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 static float ds18b20_temperature_cache;
+static const one_wire_sensor_config_t *ds18b20_config;
 
 static void ds18b20_set_output(void)
 {
-    gpio_hal_set_mode(board_ds18b20_pin.port, board_ds18b20_pin.pin, GPIO_HAL_MODE_OUT_OD);
+    if (ds18b20_config != 0) {
+        gpio_hal_set_mode(ds18b20_config->pin.port, ds18b20_config->pin.pin, GPIO_HAL_MODE_OUT_OD);
+    }
 }
 
 static void ds18b20_set_input(void)
 {
-    gpio_hal_set_mode(board_ds18b20_pin.port, board_ds18b20_pin.pin, GPIO_HAL_MODE_IN_FLOATING);
+    if (ds18b20_config != 0) {
+        gpio_hal_set_mode(ds18b20_config->pin.port, ds18b20_config->pin.pin, GPIO_HAL_MODE_IN_FLOATING);
+    }
 }
 
 static void ds18b20_write_pin(uint8_t level)
 {
-    gpio_hal_write(board_ds18b20_pin.port, board_ds18b20_pin.pin, level);
+    if (ds18b20_config != 0) {
+        gpio_hal_write(ds18b20_config->pin.port, ds18b20_config->pin.pin, level);
+    }
 }
 
 static uint8_t ds18b20_read_pin(void)
 {
-    return gpio_hal_read(board_ds18b20_pin.port, board_ds18b20_pin.pin);
+    if (ds18b20_config == 0) {
+        return 1U;
+    }
+    return gpio_hal_read(ds18b20_config->pin.port, ds18b20_config->pin.pin);
 }
 
 static void ds18b20_reset(void)
@@ -152,9 +162,13 @@ static float ds18b20_sample_temperature(void)
     return (float)(-raw) * 0.0625f;
 }
 
-static void ds18b20_init(void)
+static void ds18b20_init(const void *config)
 {
-    gpio_hal_config_pin(&board_ds18b20_pin);
+    ds18b20_config = (const one_wire_sensor_config_t *)config;
+    if (ds18b20_config == 0) {
+        return;
+    }
+    gpio_hal_config_pin(&ds18b20_config->pin);
     ds18b20_write_pin(1U);
     ds18b20_temperature_cache = 26.0f;
     ds18b20_reset();

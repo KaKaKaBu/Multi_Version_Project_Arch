@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 单通道模拟探头的虚函数表。 */
 typedef struct analog_probe {
     const char *name;              ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);            ///< 一次性硬件初始化。
+    void (*init)(const void *config);            ///< 一次性硬件初始化。
     /**
      * @brief 读取换算后的工程量。
      * @return 数值（单位由驱动定义）。

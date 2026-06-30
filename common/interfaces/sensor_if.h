@@ -18,7 +18,7 @@ extern "C" {
 /** @brief 温湿度组合传感器驱动的虚函数表。 */
 typedef struct temp_hum_sensor {
     const char *name;                    ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                  ///< 一次性硬件初始化。
+    void (*init)(const void *config);                  ///< 一次性硬件初始化。
     /**
      * @brief 读取摄氏温度。
      * @return 温度值（摄氏度）。

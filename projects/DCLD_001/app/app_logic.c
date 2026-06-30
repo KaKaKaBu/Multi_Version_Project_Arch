@@ -174,7 +174,7 @@ static void dcld_publish_telemetry(void)
     }
 
     cJSON_AddStringToObject(root, "version", VERSION_NAME);
-    cJSON_AddNumberToObject(root, "version_no", DCLD_VERSION);
+    cJSON_AddNumberToObject(root, "version_no", APP_VERSION);
     cJSON_AddStringToObject(root, "mode", (g_dcld.mode == DCLD_MODE_THRESHOLD) ? "threshold" : "auto");
     cJSON_AddNumberToObject(root, "distance_cm", g_dcld.distance_cm);
     cJSON_AddNumberToObject(root, "raw_distance_cm", g_dcld.raw_distance_cm);

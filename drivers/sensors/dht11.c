@@ -1,7 +1,7 @@
 #include "sensor_if.h"
 #include "gpio_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #define DHT11_VALID_TEMP_MIN  0U
@@ -12,25 +12,35 @@
 
 static float dht11_temperature_cache;
 static float dht11_humidity_cache;
+static const one_wire_sensor_config_t *dht11_config;
 
 static void dht11_set_output(void)
 {
-    gpio_hal_set_mode(board_dht11_pin.port, board_dht11_pin.pin, GPIO_HAL_MODE_OUT_OD);
+    if (dht11_config != 0) {
+        gpio_hal_set_mode(dht11_config->pin.port, dht11_config->pin.pin, GPIO_HAL_MODE_OUT_OD);
+    }
 }
 
 static void dht11_set_input(void)
 {
-    gpio_hal_set_mode(board_dht11_pin.port, board_dht11_pin.pin, GPIO_HAL_MODE_IN_PULLUP);
+    if (dht11_config != 0) {
+        gpio_hal_set_mode(dht11_config->pin.port, dht11_config->pin.pin, GPIO_HAL_MODE_IN_PULLUP);
+    }
 }
 
 static void dht11_write(uint8_t level)
 {
-    gpio_hal_write(board_dht11_pin.port, board_dht11_pin.pin, level);
+    if (dht11_config != 0) {
+        gpio_hal_write(dht11_config->pin.port, dht11_config->pin.pin, level);
+    }
 }
 
 static uint8_t dht11_read_pin(void)
 {
-    return gpio_hal_read(board_dht11_pin.port, board_dht11_pin.pin);
+    if (dht11_config == 0) {
+        return 1U;
+    }
+    return gpio_hal_read(dht11_config->pin.port, dht11_config->pin.pin);
 }
 
 static uint8_t dht11_read_byte(void)
@@ -129,9 +139,13 @@ static uint8_t dht11_refresh(void)
     return 0U;
 }
 
-static void dht11_init(void)
+static void dht11_init(const void *config)
 {
-    gpio_hal_config_pin(&board_dht11_pin);
+    dht11_config = (const one_wire_sensor_config_t *)config;
+    if (dht11_config == 0) {
+        return;
+    }
+    gpio_hal_config_pin(&dht11_config->pin);
     dht11_write(1U);
     dht11_temperature_cache = 25.0f;
     dht11_humidity_cache = 50.0f;

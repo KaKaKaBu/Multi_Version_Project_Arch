@@ -6,7 +6,7 @@
 #include "key_service.h"
 #include "input_if.h"
 #include "gpio_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 #include "scheduler.h"
 #include "irq_event.h"
@@ -16,28 +16,6 @@
 /* -------------------------------------------------------------------------- */
 /* Configuration defaults                                                     */
 /* -------------------------------------------------------------------------- */
-
-#if !defined(KEY_DRIVER_PIN_TABLE)
-static const hal_pin_t *const key_default_pins[] = {
-    &board_key1_pin,
-    &board_key2_pin,
-    &board_key3_pin,
-    &board_key4_pin,
-    &board_key5_pin
-};
-#define KEY_DRIVER_PIN_TABLE key_default_pins
-#define KEY_DRIVER_HAS_DEFAULT_PIN_TABLE 1
-#endif
-
-#if !defined(KEY_DRIVER_BUTTON_COUNT)
-#if defined(KEY_DRIVER_HAS_DEFAULT_PIN_TABLE)
-#define KEY_DRIVER_BUTTON_COUNT ((uint8_t)(sizeof(key_default_pins) / sizeof(key_default_pins[0])))
-#else
-#error "KEY_DRIVER_BUTTON_COUNT must be defined when overriding KEY_DRIVER_PIN_TABLE"
-#endif
-#endif
-
-typedef char key_driver_requires_at_least_one_button[(KEY_DRIVER_BUTTON_COUNT > 0) ? 1 : -1];
 
 #ifndef KEY_DRIVER_DEBOUNCE_MS
 #define KEY_DRIVER_DEBOUNCE_MS 30U
@@ -64,10 +42,11 @@ typedef char key_driver_requires_at_least_one_button[(KEY_DRIVER_BUTTON_COUNT > 
 #endif
 
 #define KEY_DRIVER_MAX_IRQ_CHANNELS 7U
+#define KEY_DRIVER_MAX_BUTTONS 8U
 #define KEY_EVENT_FLAG_SINGLE (1U << 0)
 #define KEY_EVENT_FLAG_DOUBLE (1U << 1)
 #define KEY_EVENT_FLAG_LONG (1U << 2)
-#define KEY_DRIVER_MAX_EVENT_BATCH ((KEY_DRIVER_BUTTON_COUNT * 3U) + 1U)
+#define KEY_DRIVER_MAX_EVENT_BATCH ((KEY_DRIVER_MAX_BUTTONS * 3U) + 1U)
 #define KEY_DRIVER_EVENT_IRQ 0x20000000UL
 #define KEY_DRIVER_EVENT_WAIT_MASK (SCHED_EVENT_TICK | KEY_DRIVER_EVENT_IRQ)
 
@@ -96,7 +75,8 @@ typedef struct key_pending_event {
     key_event_type_t type;
 } key_pending_event_t;
 
-static key_button_state_t key_buttons[KEY_DRIVER_BUTTON_COUNT];
+static key_button_state_t key_buttons[KEY_DRIVER_MAX_BUTTONS];
+static const gpio_input_driver_config_t *key_config;
 static key_event_callback_t key_callback;
 static void *key_callback_ctx;
 static exti_hal_irq_channel_t key_enabled_irqs[KEY_DRIVER_MAX_IRQ_CHANNELS];
@@ -252,7 +232,7 @@ static void key_collect_and_dispatch_events(void)
     uint32_t now = sched_tick_get();
     uint8_t i;
 
-    for (i = 0U; i < KEY_DRIVER_BUTTON_COUNT; ++i) {
+    for (i = 0U; i < key_button_active_count; ++i) {
         key_button_state_t *btn = &key_buttons[i];
 
         if (btn->pin == 0) {
@@ -307,7 +287,7 @@ static void key_process_exti(void)
     uint32_t now = sched_tick_get();
     uint8_t i;
 
-    for (i = 0U; i < KEY_DRIVER_BUTTON_COUNT; ++i) {
+    for (i = 0U; i < key_button_active_count; ++i) {
         key_button_state_t *btn = &key_buttons[i];
 
         if ((btn->pin == 0) || (exti_hal_get_it_status(btn->exti_line_mask) == 0U)) {
@@ -339,10 +319,20 @@ static uint8_t key_configure_buttons(void)
 {
     uint8_t configured = 0U;
     uint8_t i;
+    uint8_t count;
 
-    for (i = 0U; i < KEY_DRIVER_BUTTON_COUNT; ++i) {
+    if (key_config == 0) {
+        return 0U;
+    }
+
+    count = key_config->count;
+    if (count > KEY_DRIVER_MAX_BUTTONS) {
+        count = KEY_DRIVER_MAX_BUTTONS;
+    }
+
+    for (i = 0U; i < count; ++i) {
         key_button_state_t *btn = &key_buttons[i];
-        const hal_pin_t *pin = KEY_DRIVER_PIN_TABLE[i];
+        const hal_pin_t *pin = (key_config->pin_refs != 0) ? key_config->pin_refs[i] : &key_config->pins[i];
         uint8_t line;
 
         btn->pin = 0;
@@ -395,8 +385,9 @@ static void key_register_service_task_once(void)
     }
 }
 
-static void key_init(void)
+static void key_init(const void *config)
 {
+    key_config = (const gpio_input_driver_config_t *)config;
     key_button_active_count = key_configure_buttons();
     if ((key_button_active_count > 0U) && (key_irq_event_bound == 0U)) {
         (void)irq_event_bind(IRQ_EVENT_SOURCE_KEY_EXTI, KEY_DRIVER_EVENT_IRQ);
@@ -413,7 +404,7 @@ static unsigned char key_read_key(void)
 {
     uint8_t i;
 
-    for (i = 0U; i < KEY_DRIVER_BUTTON_COUNT; ++i) {
+    for (i = 0U; i < key_button_active_count; ++i) {
         const key_button_state_t *btn = &key_buttons[i];
 
         if ((btn->pin != 0) && (gpio_hal_read(btn->pin->port, btn->pin->pin) == 0U)) {

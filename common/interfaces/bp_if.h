@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 血压测量设备的虚函数表。 */
 typedef struct blood_pressure_sensor {
     const char *name;                            ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                          ///< 一次性硬件初始化。
+    void (*init)(const void *config);                          ///< 一次性硬件初始化。
     /**
      * @brief 读取收缩压。
      * @return 收缩压（mmHg）。

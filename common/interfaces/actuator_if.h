@@ -17,7 +17,7 @@ extern "C" {
 /** @brief 舵机驱动的虚函数表。 */
 typedef struct servo_driver {
     const char *name;                         ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                       ///< 一次性硬件初始化。
+    void (*init)(const void *config);                       ///< 一次性硬件初始化。
     /**
      * @brief 设置目标角度。
      * @param[in] angle 角度（度）。
@@ -28,7 +28,7 @@ typedef struct servo_driver {
 /** @brief 继电器或数字输出驱动的虚函数表。 */
 typedef struct relay_driver {
     const char *name;                        ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                      ///< 一次性硬件初始化。
+    void (*init)(const void *config);                      ///< 一次性硬件初始化。
     /**
      * @brief 设置继电器线圈通电状态。
      * @param[in] on 非零表示吸合。

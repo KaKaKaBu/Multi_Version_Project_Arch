@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 两位（或更多）数码管显示的虚函数表。 */
 typedef struct segment_display {
     const char *name;              ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);            ///< 一次性硬件初始化。
+    void (*init)(const void *config);            ///< 一次性硬件初始化。
     /**
      * @brief 显示十位与个位数字。
      * @param[in] ten 十位数字 0–9。

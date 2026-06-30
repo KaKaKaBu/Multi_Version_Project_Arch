@@ -1,4 +1,4 @@
-// Auto-synced with projects/ZNCZ_001/app/board_config.h.
+// Auto-synced with projects/ZNCZ_001/board/board_config.h.
 // Update BOARD_ESP8266_* macros first, then keep this file consistent.
 export const boardMqttConfig = {
   brokerHost: "47.94.89.46",

@@ -1,7 +1,7 @@
 #include "pressure_if.h"
 #include "i2c_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #define BMP180_REG_CALIB_BASE 0xAAU
@@ -28,6 +28,7 @@ typedef struct bmp180_cal {
 static bmp180_cal_t bmp180_cal;
 static float bmp180_pressure_cache;
 static float bmp180_temperature_cache;
+static const bmp180_driver_config_t *bmp180_config;
 
 static void bmp180_i2c_init(void)
 {
@@ -37,12 +38,16 @@ static void bmp180_i2c_init(void)
         return;
     }
 
+    if (bmp180_config == 0) {
+        return;
+    }
+
     i2c_hal_config_t cfg = {
-        BOARD_SENSOR_I2C,
-        BOARD_SENSOR_I2C_SPEED,
-        board_sensor_i2c_scl,
-        board_sensor_i2c_sda,
-        BOARD_SENSOR_I2C_REMAP,
+        bmp180_config->i2c.instance,
+        bmp180_config->i2c.speed_hz,
+        bmp180_config->i2c.scl,
+        bmp180_config->i2c.sda,
+        bmp180_config->i2c.remap,
         I2C_HAL_DEFAULT_TIMEOUT_US
     };
 
@@ -55,7 +60,8 @@ static int16_t bmp180_read_int16(uint8_t reg)
     uint8_t buf[2];
     int16_t value;
 
-    if (i2c_hal_read(BOARD_SENSOR_I2C, BOARD_BMP180_I2C_ADDR, reg, buf, 2U) != HAL_OK) {
+    if ((bmp180_config == 0) ||
+        (i2c_hal_read(bmp180_config->i2c.instance, bmp180_config->i2c.address, reg, buf, 2U) != HAL_OK)) {
         return 0;
     }
 
@@ -72,7 +78,8 @@ static int32_t bmp180_read_ut(void)
 {
     uint8_t cmd = BMP180_CMD_READ_TEMP;
 
-    if (i2c_hal_write(BOARD_SENSOR_I2C, BOARD_BMP180_I2C_ADDR, BMP180_REG_CTRL, &cmd, 1U) != HAL_OK) {
+    if ((bmp180_config == 0) ||
+        (i2c_hal_write(bmp180_config->i2c.instance, bmp180_config->i2c.address, BMP180_REG_CTRL, &cmd, 1U) != HAL_OK)) {
         return 0;
     }
 
@@ -84,7 +91,8 @@ static int32_t bmp180_read_up(void)
 {
     uint8_t cmd = BMP180_CMD_READ_PRESS;
 
-    if (i2c_hal_write(BOARD_SENSOR_I2C, BOARD_BMP180_I2C_ADDR, BMP180_REG_CTRL, &cmd, 1U) != HAL_OK) {
+    if ((bmp180_config == 0) ||
+        (i2c_hal_write(bmp180_config->i2c.instance, bmp180_config->i2c.address, BMP180_REG_CTRL, &cmd, 1U) != HAL_OK)) {
         return 0;
     }
 
@@ -132,14 +140,18 @@ static void bmp180_update_result(void)
     x1 = (pressure_pa >> 8) * (pressure_pa >> 8);
     x1 = (x1 * 3038) >> 16;
     x2 = (-7357 * pressure_pa) >> 16;
-    pressure_pa = pressure_pa + ((x1 + x2 + 3791) >> 4) + (int32_t)BOARD_BMP180_PRESSURE_REVISE;
+    pressure_pa = pressure_pa + ((x1 + x2 + 3791) >> 4) + bmp180_config->pressure_revise;
 
     bmp180_temperature_cache = (float)temperature_raw / 10.0f;
     bmp180_pressure_cache = (float)pressure_pa;
 }
 
-static void bmp180_init(void)
+static void bmp180_init(const void *config)
 {
+    bmp180_config = (const bmp180_driver_config_t *)config;
+    if (bmp180_config == 0) {
+        return;
+    }
     bmp180_i2c_init();
 
     bmp180_cal.ac1 = bmp180_read_int16(BMP180_REG_CALIB_BASE);

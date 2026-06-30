@@ -2,7 +2,7 @@
 #include "spi_hal.h"
 #include "gpio_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #if HAL_SPI_USE_HW
@@ -47,30 +47,31 @@
 
 static uint8_t rc522_uid[4];
 static uint8_t rc522_card_present;
+static const spi_device_config_t *rc522_config;
 
 static void rc522_cs_enable(void)
 {
-    gpio_hal_write(board_rc522_cs_pin.port, board_rc522_cs_pin.pin, 0U);
+    gpio_hal_write(rc522_config->cs.port, rc522_config->cs.pin, 0U);
 }
 
 static void rc522_cs_disable(void)
 {
-    gpio_hal_write(board_rc522_cs_pin.port, board_rc522_cs_pin.pin, 1U);
+    gpio_hal_write(rc522_config->cs.port, rc522_config->cs.pin, 1U);
 }
 
 static void rc522_rst_enable(void)
 {
-    gpio_hal_write(board_rc522_rst_pin.port, board_rc522_rst_pin.pin, 0U);
+    gpio_hal_write(rc522_config->aux.port, rc522_config->aux.pin, 0U);
 }
 
 static void rc522_rst_disable(void)
 {
-    gpio_hal_write(board_rc522_rst_pin.port, board_rc522_rst_pin.pin, 1U);
+    gpio_hal_write(rc522_config->aux.port, rc522_config->aux.pin, 1U);
 }
 
 static uint8_t rc522_spi_transfer(uint8_t byte)
 {
-    return spi_hal_transfer_byte(BOARD_RC522_SPI_BUS_ID, byte);
+    return spi_hal_transfer_byte(rc522_config->bus_id, byte);
 }
 
 static uint8_t rc522_read_raw(uint8_t address)
@@ -316,32 +317,37 @@ static char rc522_select(uint8_t *snr)
     return status;
 }
 
-static void rc522_init(void)
+static void rc522_init(const void *config)
 {
     spi_hal_config_t cfg;
 
     rc522_card_present = 0U;
     memset(rc522_uid, 0, sizeof(rc522_uid));
 
-    gpio_hal_config_pin(&board_rc522_cs_pin);
-    gpio_hal_config_pin(&board_rc522_rst_pin);
+    rc522_config = (const spi_device_config_t *)config;
+    if (rc522_config == 0) {
+        return;
+    }
+
+    gpio_hal_config_pin(&rc522_config->cs);
+    gpio_hal_config_pin(&rc522_config->aux);
     rc522_cs_disable();
     rc522_rst_disable();
 
-    cfg.instance = BOARD_HW_SPI1_INSTANCE;
-    cfg.sck = board_hw_spi1_sck;
-    cfg.mosi = board_hw_spi1_mosi;
-    cfg.miso = board_hw_spi1_miso;
-    cfg.remap = BOARD_HW_SPI1_REMAP;
-    cfg.prescaler = BOARD_HW_SPI1_PRESCALER;
-    cfg.cpol = BOARD_HW_SPI1_CPOL;
-    cfg.cpha = BOARD_HW_SPI1_CPHA;
+    cfg.instance = rc522_config->instance;
+    cfg.sck = rc522_config->sck;
+    cfg.mosi = rc522_config->mosi;
+    cfg.miso = rc522_config->miso;
+    cfg.remap = rc522_config->remap;
+    cfg.prescaler = rc522_config->prescaler;
+    cfg.cpol = rc522_config->cpol;
+    cfg.cpha = rc522_config->cpha;
     cfg.timeout_us = SPI_HAL_DEFAULT_TIMEOUT_US;
 #if HAL_SPI_ENABLE_DMA
-    cfg.tx_dma_channel = BOARD_HW_SPI1_TX_DMA;
-    cfg.rx_dma_channel = BOARD_HW_SPI1_RX_DMA;
+    cfg.tx_dma_channel = rc522_config->tx_dma_channel;
+    cfg.rx_dma_channel = rc522_config->rx_dma_channel;
 #endif
-    (void)spi_hal_init(BOARD_RC522_SPI_BUS_ID, &cfg);
+    (void)spi_hal_init(rc522_config->bus_id, &cfg);
 
     rc522_reset();
     rc522_config_iso_type_a();
@@ -351,6 +357,10 @@ static unsigned char rc522_poll_card(void)
 {
     uint8_t tag_type[2];
     char status;
+
+    if (rc522_config == 0) {
+        return 0U;
+    }
 
     status = rc522_request(RC522_PICC_REQALL, tag_type);
     if (status != (char)RC522_MI_OK) {

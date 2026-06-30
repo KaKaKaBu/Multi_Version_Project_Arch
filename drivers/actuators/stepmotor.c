@@ -1,15 +1,21 @@
 #include "stepper_if.h"
 #include "gpio_hal.h"
 #include "timer_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
+
+static const stepmotor_driver_config_t *stepmotor_config;
 
 static void stepmotor_write_phase(unsigned char a, unsigned char b, unsigned char c, unsigned char d)
 {
-    gpio_hal_write(board_stepmotor_a_pin.port, board_stepmotor_a_pin.pin, a);
-    gpio_hal_write(board_stepmotor_b_pin.port, board_stepmotor_b_pin.pin, b);
-    gpio_hal_write(board_stepmotor_c_pin.port, board_stepmotor_c_pin.pin, c);
-    gpio_hal_write(board_stepmotor_d_pin.port, board_stepmotor_d_pin.pin, d);
+    if (stepmotor_config == 0) {
+        return;
+    }
+
+    gpio_hal_write(stepmotor_config->phase_a.port, stepmotor_config->phase_a.pin, a);
+    gpio_hal_write(stepmotor_config->phase_b.port, stepmotor_config->phase_b.pin, b);
+    gpio_hal_write(stepmotor_config->phase_c.port, stepmotor_config->phase_c.pin, c);
+    gpio_hal_write(stepmotor_config->phase_d.port, stepmotor_config->phase_d.pin, d);
 }
 
 static void stepmotor_delay_ms(unsigned short ms)
@@ -61,12 +67,17 @@ static void stepmotor_direction(unsigned char dir, unsigned short delay_ms)
     }
 }
 
-static void stepmotor_init(void)
+static void stepmotor_init(const void *config)
 {
-    gpio_hal_config_pin(&board_stepmotor_a_pin);
-    gpio_hal_config_pin(&board_stepmotor_b_pin);
-    gpio_hal_config_pin(&board_stepmotor_c_pin);
-    gpio_hal_config_pin(&board_stepmotor_d_pin);
+    stepmotor_config = (const stepmotor_driver_config_t *)config;
+    if (stepmotor_config == 0) {
+        return;
+    }
+
+    gpio_hal_config_pin(&stepmotor_config->phase_a);
+    gpio_hal_config_pin(&stepmotor_config->phase_b);
+    gpio_hal_config_pin(&stepmotor_config->phase_c);
+    gpio_hal_config_pin(&stepmotor_config->phase_d);
     stepmotor_write_phase(0U, 0U, 0U, 0U);
 }
 

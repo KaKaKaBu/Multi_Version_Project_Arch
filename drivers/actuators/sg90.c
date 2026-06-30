@@ -1,20 +1,27 @@
 #include "actuator_if.h"
 #include "timer_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 static unsigned short sg90_angle_cache;
+static const servo_driver_config_t *sg90_config;
+static const servo_driver_config_t *sg90_2_config;
 
-static void sg90_init(void)
+static void sg90_init(const void *config)
 {
     timer_hal_pwm_config_t cfg;
 
-    cfg.instance = BOARD_SG90_TIM;
-    cfg.period = BOARD_SG90_TIM_PERIOD;
-    cfg.prescaler = BOARD_SG90_TIM_PRESCALER;
-    cfg.channel = BOARD_SG90_TIM_CHANNEL;
-    cfg.pin = board_sg90_pwm_pin;
-    cfg.remap = BOARD_SG90_TIM_REMAP;
+    sg90_config = (const servo_driver_config_t *)config;
+    if (sg90_config == 0) {
+        return;
+    }
+
+    cfg.instance = sg90_config->timer;
+    cfg.period = sg90_config->period;
+    cfg.prescaler = sg90_config->prescaler;
+    cfg.channel = sg90_config->channel;
+    cfg.pin = sg90_config->pin;
+    cfg.remap = sg90_config->remap;
     (void)timer_hal_pwm_init(&cfg);
     sg90_angle_cache = 90U;
 }
@@ -29,7 +36,10 @@ static void sg90_set_angle(unsigned short angle)
 
     sg90_angle_cache = angle;
     compare = (unsigned short)(500U + ((uint32_t)angle * 2000U) / 180U);
-    timer_hal_pwm_set_compare(BOARD_SG90_TIM, BOARD_SG90_TIM_CHANNEL, compare);
+    if (sg90_config == 0) {
+        return;
+    }
+    timer_hal_pwm_set_compare(sg90_config->timer, sg90_config->channel, compare);
 }
 
 static const servo_driver_t sg90_drv = {
@@ -40,20 +50,23 @@ static const servo_driver_t sg90_drv = {
 
 REGISTER_DRIVER(SERVO, sg90_drv);
 
-#ifdef BOARD_SG90_2
-
 static unsigned short sg90_2_angle_cache;
 
-static void sg90_2_init(void)
+static void sg90_2_init(const void *config)
 {
     timer_hal_pwm_config_t cfg;
 
-    cfg.instance = BOARD_SG90_2_TIM;
-    cfg.period = BOARD_SG90_TIM_PERIOD;
-    cfg.prescaler = BOARD_SG90_TIM_PRESCALER;
-    cfg.channel = BOARD_SG90_2_TIM_CHANNEL;
-    cfg.pin = board_sg90_2_pwm_pin;
-    cfg.remap = BOARD_SG90_TIM_REMAP;
+    sg90_2_config = (const servo_driver_config_t *)config;
+    if (sg90_2_config == 0) {
+        return;
+    }
+
+    cfg.instance = sg90_2_config->timer;
+    cfg.period = sg90_2_config->period;
+    cfg.prescaler = sg90_2_config->prescaler;
+    cfg.channel = sg90_2_config->channel;
+    cfg.pin = sg90_2_config->pin;
+    cfg.remap = sg90_2_config->remap;
     (void)timer_hal_pwm_init(&cfg);
     sg90_2_angle_cache = 90U;
 }
@@ -68,7 +81,10 @@ static void sg90_2_set_angle(unsigned short angle)
 
     sg90_2_angle_cache = angle;
     compare = (unsigned short)(500U + ((uint32_t)angle * 2000U) / 180U);
-    timer_hal_pwm_set_compare(BOARD_SG90_2_TIM, BOARD_SG90_2_TIM_CHANNEL, compare);
+    if (sg90_2_config == 0) {
+        return;
+    }
+    timer_hal_pwm_set_compare(sg90_2_config->timer, sg90_2_config->channel, compare);
 }
 
 static const servo_driver_t sg90_2_drv = {
@@ -78,5 +94,3 @@ static const servo_driver_t sg90_2_drv = {
 };
 
 REGISTER_DRIVER(SERVO, sg90_2_drv);
-
-#endif

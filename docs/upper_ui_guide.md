@@ -211,7 +211,7 @@ export function setupFeatures(app) {
 - JSON key 使用 **snake_case**，与固件侧 `esp8266_mqtt.c` / `jdy31_ble.c` 解析保持一致。
 - 上行（App → 设备）：`{ "cmd": "<command>", "params": { ... } }`
 - 下行（设备 → App）：`{ "type": "telemetry", "data": { ... } }`
-- KQZL3 的 WiFi/网页/小程序/App 版本必须默认使用 `projects/KQZL3/app/board_config.h` 中的 MQTT 参数：Broker `121.40.131.194:1883`，Client ID `KQZL3`，用户名 `yskj`，密码 `yskj@123`，上位机发布命令 Topic `KQZL3`，订阅遥测 Topic `KQZL3/web`。Flutter 的 `lib/core/config/mqtt_config.dart` 与 uni-app 的 `src/config/mqtt.js` 必须保持同步。
+- KQZL3 的 WiFi/网页/小程序/App 版本必须默认使用 `projects/KQZL3/board/board_config.h` 中的 MQTT 参数：Broker `121.40.131.194:1883`，Client ID `KQZL3`，用户名 `yskj`，密码 `yskj@123`，上位机发布命令 Topic `KQZL3`，订阅遥测 Topic `KQZL3/web`。Flutter 的 `lib/core/config/mqtt_config.dart` 与 uni-app 的 `src/config/mqtt.js` 必须保持同步。
 
 ---
 

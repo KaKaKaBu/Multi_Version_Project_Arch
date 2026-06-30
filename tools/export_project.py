@@ -396,6 +396,52 @@ def parse_set_block(cmake_text: str, var_name: str) -> List[str]:
     return items
 
 
+def split_cmake_args(body: str) -> List[str]:
+    items: List[str] = []
+    for raw_line in body.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        items.extend(item.strip().strip('"') for item in re.findall(r'"[^"]*"|\S+', line) if item.strip())
+    return items
+
+
+def parse_cmake_call_args(cmake_text: str, function_name: str) -> List[str]:
+    match = re.search(
+        rf"{re.escape(function_name)}\s*\((.*?)\)",
+        cmake_text,
+        re.DOTALL,
+    )
+    if not match:
+        return []
+    return split_cmake_args(match.group(1))
+
+
+def uses_mvp_stm32_template(cmake_text: str) -> bool:
+    return bool(parse_cmake_call_args(cmake_text, "mvp_add_stm32f1_project"))
+
+
+def mvp_has_option(cmake_text: str, option_name: str) -> bool:
+    return option_name in parse_cmake_call_args(cmake_text, "mvp_add_stm32f1_project")
+
+
+def parse_mvp_driver_catalog_var(cmake_text: str) -> Optional[str]:
+    args = parse_cmake_call_args(cmake_text, "mvp_add_stm32f1_project")
+    for idx, item in enumerate(args):
+        if item == "DRIVER_CATALOG_VAR" and idx + 1 < len(args):
+            return args[idx + 1]
+    return None
+
+
+def catalog_name_from_var(var_name: Optional[str]) -> Optional[str]:
+    if not var_name:
+        return None
+    prefix = "DRIVER_CATALOG_"
+    if var_name.startswith(prefix):
+        return var_name[len(prefix) :]
+    return None
+
+
 def parse_driver_catalog_ref(items: List[str]) -> Optional[str]:
     for item in items:
         match = re.search(r"\$\{DRIVER_CATALOG_(\w+)\}", item.strip())
@@ -405,6 +451,8 @@ def parse_driver_catalog_ref(items: List[str]) -> Optional[str]:
 
 
 def parse_version_var(cmake_text: str) -> Optional[str]:
+    if parse_cmake_call_args(cmake_text, "mvp_resolve_app_version"):
+        return "APP_VERSION"
     app_match = re.search(r"set\s*\(\s*APP_VERSION\s+\"?(\d+)\"?\s+CACHE\s+STRING", cmake_text)
     if app_match:
         return "APP_VERSION"
@@ -423,6 +471,11 @@ def parse_legacy_version_var(cmake_text: str) -> Optional[str]:
 
 
 def parse_version_default(cmake_text: str, version_var: str) -> int:
+    if version_var == "APP_VERSION":
+        args = parse_cmake_call_args(cmake_text, "mvp_resolve_app_version")
+        for idx, item in enumerate(args):
+            if item == "DEFAULT" and idx + 1 < len(args):
+                return int(args[idx + 1])
     match = re.search(
         rf"set\s*\(\s*{re.escape(version_var)}\s+\"?(\d+)\"?\s+CACHE\s+STRING",
         cmake_text,
@@ -433,6 +486,17 @@ def parse_version_default(cmake_text: str, version_var: str) -> int:
 
 
 def parse_version_range(cmake_text: str, version_var: str) -> Tuple[int, int]:
+    if version_var == "APP_VERSION":
+        args = parse_cmake_call_args(cmake_text, "mvp_resolve_app_version")
+        min_value: Optional[int] = None
+        max_value: Optional[int] = None
+        for idx, item in enumerate(args):
+            if item == "MIN" and idx + 1 < len(args):
+                min_value = int(args[idx + 1])
+            elif item == "MAX" and idx + 1 < len(args):
+                max_value = int(args[idx + 1])
+        if min_value is not None and max_value is not None:
+            return min_value, max_value
     pattern = rf"{re.escape(version_var)} must be (\d+)-(\d+)"
     match = re.search(pattern, cmake_text)
     if match:
@@ -442,6 +506,9 @@ def parse_version_range(cmake_text: str, version_var: str) -> Tuple[int, int]:
 
 
 def parse_executable_groups(cmake_text: str) -> List[str]:
+    if uses_mvp_stm32_template(cmake_text):
+        return ["APP_SRCS", "COMMON_SRCS", "BSP_SRCS", "DRIVER_SRCS", "SPL_SRCS"]
+
     match = re.search(
         r"add_executable\s*\((.*?)\)",
         cmake_text,
@@ -458,6 +525,25 @@ def parse_executable_groups(cmake_text: str) -> List[str]:
 
 
 def parse_target_compile_definitions(cmake_text: str) -> List[str]:
+    if uses_mvp_stm32_template(cmake_text):
+        defs = ["STM32F10X_MD", "USE_STDPERIPH_DRIVER", "CJSON_NESTING_LIMIT=32"]
+        match = re.search(
+            r"mvp_add_stm32f1_project\s*\((.*?)\)",
+            cmake_text,
+            re.DOTALL,
+        )
+        if match:
+            args = split_cmake_args(match.group(1))
+            if "EXTRA_DEFINES" in args:
+                start = args.index("EXTRA_DEFINES") + 1
+                stop = len(args)
+                for idx in range(start, len(args)):
+                    if args[idx] in {"DRIVER_CATALOG_VAR", "ENABLE_APP_FRAMEWORK"}:
+                        stop = idx
+                        break
+                defs.extend(args[start:stop])
+        return defs
+
     match = re.search(
         r"target_compile_definitions\s*\(\s*\$\{PROJECT_NAME\}\.elf\s+PRIVATE\s+(.*?)\n\)",
         cmake_text,
@@ -478,6 +564,8 @@ def parse_target_compile_definitions(cmake_text: str) -> List[str]:
 
 
 def parse_link_undef_symbols(cmake_text: str) -> List[str]:
+    if uses_mvp_stm32_template(cmake_text):
+        return ["malloc", "_malloc_r", "cjson_port_init"]
     return re.findall(r"-Wl,-u,(\w+)", cmake_text)
 
 
@@ -520,6 +608,18 @@ def parse_extras_list(extras_arg: Optional[List[str]], no_extras: bool) -> List[
 
 def extract_hal_preamble(cmake_text: str) -> str:
     """截取 include(hal_options.cmake) 之前的工程条件逻辑（版本/option 等）。"""
+    if uses_mvp_stm32_template(cmake_text):
+        lines: List[str] = []
+        for line in cmake_text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("mvp_add_stm32f1_project"):
+                break
+            if re.match(r"set\s*\(\s*HAL_", stripped):
+                lines.append(line)
+        return "\n".join(lines) + ("\n" if lines else "")
+
     match = re.search(
         r"^(.*?)include\s*\(\s*\$\{TEMPLATE_ROOT\}/cmake/hal_options\.cmake\s*\)",
         cmake_text,
@@ -667,13 +767,102 @@ def expand_cmake_item(
         rel = item[len("${TEMPLATE_ROOT}/") :]
         return [template_root / rel.replace("\\", "/")]
 
-    if item.startswith("app/"):
+    if item.startswith("app/") or item.startswith("board/"):
         return [project_dir / item]
 
     path = Path(item)
     if path.is_absolute():
         return [path]
     return [project_dir / item]
+
+
+def resolve_mvp_stm32_source_lists(
+    cmake_text: str,
+    template_root: Path,
+    project_dir: Path,
+    version: int,
+    version_var: Optional[str],
+) -> Tuple[Dict[str, List[Path]], Dict[str, bool]]:
+    catalog_name = catalog_name_from_var(parse_mvp_driver_catalog_var(cmake_text))
+    preamble = extract_hal_preamble(cmake_text)
+    hal_map, hal_options, driver_paths = run_cmake_export_resolve(
+        template_root,
+        catalog_name,
+        version_var,
+        version,
+        preamble,
+    )
+
+    common_sources = [
+        template_root / "common" / "device_manager" / "devmgr.c",
+        template_root / "common" / "device_manager" / "driver_registry_gcc.c",
+        template_root / "common" / "scheduler" / "scheduler.c",
+        template_root / "common" / "scheduler" / "sched_loop.c",
+        template_root / "common" / "irq_event" / "irq_event.c",
+        template_root / "common" / "utils" / "tiny_printf.c",
+        template_root / "common" / "utils" / "mem_pool.c",
+        template_root / "common" / "utils" / "cJSON.c",
+        template_root / "common" / "utils" / "cjson_port.c",
+        template_root / "common" / "utils" / "soft_uart.c",
+        template_root / "common" / "utils" / "debug_uart.c",
+        template_root / "common" / "utils" / "comm_port.c",
+    ]
+    if mvp_has_option(cmake_text, "ENABLE_APP_FRAMEWORK"):
+        common_sources.append(template_root / "common" / "app_framework" / "app_fsm.c")
+
+    bsp_sources = [
+        template_root / "bsp" / "stm32" / "syscalls" / "syscalls.c",
+        template_root / "bsp" / "stm32" / "hal" / "stm32f1_hal_map.c",
+        template_root / "bsp" / "stm32" / "hal" / "hal_common.c",
+        template_root / "bsp" / "stm32" / "hal" / "gpio_hal.c",
+        template_root / "bsp" / "stm32" / "hal" / "exti_hal.c",
+        *hal_map.get("BSP_HAL_I2C_SRC", []),
+        *hal_map.get("BSP_HAL_SPI_SRC", []),
+        template_root / "bsp" / "stm32" / "hal" / "usart_hal.c",
+        *hal_map.get("BSP_HAL_USART_DMA_SRC", []),
+        *hal_map.get("BSP_HAL_ADC_SRC", []),
+        *hal_map.get("BSP_HAL_ADC_DMA_SRC", []),
+        template_root / "bsp" / "stm32" / "hal" / "timer_hal.c",
+        template_root / "bsp" / "stm32" / "irq_handlers" / "irq_handlers.c",
+    ]
+
+    spl_sources = [
+        template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "CMSIS" / "system_stm32f10x.c",
+        template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "FWlib" / "src" / "misc.c",
+        template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "FWlib" / "src" / "stm32f10x_gpio.c",
+        template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "FWlib" / "src" / "stm32f10x_exti.c",
+        *hal_map.get("SPL_HAL_I2C_SRC", []),
+        *hal_map.get("SPL_HAL_SPI_SRC", []),
+        template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "FWlib" / "src" / "stm32f10x_rcc.c",
+        template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "FWlib" / "src" / "stm32f10x_tim.c",
+        template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "FWlib" / "src" / "stm32f10x_usart.c",
+        *hal_map.get("SPL_HAL_ADC_SRC", []),
+        *hal_map.get("SPL_HAL_DMA_SRC", []),
+    ]
+
+    source_groups: Dict[str, List[Path]] = {
+        "APP_SRCS": [
+            project_dir / "app" / "app_main.c",
+            project_dir / "app" / "app_callbacks.c",
+            project_dir / "app" / "app_logic.c",
+            project_dir / "board" / "board_devices.c",
+        ],
+        "COMMON_SRCS": common_sources,
+        "BSP_SRCS": bsp_sources,
+        "DRIVER_SRCS": list(driver_paths),
+        "SPL_SRCS": spl_sources,
+        "STARTUP_FILE": [template_root / "bsp" / "stm32" / "startup" / "startup_stm32f103xb.s"],
+        "LINKER_SCRIPT": [template_root / "bsp" / "stm32" / "linker_scripts" / "STM32F103XX_FLASH.ld"],
+    }
+    for key, paths in list(source_groups.items()):
+        seen: Set[Path] = set()
+        deduped: List[Path] = []
+        for path in paths:
+            if path not in seen:
+                seen.add(path)
+                deduped.append(path)
+        source_groups[key] = deduped
+    return source_groups, hal_options
 
 
 def resolve_source_lists(
@@ -683,6 +872,9 @@ def resolve_source_lists(
     version: int,
     version_var: Optional[str],
 ) -> Tuple[Dict[str, List[Path]], Dict[str, bool]]:
+    if uses_mvp_stm32_template(cmake_text):
+        return resolve_mvp_stm32_source_lists(cmake_text, template_root, project_dir, version, version_var)
+
     driver_items = parse_set_block(cmake_text, "DRIVER_SRCS")
     catalog_name = parse_driver_catalog_ref(driver_items)
 
@@ -726,18 +918,39 @@ def resolve_source_lists(
 
 
 def collect_include_dirs(cmake_text: str, template_root: Path, project_dir: Path) -> List[Path]:
+    if uses_mvp_stm32_template(cmake_text):
+        includes = [
+            project_dir / "board",
+            project_dir / "app",
+            template_root / "common" / "interfaces",
+            template_root / "common" / "driver_core",
+            template_root / "common" / "device_manager",
+            template_root / "common" / "scheduler",
+            template_root / "common" / "app_framework",
+            template_root / "common" / "irq_event",
+            template_root / "common" / "utils",
+            template_root / "drivers" / "comm",
+            template_root / "drivers" / "config",
+            template_root / "bsp" / "board",
+            template_root / "hal_wrapper",
+            template_root / "bsp" / "stm32" / "hal",
+            template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "CMSIS",
+            template_root / "bsp" / "stm32" / "vendor" / "Libraries" / "FWlib" / "inc",
+        ]
+        return includes
+
     block_match = re.search(
         r"target_include_directories\s*\(\s*\$\{PROJECT_NAME\}\.elf\s+PRIVATE\s+(.*?)\n\)",
         cmake_text,
         re.DOTALL,
     )
-    includes: List[Path] = [project_dir / "app"]
+    includes: List[Path] = [project_dir / "board", project_dir / "app"]
     if not block_match:
         return includes
 
     for line in block_match.group(1).splitlines():
         line = line.strip()
-        if not line or line == "app":
+        if not line or line in {"app", "board"}:
             continue
         if line.startswith("${TEMPLATE_ROOT}/"):
             includes.append(template_root / line[len("${TEMPLATE_ROOT}/") :])
@@ -1046,10 +1259,10 @@ def is_prune_candidate(src: Path, template_root: Path, project_dir: Path) -> boo
     template_root = template_root.resolve()
     project_dir = project_dir.resolve()
     excluded = [
-        template_root / "bsp" / "stm32f10x_std_lib",
+        template_root / "bsp" / "stm32" / "vendor",
         template_root / "common" / "utils" / "cJSON.c",
         template_root / "common" / "utils" / "cJSON.h",
-        template_root / "bsp" / "hal_wrapper" / "hal_features.h",
+        template_root / "hal_wrapper" / "hal_features.h",
         project_dir / "app" / "version_config.h",
     ]
     for item in excluded:
@@ -1061,11 +1274,13 @@ def is_prune_candidate(src: Path, template_root: Path, project_dir: Path) -> boo
         if resolved == item.resolve():
             return False
     include_roots = [
+        project_dir / "board",
         project_dir / "app",
         template_root / "common",
         template_root / "drivers",
-        template_root / "bsp" / "hal_wrapper",
-        template_root / "bsp" / "irq_handlers",
+        template_root / "hal_wrapper",
+        template_root / "bsp" / "stm32" / "hal",
+        template_root / "bsp" / "stm32" / "irq_handlers",
     ]
     for root in include_roots:
         try:
@@ -1114,11 +1329,27 @@ def is_app_path(path: Path, project_dir: Path) -> bool:
         return False
 
 
+def is_project_owned_path(path: Path, project_dir: Path) -> bool:
+    resolved = path.resolve()
+    for dirname in ("app", "board"):
+        try:
+            resolved.relative_to((project_dir / dirname).resolve())
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def rel_export_path(path: Path, template_root: Path, project_dir: Path) -> Path:
     resolved = path.resolve()
     template_root = template_root.resolve()
     project_dir = project_dir.resolve()
     app_dir = project_dir / "app"
+    board_dir = project_dir / "board"
+    try:
+        return Path("board") / resolved.relative_to(board_dir.resolve())
+    except ValueError:
+        pass
     try:
         return Path("app") / resolved.relative_to(app_dir.resolve())
     except ValueError:
@@ -1158,7 +1389,7 @@ def copy_export_file(
     project_dir: Path,
 ) -> None:
     if src.suffix.lower() in {".h", ".c"}:
-        if not is_app_path(src, project_dir) and not (prune_ctx.enabled and is_prune_candidate(src, template_root, project_dir)):
+        if not is_project_owned_path(src, project_dir) and not (prune_ctx.enabled and is_prune_candidate(src, template_root, project_dir)):
             copy_file(src, dst)
             return
         content = patch_version_in_app_files(src.name, read_text(src), version_var, version)
@@ -1225,7 +1456,7 @@ def generate_standalone_cmake(
         cpu_flag_items = ["-mcpu=cortex-m3", "-mthumb"]
 
     link_libs = ""
-    if "target_link_libraries" in src_cmake_text and "PRIVATE m" in src_cmake_text:
+    if uses_mvp_stm32_template(src_cmake_text) or ("target_link_libraries" in src_cmake_text and "PRIVATE m" in src_cmake_text):
         link_libs = "\ntarget_link_libraries(${PROJECT_NAME}.elf PRIVATE m)"
 
     link_extras = ""
@@ -1241,7 +1472,7 @@ def generate_standalone_cmake(
         "",
         "set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR})",
         "",
-        f"set(LINKER_SCRIPT ${{PROJECT_ROOT}}/{linker_items[0] if linker_items else 'bsp/linker_scripts/STM32F103XX_FLASH.ld'})",
+        f"set(LINKER_SCRIPT ${{PROJECT_ROOT}}/{linker_items[0] if linker_items else 'bsp/stm32/linker_scripts/STM32F103XX_FLASH.ld'})",
         "",
         "set(CPU_FLAGS",
     ]
@@ -1786,16 +2017,17 @@ def export_one_version(
     if toolchain_src.exists():
         copy_file(toolchain_src, export_dir / "cmake" / "stm32-gcc-toolchain.cmake")
 
-    for app_file in (project_dir / "app").glob("*"):
-        if not app_file.is_file():
-            continue
-        rel = Path("app") / app_file.name
-        dst = export_dir / rel
-        if dst.resolve() in copied:
-            continue
-        copy_export_file(app_file, dst, version_var, version, prune_ctx, template_root, project_dir)
-        copied.add(dst.resolve())
-        manifest_lines.append(rel.as_posix())
+    for project_subdir in ("board", "app"):
+        for project_file in (project_dir / project_subdir).glob("*"):
+            if not project_file.is_file():
+                continue
+            rel = Path(project_subdir) / project_file.name
+            dst = export_dir / rel
+            if dst.resolve() in copied:
+                continue
+            copy_export_file(project_file, dst, version_var, version, prune_ctx, template_root, project_dir)
+            copied.add(dst.resolve())
+            manifest_lines.append(rel.as_posix())
 
     standalone_cmake = generate_standalone_cmake(
         project_name,
@@ -1841,6 +2073,7 @@ def export_project_versions(
     prune_conditionals: bool,
     layout: str = "legacy",
     export_root_name: Optional[str] = None,
+    firmware_only: bool = False,
     log: Callable[[str], None] = print,
 ) -> None:
     if layout == "legacy":
@@ -1872,7 +2105,8 @@ def export_project_versions(
         )
         log(f"已导出下位机: {out}")
 
-    export_upper_ui_versions(project_dir, upper_export_root, versions, clean=False)
+    if not firmware_only:
+        export_upper_ui_versions(project_dir, upper_export_root, versions, clean=False)
     log(f"导出完成: {project_export_root}")
 
 
@@ -2004,6 +2238,11 @@ def main() -> None:
         help="不裁剪导出源码中的已知未启用条件编译分支",
     )
     parser.add_argument(
+        "--firmware-only",
+        action="store_true",
+        help="只导出下位机固件，不构建/导出 Flutter 或 uni-app 上位机",
+    )
+    parser.add_argument(
         "--root",
         type=Path,
         default=Path(__file__).resolve().parents[1],
@@ -2032,6 +2271,7 @@ def main() -> None:
             toolchain_bin,
             args.clean,
             not args.no_prune_conditionals,
+            firmware_only=args.firmware_only,
         )
         return
 
@@ -2067,6 +2307,7 @@ def main() -> None:
         toolchain_bin,
         args.clean,
         not args.no_prune_conditionals,
+        firmware_only=args.firmware_only,
     )
 
 

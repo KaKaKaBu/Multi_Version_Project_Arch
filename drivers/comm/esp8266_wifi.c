@@ -11,7 +11,7 @@
 #include "hal_features.h"
 #include "debug_uart.h"
 #include "debug_log.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #include <string.h>
@@ -21,16 +21,6 @@
 /** @brief Non-zero when esp8266_port_drain_rx() should log drained bytes. */
 #define ESP8266_DRAIN_DEBUG DEBUG_LOG_ESP8266_DRAIN_ENABLE
 
-#if HAL_DEBUG_UART_ENABLE && defined(BOARD_DEBUG_UART_PASSTHROUGH_USART3) && \
-    BOARD_DEBUG_UART_PASSTHROUGH_USART3 && (BOARD_ESP8266_USART_ID == 3U)
-#define ESP8266_DEBUG_TRACE_USART3 1
-#endif
-
-#ifndef ESP8266_DEBUG_TRACE_USART3
-#define ESP8266_DEBUG_TRACE_USART3 0
-#endif
-
-#if ESP8266_DEBUG_TRACE_USART3
 /**
  * @brief Forwards raw TX bytes to the debug UART trace when enabled.
  * @param data Pointer to transmitted bytes.
@@ -38,23 +28,17 @@
  */
 static void esp8266_debug_trace(const uint8_t *data, uint16_t len)
 {
+#if HAL_DEBUG_UART_ENABLE
     debug_uart_trace_bytes(data, len);
-}
 #else
-/**
- * @brief No-op trace stub when USART3 debug passthrough is disabled.
- * @param data Unused.
- * @param len Unused.
- */
-static void esp8266_debug_trace(const uint8_t *data, uint16_t len)
-{
     (void)data;
     (void)len;
-}
 #endif
+}
 
 /** @brief Optional comm_if raw RX callback for single-byte notifications. */
 static comm_rx_callback_t esp8266_rx_callback;
+static const esp8266_driver_config_t *esp8266_config;
 /** @brief Software ring-style buffer holding drained USART bytes for AT parsing. */
 static uint8_t esp8266_rx_stream[ESP8266_RX_STREAM_MAX];
 /** @brief Number of valid bytes currently stored in esp8266_rx_stream. */
@@ -63,19 +47,19 @@ static uint16_t esp8266_rx_stream_len;
 /** @brief Asserts CH_PD to enable the ESP8266 module. */
 static void esp8266_ch_pd_enable(void)
 {
-    gpio_hal_write(board_esp8266_ch_pd_pin.port, board_esp8266_ch_pd_pin.pin, 1U);
+    gpio_hal_write(esp8266_config->ch_pd.port, esp8266_config->ch_pd.pin, 1U);
 }
 
 /** @brief Deasserts the ESP8266 hardware reset line. */
 static void esp8266_rst_high(void)
 {
-    gpio_hal_write(board_esp8266_rst_pin.port, board_esp8266_rst_pin.pin, 1U);
+    gpio_hal_write(esp8266_config->rst.port, esp8266_config->rst.pin, 1U);
 }
 
 /** @brief Asserts the ESP8266 hardware reset line. */
 static void esp8266_rst_low(void)
 {
-    gpio_hal_write(board_esp8266_rst_pin.port, board_esp8266_rst_pin.pin, 0U);
+    gpio_hal_write(esp8266_config->rst.port, esp8266_config->rst.pin, 0U);
 }
 
 /** @brief Configures USART and control GPIO, then powers the module. */
@@ -83,22 +67,26 @@ static void esp8266_hw_init(void)
 {
     usart_hal_config_t cfg;
 
-    gpio_hal_config_pin(&board_esp8266_ch_pd_pin);
-    gpio_hal_config_pin(&board_esp8266_rst_pin);
+    if (esp8266_config == 0) {
+        return;
+    }
 
-    cfg.instance = BOARD_ESP8266_USART;
-    cfg.baudrate = BOARD_ESP8266_BAUDRATE;
-    cfg.tx = board_esp8266_tx;
-    cfg.rx = board_esp8266_rx;
-    cfg.remap = BOARD_ESP8266_USART_REMAP;
+    gpio_hal_config_pin(&esp8266_config->ch_pd);
+    gpio_hal_config_pin(&esp8266_config->rst);
+
+    cfg.instance = esp8266_config->usart.instance;
+    cfg.baudrate = esp8266_config->usart.baudrate;
+    cfg.tx = esp8266_config->usart.tx;
+    cfg.rx = esp8266_config->usart.rx;
+    cfg.remap = esp8266_config->usart.remap;
     cfg.rx_buf_size = 256U;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;
-    cfg.tx_mode = BOARD_ESP8266_USART_TX_MODE;
+    cfg.tx_mode = esp8266_config->usart.tx_mode;
 #if HAL_USART_ENABLE_DMA
-    cfg.tx_dma_channel = BOARD_ESP8266_USART_TX_DMA;
+    cfg.tx_dma_channel = esp8266_config->usart.tx_dma_channel;
 #endif
     (void)usart_hal_init(&cfg);
-    usart_hal_enable_rx_irq(BOARD_ESP8266_USART);
+    usart_hal_enable_rx_irq(esp8266_config->usart.instance);
 
     esp8266_rst_high();
     esp8266_ch_pd_enable();
@@ -117,7 +105,9 @@ void esp8266_port_rx_clear(void)
 {
     DEBUG_LOG_ESP8266("[ESP8266] rx_clear old_stream_len=%u\r\n", (unsigned int)esp8266_rx_stream_len);
     esp8266_rx_stream_len = 0U;
-    usart_hal_flush_rx(BOARD_ESP8266_USART);
+    if (esp8266_config != 0) {
+        usart_hal_flush_rx(esp8266_config->usart.instance);
+    }
 }
 
 /**
@@ -191,11 +181,13 @@ int esp8266_port_send(const uint8_t *data, uint16_t len)
         return -1;
     }
 
-    if (usart_hal_send_buffer(BOARD_ESP8266_USART, data, len) != HAL_OK) {
+    if ((esp8266_config == 0) || (usart_hal_send_buffer(esp8266_config->usart.instance, data, len) != HAL_OK)) {
         return -1;
     }
 
-    esp8266_debug_trace(data, len);
+    if (esp8266_config->debug_trace_enable != 0U) {
+        esp8266_debug_trace(data, len);
+    }
     return (int)len;
 }
 
@@ -224,7 +216,7 @@ int esp8266_port_recv_byte(uint8_t *byte)
         return 0;
     }
 
-    if (usart_hal_recv_byte(BOARD_ESP8266_USART, byte) == 1) {
+    if ((esp8266_config != 0) && (usart_hal_recv_byte(esp8266_config->usart.instance, byte) == 1)) {
         return 1;
     }
 
@@ -332,11 +324,16 @@ int esp8266_port_wait_prompt(uint32_t timeout_ms)
 }
 
 /** @brief Initializes USART, clears RX state, and resets the module. */
-static void esp8266_init(void)
+static void esp8266_init(const void *config)
 {
+    esp8266_config = (const esp8266_driver_config_t *)config;
+    if (esp8266_config == 0) {
+        return;
+    }
+
     DEBUG_LOG_ESP8266("[ESP8266] init start usart_id=%u baud=%lu\r\n",
-                      (unsigned int)BOARD_ESP8266_USART_ID,
-                      (unsigned long)BOARD_ESP8266_BAUDRATE);
+                      (unsigned int)esp8266_config->usart.instance_id,
+                      (unsigned long)esp8266_config->usart.baudrate);
     esp8266_rx_callback = 0;
     esp8266_port_rx_clear();
     esp8266_hw_init();

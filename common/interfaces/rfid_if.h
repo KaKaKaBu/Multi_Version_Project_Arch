@@ -17,7 +17,7 @@ extern "C" {
 /** @brief RFID 读卡器驱动的虚函数表。 */
 typedef struct rfid_driver {
     const char *name;              ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);            ///< 一次性硬件初始化。
+    void (*init)(const void *config);            ///< 一次性硬件初始化。
     /**
      * @brief 轮询场内是否有卡。
      * @return 有卡时返回非零。

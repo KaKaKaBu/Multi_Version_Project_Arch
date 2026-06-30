@@ -7,7 +7,7 @@
 #include "comm_if.h"
 #include "usart_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #include <string.h>
@@ -22,11 +22,14 @@ static comm_rx_callback_t a7670c_rx_callback;
 static uint8_t a7670c_rx_stream[A7670C_RX_STREAM_MAX];
 static uint16_t a7670c_rx_stream_len;
 static uint8_t a7670c_ready;
+static const usart_device_config_t *a7670c_config;
 
 static void a7670c_rx_clear(void)
 {
     a7670c_rx_stream_len = 0U;
-    usart_hal_flush_rx(BOARD_A7670C_USART);
+    if (a7670c_config != 0) {
+        usart_hal_flush_rx(a7670c_config->instance);
+    }
 }
 
 static void a7670c_rx_push(const uint8_t *data, uint16_t len)
@@ -52,7 +55,11 @@ void a7670c_sms_poll(void)
 {
     uint8_t byte;
 
-    while (usart_hal_recv_byte(BOARD_A7670C_USART, &byte) == 1) {
+    if (a7670c_config == 0) {
+        return;
+    }
+
+    while (usart_hal_recv_byte(a7670c_config->instance, &byte) == 1) {
         a7670c_rx_push(&byte, 1U);
         if (a7670c_rx_callback != 0) {
             a7670c_rx_callback(&byte, 1U);
@@ -97,7 +104,7 @@ static int a7670c_send_raw(const uint8_t *data, uint16_t len)
         return -1;
     }
 
-    if (usart_hal_send_buffer(BOARD_A7670C_USART, data, len) != HAL_OK) {
+    if ((a7670c_config == 0) || (usart_hal_send_buffer(a7670c_config->instance, data, len) != HAL_OK)) {
         return -1;
     }
 
@@ -171,23 +178,31 @@ static void a7670c_hw_init(void)
 {
     usart_hal_config_t cfg;
 
-    cfg.instance = BOARD_A7670C_USART;
-    cfg.baudrate = BOARD_A7670C_BAUDRATE;
-    cfg.tx = board_a7670c_tx;
-    cfg.rx = board_a7670c_rx;
-    cfg.remap = BOARD_A7670C_USART_REMAP;
+    if (a7670c_config == 0) {
+        return;
+    }
+
+    cfg.instance = a7670c_config->instance;
+    cfg.baudrate = a7670c_config->baudrate;
+    cfg.tx = a7670c_config->tx;
+    cfg.rx = a7670c_config->rx;
+    cfg.remap = a7670c_config->remap;
     cfg.rx_buf_size = 256U;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;
-    cfg.tx_mode = BOARD_A7670C_USART_TX_MODE;
+    cfg.tx_mode = a7670c_config->tx_mode;
 #if HAL_USART_ENABLE_DMA
-    cfg.tx_dma_channel = BOARD_A7670C_USART_TX_DMA;
+    cfg.tx_dma_channel = a7670c_config->tx_dma_channel;
 #endif
     (void)usart_hal_init(&cfg);
-    usart_hal_enable_rx_irq(BOARD_A7670C_USART);
+    usart_hal_enable_rx_irq(a7670c_config->instance);
 }
 
-static void a7670c_init(void)
+static void a7670c_init(const void *config)
 {
+    a7670c_config = (const usart_device_config_t *)config;
+    if (a7670c_config == 0) {
+        return;
+    }
     a7670c_rx_callback = 0;
     a7670c_rx_stream_len = 0U;
     a7670c_ready = 0U;
@@ -207,7 +222,7 @@ static int a7670c_recv(unsigned char *buf, unsigned short max_len)
         return -1;
     }
 
-    if (usart_hal_recv_byte(BOARD_A7670C_USART, &data) == 1) {
+    if ((a7670c_config != 0) && (usart_hal_recv_byte(a7670c_config->instance, &data) == 1)) {
         buf[0] = data;
         a7670c_rx_push(&data, 1U);
         if (a7670c_rx_callback != 0) {

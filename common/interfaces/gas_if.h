@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 气体或 VOC 传感器的虚函数表。 */
 typedef struct gas_sensor {
     const char *name;                    ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                  ///< 一次性硬件初始化。
+    void (*init)(const void *config);                  ///< 一次性硬件初始化。
     /**
      * @brief 读取浓度。
      * @return 浓度值（ppm）。

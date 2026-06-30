@@ -1,7 +1,7 @@
 #include "health_if.h"
 #include "i2c_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #define MAX30102_REG_INT_ENABLE1  0x02U
@@ -29,6 +29,7 @@ static uint8_t max30102_spo2_cache;
 static uint32_t max30102_ir_buf[MAX30102_FIFO_AVG_COUNT];
 static uint32_t max30102_red_buf[MAX30102_FIFO_AVG_COUNT];
 static uint8_t max30102_buf_idx;
+static const i2c_device_config_t *max30102_config;
 
 static void max30102_i2c_init(void)
 {
@@ -38,12 +39,16 @@ static void max30102_i2c_init(void)
         return;
     }
 
+    if (max30102_config == 0) {
+        return;
+    }
+
     i2c_hal_config_t cfg = {
-        BOARD_SENSOR_I2C,
-        BOARD_SENSOR_I2C_SPEED,
-        board_sensor_i2c_scl,
-        board_sensor_i2c_sda,
-        BOARD_SENSOR_I2C_REMAP,
+        max30102_config->instance,
+        max30102_config->speed_hz,
+        max30102_config->scl,
+        max30102_config->sda,
+        max30102_config->remap,
         I2C_HAL_DEFAULT_TIMEOUT_US
     };
 
@@ -53,14 +58,18 @@ static void max30102_i2c_init(void)
 
 static void max30102_write_reg(uint8_t reg, uint8_t data)
 {
-    (void)i2c_hal_write(BOARD_SENSOR_I2C, BOARD_MAX30102_I2C_ADDR, reg, &data, 1U);
+    if (max30102_config != 0) {
+        (void)i2c_hal_write(max30102_config->instance, max30102_config->address, reg, &data, 1U);
+    }
 }
 
 static uint8_t max30102_read_reg(uint8_t reg)
 {
     uint8_t data = 0U;
 
-    (void)i2c_hal_read(BOARD_SENSOR_I2C, BOARD_MAX30102_I2C_ADDR, reg, &data, 1U);
+    if (max30102_config != 0) {
+        (void)i2c_hal_read(max30102_config->instance, max30102_config->address, reg, &data, 1U);
+    }
     return data;
 }
 
@@ -77,8 +86,9 @@ static void max30102_read_fifo(max30102_fifo_sample_t *sample)
         return;
     }
 
-    if (i2c_hal_read(BOARD_SENSOR_I2C, BOARD_MAX30102_I2C_ADDR, MAX30102_REG_FIFO_DATA,
-                     buf, sizeof(buf)) != HAL_OK) {
+    if ((max30102_config == 0) ||
+        (i2c_hal_read(max30102_config->instance, max30102_config->address, MAX30102_REG_FIFO_DATA,
+                      buf, sizeof(buf)) != HAL_OK)) {
         sample->ir = 0U;
         sample->red = 0U;
         return;
@@ -122,8 +132,12 @@ static void max30102_refresh(void)
     max30102_update_hr_spo2(&sample);
 }
 
-static void max30102_init(void)
+static void max30102_init(const void *config)
 {
+    max30102_config = (const i2c_device_config_t *)config;
+    if (max30102_config == 0) {
+        return;
+    }
     max30102_i2c_init();
 
     max30102_hr_cache = 0U;

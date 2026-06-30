@@ -1,6 +1,6 @@
 #include "imu_if.h"
 #include "i2c_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #define MPU6050_REG_SMPLRT_DIV    0x19U
@@ -12,6 +12,7 @@
 #define MPU6050_REG_PWR_MGMT_2    0x6CU
 
 static imu_sample_t mpu6050_sample_cache;
+static const i2c_device_config_t *mpu6050_config;
 
 static void mpu6050_i2c_init(void)
 {
@@ -21,12 +22,16 @@ static void mpu6050_i2c_init(void)
         return;
     }
 
+    if (mpu6050_config == 0) {
+        return;
+    }
+
     i2c_hal_config_t cfg = {
-        BOARD_SENSOR_I2C,
-        BOARD_SENSOR_I2C_SPEED,
-        board_sensor_i2c_scl,
-        board_sensor_i2c_sda,
-        BOARD_SENSOR_I2C_REMAP,
+        mpu6050_config->instance,
+        mpu6050_config->speed_hz,
+        mpu6050_config->scl,
+        mpu6050_config->sda,
+        mpu6050_config->remap,
         I2C_HAL_DEFAULT_TIMEOUT_US
     };
 
@@ -36,7 +41,9 @@ static void mpu6050_i2c_init(void)
 
 static void mpu6050_write_reg(uint8_t reg, uint8_t data)
 {
-    (void)i2c_hal_write(BOARD_SENSOR_I2C, BOARD_MPU6050_I2C_ADDR, reg, &data, 1U);
+    if (mpu6050_config != 0) {
+        (void)i2c_hal_write(mpu6050_config->instance, mpu6050_config->address, reg, &data, 1U);
+    }
 }
 
 static void mpu6050_refresh_sample(void)
@@ -44,8 +51,9 @@ static void mpu6050_refresh_sample(void)
     uint8_t buf[14];
     int16_t value;
 
-    if (i2c_hal_read(BOARD_SENSOR_I2C, BOARD_MPU6050_I2C_ADDR, MPU6050_REG_ACCEL_XOUT_H,
-                     buf, sizeof(buf)) != HAL_OK) {
+    if ((mpu6050_config == 0) ||
+        (i2c_hal_read(mpu6050_config->instance, mpu6050_config->address, MPU6050_REG_ACCEL_XOUT_H,
+                      buf, sizeof(buf)) != HAL_OK)) {
         return;
     }
 
@@ -63,8 +71,12 @@ static void mpu6050_refresh_sample(void)
     mpu6050_sample_cache.gz = value;
 }
 
-static void mpu6050_init(void)
+static void mpu6050_init(const void *config)
 {
+    mpu6050_config = (const i2c_device_config_t *)config;
+    if (mpu6050_config == 0) {
+        return;
+    }
     mpu6050_i2c_init();
 
     mpu6050_write_reg(MPU6050_REG_PWR_MGMT_1, 0x01U);

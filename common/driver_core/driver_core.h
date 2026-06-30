@@ -89,6 +89,13 @@ typedef struct driver_registry_entry {
     const void *instance;    ///< 指向 const 驱动对象（如 display_driver_t）。
 } driver_registry_entry_t;
 
+/** @brief 板级设备实例：把项目 board_config 映射到通用驱动配置。 */
+typedef struct board_device_entry {
+    driver_type_t type;      ///< 与驱动 REGISTER_DRIVER 的类型一致。
+    const char *name;        ///< 与驱动对象 name 精确匹配。
+    const void *config;      ///< 指向驱动私有 config 结构；允许为 null。
+} board_device_entry_t;
+
 #if defined(DRIVER_REGISTRY_STATIC)
 #define DRIVER_USED
 #define DRIVER_SECTION
@@ -97,9 +104,12 @@ typedef struct driver_registry_entry {
 #define DRIVER_USED __attribute__((used))
 /** @brief 将静态常量放入 .driver_list，由链接脚本聚合成数组。 */
 #define DRIVER_SECTION __attribute__((section(".driver_list")))
+/** @brief 将板级设备实例放入 .board_device_list，由链接脚本聚合成数组。 */
+#define BOARD_DEVICE_SECTION __attribute__((section(".board_device_list")))
 #else
 #define DRIVER_USED
 #define DRIVER_SECTION
+#define BOARD_DEVICE_SECTION
 #endif
 
 #define DRIVER_CONCAT_INNER(a, b) a##b
@@ -119,11 +129,19 @@ typedef struct driver_registry_entry {
 #if defined(DRIVER_REGISTRY_STATIC)
 #define REGISTER_DRIVER(type, instance) \
     typedef char DRIVER_CONCAT(__driver_registry_static_marker_, instance)
+#define REGISTER_BOARD_DEVICE(type, device_name, config_ptr) \
+    typedef char DRIVER_CONCAT(__board_device_static_marker_, __LINE__)
 #else
 #define REGISTER_DRIVER(type, instance) \
     static const driver_registry_entry_t DRIVER_CONCAT(__driver_entry_, instance) DRIVER_USED DRIVER_SECTION = { \
         DRIVER_TYPE_##type, \
         &instance \
+    }
+#define REGISTER_BOARD_DEVICE(type, device_name, config_ptr) \
+    static const board_device_entry_t DRIVER_CONCAT(__board_device_entry_, __LINE__) DRIVER_USED BOARD_DEVICE_SECTION = { \
+        DRIVER_TYPE_##type, \
+        device_name, \
+        config_ptr \
     }
 #endif
 
@@ -136,6 +154,16 @@ extern const driver_registry_entry_t __driver_list_end[];
 const driver_registry_entry_t *driver_registry_begin(void);
 /** @brief 返回当前平台驱动注册表尾后元素。 */
 const driver_registry_entry_t *driver_registry_end(void);
+
+/** @brief 链接脚本提供的板级设备实例表起始（含首元素）。 */
+extern const board_device_entry_t __board_device_list_start[];
+/** @brief 板级设备实例表尾后首地址（半开区间 [start, end)）。 */
+extern const board_device_entry_t __board_device_list_end[];
+
+/** @brief 返回当前平台板级设备实例表首元素。 */
+const board_device_entry_t *board_device_registry_begin(void);
+/** @brief 返回当前平台板级设备实例表尾后元素。 */
+const board_device_entry_t *board_device_registry_end(void);
 
 #ifdef __cplusplus
 }

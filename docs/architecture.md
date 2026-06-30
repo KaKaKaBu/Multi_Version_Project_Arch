@@ -7,7 +7,8 @@
 | 层次 | 目录 | 职责 |
 | --- | --- | --- |
 | 应用层 | `projects/<NAME>/app` | 业务逻辑（`app_logic`）、回调、任务注册 |
-| 板级配置 | `projects/<NAME>/app/board_config.h` | 引脚、外设实例、波特率、WiFi/MQTT、HAL 传输模式 |
+| 板级配置 | `projects/<NAME>/board/board_config.h` | 引脚、外设实例、波特率、WiFi/MQTT、HAL 传输模式 |
+| 板级设备表 | `projects/<NAME>/board/board_devices.c` | `REGISTER_BOARD_DEVICE` 描述板上设备实例，将项目引脚/总线配置传给驱动 |
 | 版本配置 | `projects/<NAME>/app/version_config.h` | `VERSION` 宏、功能/通讯开关、应用事件 |
 | 上位机多端脚手架 | `projects/<NAME>/<NAME>_upper_ui_flutter` / `projects/<NAME>/<NAME>_upper_ui` | 默认 Flutter 主上位机；仅在需要微信小程序或兼容历史项目时保留 Vue3 + Vite + uni-app + Capacitor 栈。KQZL3 Flutter 覆盖 App/Web 版本，uni-app 仅用于 v9 微信小程序，双栈各自用 `version_features.json` 记录版本功能清单 |
 | 设备管理层 | `common/device_manager` | 遍历驱动注册段，统一初始化与类型安全查询 |
@@ -15,9 +16,10 @@
 | 应用框架 | `common/app_framework` | `app_fsm`（**ZNCZ_001** UI 状态表驱动） |
 | 工具层 | `common/utils` | `comm_port`、`mem_pool`、`cJSON`/`cjson_port`、`tiny_printf`、`soft_uart`/`debug_uart` |
 | 接口层 | `common/interfaces` | **20** 类标准接口（传感器、显示、执行器、通讯、血压等） |
-| 驱动层 | `drivers` | **28** 个驱动源文件，`REGISTER_DRIVER` 自注册 |
-| BSP 层 | `bsp/hal_wrapper` | 对 SPL GPIO/I2C/USART/SPI/TIMER/ADC 的二次封装 |
-| BSP 公共 | `bsp/hal_wrapper/hal_common.c` | SysTick 初始化、微秒级超时等待 |
+| 驱动层 | `drivers` | 芯片/模块通用驱动，`REGISTER_DRIVER` 注册驱动实现，不 include `board_config.h` |
+| HAL 接口层 | `hal_wrapper` | 平台无关 HAL 头文件与公共类型 |
+| BSP 层 | `bsp/stm32/hal` / `bsp/mcs51/hal` | 各平台 HAL 实现；STM32 实现对 SPL GPIO/I2C/USART/SPI/TIMER/ADC 二次封装 |
+| BSP 公共 | `bsp/<platform>/hal/hal_common.c` | 平台初始化、计时与通用等待 |
 | 构建/导出 | `cmake/`、`tools/` | `hal_options`、`driver_catalog`、`gen_project.py`、`export_project.py` |
 
 ## HAL 功能开关
@@ -48,7 +50,23 @@ cmake --build build
 
 ## 驱动自注册
 
-驱动文件只需要定义接口实例，并在文件底部使用 `REGISTER_DRIVER(type, instance)`。注册宏会把描述符放入 `.driver_list` 链接段，设备管理器通过链接脚本提供的 `__driver_list_start` 和 `__driver_list_end` 自动发现驱动。
+驱动文件只需要定义接口实例，并在文件底部使用 `REGISTER_DRIVER(type, instance)`。注册宏会把描述符放入 `.driver_list` 链接段，设备管理器通过链接脚本提供的 `__driver_list_start` 和 `__driver_list_end` 自动发现驱动实现。
+
+板级设备实例由每个项目自己的 `board/board_devices.c` 显式注册：
+
+```c
+static const i2c_device_config_t board_oled_config = {
+    BOARD_OLED_I2C,
+    BOARD_OLED_I2C_SPEED,
+    board_oled_i2c_scl,
+    board_oled_i2c_sda,
+    BOARD_OLED_I2C_REMAP,
+    BOARD_OLED_I2C_ADDR
+};
+REGISTER_BOARD_DEVICE(DISPLAY, "oled", &board_oled_config);
+```
+
+`devmgr_init_all()` 会匹配板级设备实例与同名驱动实现，并调用驱动的 `init(config)`。这相当于简化版 DeviceTree/platform_data：驱动描述能力，板级表描述实例。
 
 ## 协作调度
 
@@ -94,9 +112,11 @@ HAL 层统一使用 `hal_status_t`：
 
 ## 板级配置
 
-每个项目在 `app/board_config.h` 中集中定义 `hal_pin_t` 与外设实例。驱动通过 `#include "board_config.h"` 获取引脚配置。
+每个项目在 `board/board_config.h` 中集中定义 `hal_pin_t` 与外设实例，并在 `board/board_devices.c` 中把这些配置绑定到设备名。驱动层不得 include `board_config.h`，只能通过 `init(const void *config)` 接收板级配置。
 
-新建项目时，`tools/gen_project.py` 会从 `bsp/board/board_config_template.h` 生成 `board_config.h` 骨架。
+新建项目时，`tools/gen_project.py` 会从 `bsp/board/board_config_template.h` 生成 `board/board_config.h` 骨架，并生成显式 `board/board_devices.c`。
+
+C51 平台不承诺 scheduler/MQTT/BLE 等复杂能力；当前保留本地轮询和静态注册路径，避免把 STM32 链接段模型强加到小资源平台。
 
 ## HAL API（已移除旧版兼容接口）
 
@@ -139,7 +159,7 @@ static const hal_pin_t board_debug_uart_tx = { GPIOC, GPIO_Pin_13, GPIO_HAL_MODE
 
 ## USART DMA TX
 
-启用 `HAL_USART_ENABLE_DMA` 后，在 `board_config.h` 中设置通讯模组所用 USART 的 TX 模式与 DMA 通道。**RX 仍为 IRQ 环形缓冲，无 DMA。**
+启用 `HAL_USART_ENABLE_DMA` 后，在 `board/board_config.h` 中设置通讯模组所用 USART 的 TX 模式与 DMA 通道。**RX 仍为 IRQ 环形缓冲，无 DMA。**
 
 ```c
 #define BOARD_ESP8266_USART_TX_MODE USART_HAL_TX_MODE_DMA
@@ -232,8 +252,8 @@ set(DRIVER_SRCS ${DRIVER_CATALOG_ZNCZ_001})   # 或 DRIVER_CATALOG_RTJK_001
 
 | 机制 | 说明 |
 | --- | --- |
-| `projects/<NAME>/` | 每产品线独立 `app/`、`CMakeLists.txt`、`board_config.h` |
-| `APP_VERSION` CACHE STRING | 统一数值版本号（禁止 `option()`）；旧 `KQZL3_VERSION` / `RTJK_VERSION` 仅作兼容别名 |
+| `projects/<NAME>/` | 每产品线独立 `app/`、`board/`、`CMakeLists.txt`、`PRODUCT_SPEC.md` |
+| `APP_VERSION` CACHE STRING | 统一数值版本号（禁止 `option()`）；旧项目专属版本宏已移除 |
 | `driver_catalog.cmake` | 按版本 `list(APPEND …)` 选驱动 |
 | `projects/<NAME>/<NAME>_upper_ui_flutter` | Flutter 主上位机目录；通过 `version_features.json` 描述固件版本→Flutter feature→构建参数 |
 | `projects/<NAME>/<NAME>_upper_ui` | 可选 uni-app 小程序/历史兼容目录；通过独立 `version_features.json` 描述小程序版本→feature→路径 glob |

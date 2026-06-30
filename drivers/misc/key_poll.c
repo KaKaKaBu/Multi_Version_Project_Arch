@@ -1,55 +1,69 @@
 #include "input_if.h"
 #include "gpio_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 typedef void (*key_callback_t)(unsigned char key);
 
 static key_callback_t key_registered_callback;
+static const gpio_input_driver_config_t *key_config;
 
-static void key_init(void)
+static const hal_pin_t *key_get_pin(uint8_t index)
 {
-#if BOARD_KEY_COUNT >= 1
-    gpio_hal_config_pin(&board_key1_pin);
-#endif
-#if BOARD_KEY_COUNT >= 2
-    gpio_hal_config_pin(&board_key2_pin);
-#endif
-#if BOARD_KEY_COUNT >= 3
-    gpio_hal_config_pin(&board_key3_pin);
-#endif
-#if BOARD_KEY_COUNT >= 4
-    gpio_hal_config_pin(&board_key4_pin);
-#endif
+    if ((key_config == 0) || (index >= key_config->count)) {
+        return 0;
+    }
+    if (key_config->pin_refs != 0) {
+        return key_config->pin_refs[index];
+    }
+    if (key_config->pins != 0) {
+        return &key_config->pins[index];
+    }
+    return 0;
+}
+
+static void key_init(const void *config)
+{
+    uint8_t i;
+    const hal_pin_t *pin;
+
+    key_config = (const gpio_input_driver_config_t *)config;
+    if (key_config == 0) {
+        return;
+    }
+
+    for (i = 0U; i < key_config->count; ++i) {
+        pin = key_get_pin(i);
+        if (pin != 0) {
+            gpio_hal_config_pin(pin);
+        }
+    }
 }
 
 static unsigned char key_read_pin(const hal_pin_t *pin)
 {
-    return gpio_hal_read(pin->port, pin->pin) == 0U ? 1U : 0U;
+    uint8_t level = gpio_hal_read(pin->port, pin->pin);
+    if ((key_config != 0) && (key_config->active_low != 0U)) {
+        return level == 0U ? 1U : 0U;
+    }
+    return level != 0U ? 1U : 0U;
 }
 
 static unsigned char key_read_key(void)
 {
-#if BOARD_KEY_COUNT >= 1
-    if (key_read_pin(&board_key1_pin) != 0U) {
-        return 1U;
+    uint8_t i;
+    const hal_pin_t *pin;
+
+    if (key_config == 0) {
+        return 0U;
     }
-#endif
-#if BOARD_KEY_COUNT >= 2
-    if (key_read_pin(&board_key2_pin) != 0U) {
-        return 2U;
+
+    for (i = 0U; i < key_config->count; ++i) {
+        pin = key_get_pin(i);
+        if ((pin != 0) && (key_read_pin(pin) != 0U)) {
+            return (unsigned char)(i + 1U);
+        }
     }
-#endif
-#if BOARD_KEY_COUNT >= 3
-    if (key_read_pin(&board_key3_pin) != 0U) {
-        return 3U;
-    }
-#endif
-#if BOARD_KEY_COUNT >= 4
-    if (key_read_pin(&board_key4_pin) != 0U) {
-        return 4U;
-    }
-#endif
     return 0U;
 }
 

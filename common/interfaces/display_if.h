@@ -29,7 +29,7 @@ typedef enum display_font_size {
 /** @brief 显示驱动（OLED、LCD 等）的虚函数表。 */
 typedef struct display_driver {
     const char *name;              ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);            ///< 一次性硬件初始化。
+    void (*init)(const void *config);            ///< 一次性硬件初始化。
     void (*clear)(void);          ///< 清空帧缓冲或屏幕。
     void (*update)(void);         ///< 将待绘制内容刷新到面板。
     /**

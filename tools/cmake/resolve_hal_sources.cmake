@@ -2,7 +2,7 @@
 # 可选 PROJECT_HAL_PREAMBLE：工程 CMakeLists 在 include(hal_options) 之前的条件逻辑片段。
 #
 # 用法：
-#   cmake -DTEMPLATE_ROOT=... -DRTJK_VERSION=10 \
+#   cmake -DTEMPLATE_ROOT=... -DAPP_VERSION=10 \
 #         -DPROJECT_HAL_PREAMBLE=.../hal_preamble.cmake \
 #         -P resolve_hal_sources.cmake
 

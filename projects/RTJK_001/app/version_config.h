@@ -4,16 +4,8 @@
 
 #include "scheduler.h"
 
-#if !defined(APP_VERSION) && defined(RTJK_VERSION)
-#define APP_VERSION RTJK_VERSION
-#endif
-
 #ifndef APP_VERSION
 #define APP_VERSION 10
-#endif
-
-#ifndef RTJK_VERSION
-#define RTJK_VERSION APP_VERSION
 #endif
 
 #define VERSION_NAME "RTJK_001"

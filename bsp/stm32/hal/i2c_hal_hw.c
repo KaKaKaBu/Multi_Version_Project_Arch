@@ -1,0 +1,449 @@
+/**
+ * @file i2c_hal_hw.c
+ * @brief Hardware I2C master implementation (SPL) with timeout polling and bus recovery.
+ */
+
+#include "i2c_hal.h"
+#include "hal_common.h"
+#include "stm32f1_hal_map.h"
+#include "stm32f10x_rcc.h"
+
+#if HAL_I2C_USE_SOFT
+typedef char i2c_hal_hw_disabled[-1];
+#else
+
+/** @brief Saved init parameters and pin mapping per I2C instance. */
+typedef struct i2c_hal_runtime {
+    I2C_InitTypeDef init;
+    uint32_t timeout_us;
+    hal_pin_t scl;
+    hal_pin_t sda;
+    uint8_t configured;
+} i2c_hal_runtime_t;
+
+/** @brief Context for polling an I2C event via hal_wait_flag_us(). */
+typedef struct i2c_hal_event_ctx {
+    I2C_TypeDef *instance;
+    uint32_t event;
+} i2c_hal_event_ctx_t;
+
+/** @brief Per-instance runtime state for I2C1 and I2C2. */
+static i2c_hal_runtime_t i2c_hal_runtime[2];
+
+/**
+ * @brief Returns runtime block for I2C1 or I2C2.
+ * @param I2Cx I2C peripheral instance.
+ * @return Pointer to runtime, or NULL if @p I2Cx is invalid.
+ */
+static i2c_hal_runtime_t *i2c_hal_runtime_get(I2C_TypeDef *I2Cx)
+{
+    if (I2Cx == I2C1) {
+        return &i2c_hal_runtime[0];
+    }
+    if (I2Cx == I2C2) {
+        return &i2c_hal_runtime[1];
+    }
+    return 0;
+}
+
+/**
+ * @brief Enables APB1 clock for I2C1 or I2C2.
+ * @param I2Cx I2C peripheral instance.
+ */
+static void i2c_hal_clock_enable(I2C_TypeDef *I2Cx)
+{
+    if (I2Cx == I2C1) {
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
+    } else if (I2Cx == I2C2) {
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C2, ENABLE);
+    }
+}
+
+/**
+ * @brief Poll callback: returns 1 when the I2C event in ctx occurred.
+ * @param ctx Pointer to i2c_hal_event_ctx_t.
+ * @return 1 if event detected, 0 otherwise.
+ */
+static uint8_t i2c_hal_poll_event(void *ctx)
+{
+    const i2c_hal_event_ctx_t *event_ctx = (const i2c_hal_event_ctx_t *)ctx;
+
+    if (event_ctx == 0) {
+        return 0U;
+    }
+
+    return (I2C_CheckEvent(event_ctx->instance, event_ctx->event) != ERROR) ? 1U : 0U;
+}
+
+/**
+ * @brief Poll callback: returns 1 when the I2C bus is not busy.
+ * @param ctx I2C_TypeDef instance pointer.
+ * @return 1 if BUSY flag clear, 0 otherwise.
+ */
+static uint8_t i2c_hal_poll_not_busy(void *ctx)
+{
+    I2C_TypeDef *I2Cx = (I2C_TypeDef *)ctx;
+
+    if (I2Cx == 0) {
+        return 0U;
+    }
+
+    return (I2C_GetFlagStatus(I2Cx, I2C_FLAG_BUSY) == RESET) ? 1U : 0U;
+}
+
+/**
+ * @brief Waits for an I2C master event with timeout.
+ * @param I2Cx I2C peripheral instance.
+ * @param event SPL I2C event code.
+ * @param timeout_us Maximum wait in microseconds.
+ * @return HAL_OK or HAL_ERR_TIMEOUT.
+ */
+static hal_status_t i2c_hal_wait_event(I2C_TypeDef *I2Cx, uint32_t event, uint32_t timeout_us)
+{
+    i2c_hal_event_ctx_t ctx;
+
+    ctx.instance = I2Cx;
+    ctx.event = event;
+    return hal_wait_flag_us(i2c_hal_poll_event, &ctx, timeout_us);
+}
+
+/**
+ * @brief Waits until the I2C bus is idle.
+ * @param I2Cx I2C peripheral instance.
+ * @param timeout_us Maximum wait in microseconds.
+ * @return HAL_OK or HAL_ERR_TIMEOUT.
+ */
+static hal_status_t i2c_hal_wait_not_busy(I2C_TypeDef *I2Cx, uint32_t timeout_us)
+{
+    return hal_wait_flag_us(i2c_hal_poll_not_busy, I2Cx, timeout_us);
+}
+
+/**
+ * @brief Applies GPIO/remap and initializes the I2C peripheral registers.
+ * @param cfg Configuration source.
+ * @param runtime Runtime block to populate.
+ * @return HAL_OK or HAL_ERR_PARAM.
+ */
+static hal_status_t i2c_hal_peripheral_init(const i2c_hal_config_t *cfg, i2c_hal_runtime_t *runtime)
+{
+    I2C_TypeDef *I2Cx;
+    I2C_InitTypeDef i2c;
+
+    if ((cfg == 0) || (runtime == 0)) {
+        return HAL_ERR_PARAM;
+    }
+
+    I2Cx = stm32f1_i2c(cfg->instance);
+    if (I2Cx == 0) {
+        return HAL_ERR_PARAM;
+    }
+
+    gpio_hal_apply_remap(cfg->remap);
+    gpio_hal_config_pin(&cfg->scl);
+    gpio_hal_config_pin(&cfg->sda);
+
+    i2c_hal_clock_enable(I2Cx);
+    I2C_StructInit(&i2c);
+    i2c.I2C_Mode = I2C_Mode_I2C;
+    i2c.I2C_DutyCycle = I2C_DutyCycle_2;
+    i2c.I2C_OwnAddress1 = 0x30;
+    i2c.I2C_Ack = I2C_Ack_Enable;
+    i2c.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
+    i2c.I2C_ClockSpeed = cfg->speed_hz;
+    I2C_Init(I2Cx, &i2c);
+    I2C_Cmd(I2Cx, ENABLE);
+
+    runtime->init = i2c;
+    runtime->timeout_us = cfg->timeout_us;
+    runtime->scl = cfg->scl;
+    runtime->sda = cfg->sda;
+    runtime->configured = 1U;
+
+    return HAL_OK;
+}
+
+/**
+ * @brief Initializes I2C GPIO, peripheral, and runtime state.
+ * @param cfg Configuration (instance must be I2C1 or I2C2).
+ * @return HAL_OK or HAL_ERR_PARAM.
+ */
+hal_status_t i2c_hal_init(const i2c_hal_config_t *cfg)
+{
+    I2C_TypeDef *I2Cx;
+    i2c_hal_runtime_t *runtime;
+
+    if (cfg == 0) {
+        return HAL_ERR_PARAM;
+    }
+
+    I2Cx = stm32f1_i2c(cfg->instance);
+    runtime = i2c_hal_runtime_get(I2Cx);
+    if (runtime == 0) {
+        return HAL_ERR_PARAM;
+    }
+
+    return i2c_hal_peripheral_init(cfg, runtime);
+}
+
+/**
+ * @brief Sends 7-bit address and waits for mode-selected event.
+ * @param I2Cx I2C peripheral instance.
+ * @param address 7-bit slave address.
+ * @param direction I2C_Direction_Transmitter or I2C_Direction_Receiver.
+ * @param timeout_us Operation timeout in microseconds.
+ * @return HAL_OK or HAL_ERR_NACK on address NACK/timeout.
+ */
+static hal_status_t i2c_hal_send_address(I2C_TypeDef *I2Cx, uint8_t address,
+                                         uint8_t direction, uint32_t timeout_us)
+{
+    hal_status_t status;
+
+    I2C_Send7bitAddress(I2Cx, address, direction);
+    if (direction == I2C_Direction_Transmitter) {
+        status = i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED, timeout_us);
+    } else {
+        status = i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED, timeout_us);
+    }
+
+    if (status != HAL_OK) {
+        return HAL_ERR_NACK;
+    }
+
+    return HAL_OK;
+}
+
+/**
+ * @brief Transmits one data byte and waits for byte-transmitted event.
+ * @param I2Cx I2C peripheral instance.
+ * @param data Byte to send.
+ * @param timeout_us Operation timeout in microseconds.
+ * @return HAL_OK or HAL_ERR_TIMEOUT.
+ */
+static hal_status_t i2c_hal_send_byte(I2C_TypeDef *I2Cx, uint8_t data, uint32_t timeout_us)
+{
+    I2C_SendData(I2Cx, data);
+    return i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_BYTE_TRANSMITTED, timeout_us);
+}
+
+/**
+ * @brief Writes @p len data bytes starting at register @p reg to 7-bit @p address.
+ * @param I2Cx I2C peripheral instance.
+ * @param address 7-bit slave address (shifted format as used by SPL).
+ * @param reg Register address to write first.
+ * @param data Payload bytes (may be NULL only when @p len is 0).
+ * @param len Number of data bytes after the register byte.
+ * @return HAL_OK, HAL_ERR_PARAM, HAL_ERR_NACK, HAL_ERR_TIMEOUT, or bus busy timeout.
+ */
+hal_status_t i2c_hal_write(hal_i2c_id_t instance, uint8_t address, uint8_t reg,
+                           const uint8_t *data, uint16_t len)
+{
+    I2C_TypeDef *I2Cx = stm32f1_i2c(instance);
+    i2c_hal_runtime_t *runtime = i2c_hal_runtime_get(I2Cx);
+    uint32_t timeout_us = I2C_HAL_DEFAULT_TIMEOUT_US;
+    uint16_t i;
+    hal_status_t status;
+
+    if ((I2Cx == 0) || ((data == 0) && (len > 0U))) {
+        return HAL_ERR_PARAM;
+    }
+
+    if ((runtime != 0) && (runtime->configured != 0U)) {
+        timeout_us = runtime->timeout_us;
+    }
+
+    status = i2c_hal_wait_not_busy(I2Cx, timeout_us);
+    if (status != HAL_OK) {
+        return status;
+    }
+
+    I2C_GenerateSTART(I2Cx, ENABLE);
+    status = i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_MODE_SELECT, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    status = i2c_hal_send_address(I2Cx, address, I2C_Direction_Transmitter, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    status = i2c_hal_send_byte(I2Cx, reg, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    for (i = 0; i < len; ++i) {
+        status = i2c_hal_send_byte(I2Cx, data[i], timeout_us);
+        if (status != HAL_OK) {
+            I2C_GenerateSTOP(I2Cx, ENABLE);
+            return status;
+        }
+    }
+
+    I2C_GenerateSTOP(I2Cx, ENABLE);
+    return HAL_OK;
+}
+
+/**
+ * @brief Reads @p len bytes from register @p reg on 7-bit @p address (repeated START).
+ * @param I2Cx I2C peripheral instance.
+ * @param address 7-bit slave address.
+ * @param reg Register address to write before read phase.
+ * @param data Receive buffer (must not be NULL).
+ * @param len Number of bytes to read (must be > 0).
+ * @return HAL_OK, HAL_ERR_PARAM, HAL_ERR_NACK, or HAL_ERR_TIMEOUT.
+ */
+hal_status_t i2c_hal_read(hal_i2c_id_t instance, uint8_t address, uint8_t reg,
+                          uint8_t *data, uint16_t len)
+{
+    I2C_TypeDef *I2Cx = stm32f1_i2c(instance);
+    i2c_hal_runtime_t *runtime = i2c_hal_runtime_get(I2Cx);
+    uint32_t timeout_us = I2C_HAL_DEFAULT_TIMEOUT_US;
+    uint16_t i;
+    hal_status_t status;
+
+    if ((I2Cx == 0) || (data == 0) || (len == 0U)) {
+        return HAL_ERR_PARAM;
+    }
+
+    if ((runtime != 0) && (runtime->configured != 0U)) {
+        timeout_us = runtime->timeout_us;
+    }
+
+    status = i2c_hal_wait_not_busy(I2Cx, timeout_us);
+    if (status != HAL_OK) {
+        return status;
+    }
+
+    I2C_GenerateSTART(I2Cx, ENABLE);
+    status = i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_MODE_SELECT, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    status = i2c_hal_send_address(I2Cx, address, I2C_Direction_Transmitter, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    status = i2c_hal_send_byte(I2Cx, reg, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    I2C_GenerateSTART(I2Cx, ENABLE);
+    status = i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_MODE_SELECT, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    status = i2c_hal_send_address(I2Cx, address, I2C_Direction_Receiver, timeout_us);
+    if (status != HAL_OK) {
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        return status;
+    }
+
+    if (len == 1U) {
+        I2C_AcknowledgeConfig(I2Cx, DISABLE);
+        status = i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_BYTE_RECEIVED, timeout_us);
+        if (status != HAL_OK) {
+            I2C_AcknowledgeConfig(I2Cx, ENABLE);
+            I2C_GenerateSTOP(I2Cx, ENABLE);
+            return status;
+        }
+        data[0] = I2C_ReceiveData(I2Cx);
+        I2C_GenerateSTOP(I2Cx, ENABLE);
+        I2C_AcknowledgeConfig(I2Cx, ENABLE);
+        return HAL_OK;
+    }
+
+    for (i = 0; i < len; ++i) {
+        if (i == (len - 1U)) {
+            I2C_AcknowledgeConfig(I2Cx, DISABLE);
+        }
+
+        status = i2c_hal_wait_event(I2Cx, I2C_EVENT_MASTER_BYTE_RECEIVED, timeout_us);
+        if (status != HAL_OK) {
+            I2C_AcknowledgeConfig(I2Cx, ENABLE);
+            I2C_GenerateSTOP(I2Cx, ENABLE);
+            return status;
+        }
+
+        data[i] = I2C_ReceiveData(I2Cx);
+    }
+
+    I2C_GenerateSTOP(I2Cx, ENABLE);
+    I2C_AcknowledgeConfig(I2Cx, ENABLE);
+    return HAL_OK;
+}
+
+/**
+ * @brief Recovers a stuck I2C bus via GPIO clocking and re-inits if previously configured.
+ * @param I2Cx I2C peripheral instance.
+ * @param scl SCL pin descriptor for bit-bang recovery.
+ * @param sda SDA pin descriptor for bit-bang recovery.
+ * @return HAL_OK, HAL_ERR_PARAM, or error from re-init.
+ */
+hal_status_t i2c_hal_bus_recover(hal_i2c_id_t instance, const hal_pin_t *scl, const hal_pin_t *sda)
+{
+    I2C_TypeDef *I2Cx = stm32f1_i2c(instance);
+    i2c_hal_runtime_t *runtime = i2c_hal_runtime_get(I2Cx);
+    hal_pin_t scl_od;
+    hal_pin_t sda_od;
+    uint8_t i;
+
+    if ((I2Cx == 0) || (scl == 0) || (sda == 0)) {
+        return HAL_ERR_PARAM;
+    }
+
+    scl_od = *scl;
+    sda_od = *sda;
+
+    I2C_Cmd(I2Cx, DISABLE);
+    I2C_SoftwareResetCmd(I2Cx, ENABLE);
+    I2C_SoftwareResetCmd(I2Cx, DISABLE);
+
+    scl_od.mode = GPIO_HAL_MODE_OUT_OD;
+    sda_od.mode = GPIO_HAL_MODE_OUT_OD;
+    gpio_hal_config_pin(&scl_od);
+    gpio_hal_config_pin(&sda_od);
+    gpio_hal_write(sda_od.port, sda_od.pin, 1U);
+    gpio_hal_write(scl_od.port, scl_od.pin, 1U);
+
+    for (i = 0; i < 9U; ++i) {
+        gpio_hal_write(scl_od.port, scl_od.pin, 0U);
+        hal_delay_us(5U);
+        gpio_hal_write(scl_od.port, scl_od.pin, 1U);
+        hal_delay_us(5U);
+    }
+
+    gpio_hal_write(sda_od.port, sda_od.pin, 0U);
+    hal_delay_us(5U);
+    gpio_hal_write(scl_od.port, scl_od.pin, 1U);
+    hal_delay_us(5U);
+    gpio_hal_write(sda_od.port, sda_od.pin, 1U);
+    hal_delay_us(5U);
+
+    if ((runtime != 0) && (runtime->configured != 0U)) {
+        i2c_hal_config_t cfg;
+
+        cfg.instance = instance;
+        cfg.speed_hz = runtime->init.I2C_ClockSpeed;
+        cfg.scl = runtime->scl;
+        cfg.sda = runtime->sda;
+        cfg.remap = GPIO_HAL_REMAP_NONE;
+        cfg.timeout_us = runtime->timeout_us;
+        return i2c_hal_init(&cfg);
+    }
+
+    return HAL_OK;
+}
+
+#endif

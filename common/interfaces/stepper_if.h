@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 步进电机控制器的虚函数表。 */
 typedef struct stepper_driver {
     const char *name;              ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);            ///< 一次性硬件初始化。
+    void (*init)(const void *config);            ///< 一次性硬件初始化。
     /**
      * @brief 按角度步进。
      * @param[in] direction 旋转方向。

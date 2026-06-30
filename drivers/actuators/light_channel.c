@@ -5,19 +5,42 @@
 
 #include "actuator_if.h"
 #include "gpio_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
-#if BOARD_LIGHT_CHANNEL_COUNT >= 1U
-static void light1_init(void)
+static const gpio_output_driver_config_t *light1_config;
+static const gpio_output_driver_config_t *light2_config;
+static const gpio_output_driver_config_t *light3_config;
+
+static void light_output_init(const void *config, const gpio_output_driver_config_t **storage)
 {
-    gpio_hal_config_pin(&board_light1_pin);
-    gpio_hal_write(board_light1_pin.port, board_light1_pin.pin, 0U);
+    *storage = (const gpio_output_driver_config_t *)config;
+    if (*storage == 0) {
+        return;
+    }
+    gpio_hal_config_pin(&(*storage)->pin);
+    gpio_hal_write((*storage)->pin.port, (*storage)->pin.pin, (*storage)->active_high ? 0U : 1U);
+}
+
+static void light_output_set_state(const gpio_output_driver_config_t *config, unsigned char on)
+{
+    uint8_t level;
+
+    if (config == 0) {
+        return;
+    }
+    level = (on != 0U) ? config->active_high : (uint8_t)!config->active_high;
+    gpio_hal_write(config->pin.port, config->pin.pin, level);
+}
+
+static void light1_init(const void *config)
+{
+    light_output_init(config, &light1_config);
 }
 
 static void light1_set_state(unsigned char on)
 {
-    gpio_hal_write(board_light1_pin.port, board_light1_pin.pin, on);
+    light_output_set_state(light1_config, on);
 }
 
 static const relay_driver_t light1_drv = {
@@ -27,18 +50,15 @@ static const relay_driver_t light1_drv = {
 };
 
 REGISTER_DRIVER(RELAY, light1_drv);
-#endif
 
-#if BOARD_LIGHT_CHANNEL_COUNT >= 2U
-static void light2_init(void)
+static void light2_init(const void *config)
 {
-    gpio_hal_config_pin(&board_light2_pin);
-    gpio_hal_write(board_light2_pin.port, board_light2_pin.pin, 0U);
+    light_output_init(config, &light2_config);
 }
 
 static void light2_set_state(unsigned char on)
 {
-    gpio_hal_write(board_light2_pin.port, board_light2_pin.pin, on);
+    light_output_set_state(light2_config, on);
 }
 
 static const relay_driver_t light2_drv = {
@@ -48,18 +68,15 @@ static const relay_driver_t light2_drv = {
 };
 
 REGISTER_DRIVER(RELAY, light2_drv);
-#endif
 
-#if BOARD_LIGHT_CHANNEL_COUNT >= 3U
-static void light3_init(void)
+static void light3_init(const void *config)
 {
-    gpio_hal_config_pin(&board_light3_pin);
-    gpio_hal_write(board_light3_pin.port, board_light3_pin.pin, 0U);
+    light_output_init(config, &light3_config);
 }
 
 static void light3_set_state(unsigned char on)
 {
-    gpio_hal_write(board_light3_pin.port, board_light3_pin.pin, on);
+    light_output_set_state(light3_config, on);
 }
 
 static const relay_driver_t light3_drv = {
@@ -69,4 +86,3 @@ static const relay_driver_t light3_drv = {
 };
 
 REGISTER_DRIVER(RELAY, light3_drv);
-#endif

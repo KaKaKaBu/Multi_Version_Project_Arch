@@ -7,7 +7,7 @@
 #include "oled_font.h"
 #include "tiny_printf.h"
 #include "i2c_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 #if !defined(PLATFORM_MCS51)
 #endif
@@ -28,6 +28,7 @@
 
 /** @brief Internal 128x64 monochrome framebuffer in SSD1306 page layout. */
 static uint8_t oled_framebuffer[OLED_WIDTH * OLED_PAGES];
+static const i2c_device_config_t *oled_config;
 
 /** @brief Forward declaration: zeroes the internal framebuffer. */
 static void oled_clear(void);
@@ -77,7 +78,10 @@ static void oled_set_pixel(unsigned char x, unsigned char y, unsigned char on)
  */
 static void oled_write_cmd(uint8_t cmd)
 {
-    (void)i2c_hal_write(BOARD_OLED_I2C, BOARD_OLED_I2C_ADDR, OLED_CTRL_CMD, &cmd, 1U);
+    if (oled_config == 0) {
+        return;
+    }
+    (void)i2c_hal_write(oled_config->instance, oled_config->address, OLED_CTRL_CMD, &cmd, 1U);
 }
 
 /**
@@ -87,7 +91,10 @@ static void oled_write_cmd(uint8_t cmd)
  */
 static void oled_write_data(const uint8_t *data, uint16_t len)
 {
-    (void)i2c_hal_write(BOARD_OLED_I2C, BOARD_OLED_I2C_ADDR, OLED_CTRL_DATA, data, len);
+    if (oled_config == 0) {
+        return;
+    }
+    (void)i2c_hal_write(oled_config->instance, oled_config->address, OLED_CTRL_DATA, data, len);
 }
 
 /** @brief Applies the SSD1306 power-on initialization command sequence. */
@@ -106,15 +113,20 @@ static void oled_hw_init(void)
 }
 
 /** @brief Initializes I2C and the SSD1306 panel, then clears the screen. */
-static void oled_init(void)
+static void oled_init(const void *config)
 {
     i2c_hal_config_t cfg;
 
-    cfg.instance = BOARD_OLED_I2C;
-    cfg.speed_hz = BOARD_OLED_I2C_SPEED;
-    cfg.scl = board_oled_i2c_scl;
-    cfg.sda = board_oled_i2c_sda;
-    cfg.remap = BOARD_OLED_I2C_REMAP;
+    oled_config = (const i2c_device_config_t *)config;
+    if (oled_config == 0) {
+        return;
+    }
+
+    cfg.instance = oled_config->instance;
+    cfg.speed_hz = oled_config->speed_hz;
+    cfg.scl = oled_config->scl;
+    cfg.sda = oled_config->sda;
+    cfg.remap = oled_config->remap;
     cfg.timeout_us = I2C_HAL_DEFAULT_TIMEOUT_US;
     (void)i2c_hal_init(&cfg);
 

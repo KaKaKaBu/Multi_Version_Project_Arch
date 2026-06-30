@@ -62,7 +62,7 @@ ZHJG_001 是基于 STM32F103C8T6 的智能井盖监测产品族。固件通过 `
 | A7670C | USART1 PA9/PA10                    |
 | ESP-01S/ESP8266 | USART3 PB10/PB11，CH_PD=PB0，RST=PB1 |
 
-实际 PCB 接线如有变化，仅修改 `app/board_config.h`，驱动中不写死引脚。
+实际 PCB 接线如有变化，仅修改 `board/board_config.h`，驱动中不写死引脚。
 
 ## 6. 按键交互
 

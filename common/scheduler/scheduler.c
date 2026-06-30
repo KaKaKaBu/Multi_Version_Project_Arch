@@ -13,10 +13,6 @@
 
 #include <stdio.h>
 
-#if !defined(PLATFORM_MCS51)
-#include "stm32f10x.h"
-#endif
-
 /** 按优先级排序的任务链表头指针；空闲时 null。 */
 static driver_task_t *sched_task_list;
 /** 正在运行 entry 的任务；非运行期为 null。 */
@@ -30,7 +26,7 @@ static volatile uint32_t sched_tick_count;
 static volatile sched_event_t sched_isr_pending_events;
 
 /* -------------------------------------------------------------------------- */
-/* Cortex-M 临界区：通过 PRIMASK 屏蔽可配置优先级以下的 IRQ（含 SysTick）      */
+/* 平台临界区：C51 当前为空实现，Cortex-M 通过 PRIMASK 屏蔽 IRQ。             */
 /* -------------------------------------------------------------------------- */
 
 /**

@@ -27,6 +27,21 @@ static int devmgr_name_match(const char *a, const char *b)
     return (*a == '\0') && (*b == '\0');
 }
 
+static const void *devmgr_find_board_config(driver_type_t type, const char *name)
+{
+    const board_device_entry_t *entry = board_device_registry_begin();
+    const board_device_entry_t *end = board_device_registry_end();
+
+    while (entry < end) {
+        if ((entry->type == type) && devmgr_name_match(entry->name, name)) {
+            return entry->config;
+        }
+        ++entry;
+    }
+
+    return 0;
+}
+
 /**
  * @brief switch-case 分支模板：若实例的 init 成员非 null 则调用。
  * @param type_enum   DRIVER_TYPE_* 枚举值。
@@ -36,7 +51,8 @@ static int devmgr_name_match(const char *a, const char *b)
 #define DEVMGR_INIT_CASE(type_enum, struct_type, init_member) \
     case type_enum: \
         if (((const struct_type *)entry->instance)->init_member != 0) { \
-            ((const struct_type *)entry->instance)->init_member(); \
+            const struct_type *obj = (const struct_type *)entry->instance; \
+            obj->init_member(devmgr_find_board_config(type_enum, obj->name)); \
         } \
         break
 

@@ -2,7 +2,7 @@
  * @file soft_uart.c
  * @brief GPIO 位bang UART：DWT 忙等位时间，8N1 帧格式，临界区保护整帧发送。
  *
- * soft_uart_bit_cycles = SystemCoreClock / baudrate；发送期间 cpsid i 防止 ISR 拉长位宽。
+ * soft_uart_bit_cycles = core_clock / baudrate；发送期间 cpsid i 防止 ISR 拉长位宽。
  */
 
 #include "soft_uart.h"
@@ -11,14 +11,11 @@
 
 #if HAL_DEBUG_UART_ENABLE
 
-#include "stm32f10x_gpio.h"
-#include "stm32f10x_rcc.h"
-
 /** @brief 用于位时间延时的 DWT 周期计数寄存器。 */
 #define SOFT_UART_DWT_CYCCNT (*(volatile uint32_t *)0xE0001004U)
 
-static GPIO_TypeDef *soft_uart_port;  ///< 初始化后的 TX GPIO 端口。
-static uint16_t soft_uart_pin;        ///< 初始化后的 TX 引脚掩码。
+static hal_pin_t soft_uart_tx_pin;    ///< 初始化后的 TX HAL 引脚。
+static uint8_t soft_uart_ready;       ///< 非 0 表示软件 UART 已初始化。
 static uint32_t soft_uart_bit_cycles; ///< 当前波特率下每位对应的 DWT 周期数。
 
 /**
@@ -51,11 +48,7 @@ static void soft_uart_exit_critical(uint32_t primask)
  */
 static void soft_uart_pin_write(uint8_t level)
 {
-    if (level != 0U) {
-        GPIO_SetBits(soft_uart_port, soft_uart_pin);
-    } else {
-        GPIO_ResetBits(soft_uart_port, soft_uart_pin);
-    }
+    gpio_hal_write(soft_uart_tx_pin.port, soft_uart_tx_pin.pin, level);
 }
 
 /**
@@ -75,15 +68,10 @@ static void soft_uart_delay_one_bit(void)
  */
 static void soft_uart_config_tx_pin(const hal_pin_t *pin)
 {
-    GPIO_InitTypeDef gpio;
+    hal_pin_t tx = *pin;
 
-    gpio_hal_clock_enable(pin->port);
-    GPIO_StructInit(&gpio);
-    gpio.GPIO_Pin = pin->pin;
-    gpio.GPIO_Mode = GPIO_Mode_Out_PP;
-    gpio.GPIO_Speed = (pin->port == GPIOC && pin->pin == GPIO_Pin_13) ?
-                      GPIO_Speed_2MHz : GPIO_Speed_50MHz;
-    GPIO_Init(pin->port, &gpio);
+    tx.mode = GPIO_HAL_MODE_OUT_PP;
+    gpio_hal_config_pin(&tx);
 }
 
 /**
@@ -96,15 +84,15 @@ void soft_uart_init(const soft_uart_config_t *cfg)
         return;
     }
 
-    soft_uart_port = cfg->tx_pin.port;
-    soft_uart_pin = cfg->tx_pin.pin;
-    soft_uart_bit_cycles = SystemCoreClock / cfg->baudrate;
+    soft_uart_tx_pin = cfg->tx_pin;
+    soft_uart_bit_cycles = hal_get_core_clock_hz() / cfg->baudrate;
     if (soft_uart_bit_cycles == 0U) {
         soft_uart_bit_cycles = 1U;
     }
 
     soft_uart_config_tx_pin(&cfg->tx_pin);
     soft_uart_pin_write(1U);
+    soft_uart_ready = 1U;
 }
 
 /**
@@ -116,7 +104,7 @@ void soft_uart_write_byte(uint8_t byte)
     uint32_t primask;
     uint8_t bit_index;
 
-    if (soft_uart_port == 0) {
+    if (soft_uart_ready == 0U) {
         return;
     }
 

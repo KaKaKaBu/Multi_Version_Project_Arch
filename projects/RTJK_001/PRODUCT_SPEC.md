@@ -70,7 +70,7 @@ cmake --build build
 
 **源码**
 
-修改 [`app/version_config.h`](app/version_config.h) 或 CMake 传入的 `APP_VERSION`（`RTJK_VERSION` 仅兼容旧命令）。
+修改 [`app/version_config.h`](app/version_config.h) 或 CMake 传入的 `APP_VERSION`。
 
 V8+ 自动启用 `HAL_ADC_ENABLE`（MSP20 血压 ADC）。
 

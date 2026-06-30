@@ -6,12 +6,13 @@
 #include "rtc_if.h"
 #include "gpio_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "debug_log.h"
 #include "driver_core.h"
 
 /** @brief Cached calendar time updated by refresh and set operations. */
 static rtc_time_t ds1302_time_cache;
+static const ds1302_driver_config_t *ds1302_config;
 
 /** @brief Forward declaration: programs chip registers from rtc_time_t. */
 static void ds1302_set_time(const rtc_time_t *time);
@@ -26,7 +27,7 @@ static uint8_t ds1302_read_reg(uint8_t address);
  */
 static void ds1302_ce_write(uint8_t level)
 {
-    gpio_hal_write(board_ds1302_ce_pin.port, board_ds1302_ce_pin.pin, level);
+    gpio_hal_write(ds1302_config->ce.port, ds1302_config->ce.pin, level);
 }
 
 /**
@@ -35,7 +36,7 @@ static void ds1302_ce_write(uint8_t level)
  */
 static void ds1302_sclk_write(uint8_t level)
 {
-    gpio_hal_write(board_ds1302_sclk_pin.port, board_ds1302_sclk_pin.pin, level);
+    gpio_hal_write(ds1302_config->sclk.port, ds1302_config->sclk.pin, level);
 }
 
 /**
@@ -44,19 +45,19 @@ static void ds1302_sclk_write(uint8_t level)
  */
 static void ds1302_data_write(uint8_t level)
 {
-    gpio_hal_write(board_ds1302_data_pin.port, board_ds1302_data_pin.pin, level);
+    gpio_hal_write(ds1302_config->data.port, ds1302_config->data.pin, level);
 }
 
 /** @brief Configures the DS1302 data pin as push-pull output. */
 static void ds1302_data_set_output(void)
 {
-    gpio_hal_set_mode(board_ds1302_data_pin.port, board_ds1302_data_pin.pin, GPIO_HAL_MODE_OUT_PP);
+    gpio_hal_set_mode(ds1302_config->data.port, ds1302_config->data.pin, GPIO_HAL_MODE_OUT_PP);
 }
 
 /** @brief Configures the DS1302 data pin as floating input. */
 static void ds1302_data_set_input(void)
 {
-    gpio_hal_set_mode(board_ds1302_data_pin.port, board_ds1302_data_pin.pin, GPIO_HAL_MODE_IN_FLOATING);
+    gpio_hal_set_mode(ds1302_config->data.port, ds1302_config->data.pin, GPIO_HAL_MODE_IN_FLOATING);
 }
 
 /**
@@ -65,7 +66,7 @@ static void ds1302_data_set_input(void)
  */
 static uint8_t ds1302_data_read(void)
 {
-    return gpio_hal_read(board_ds1302_data_pin.port, board_ds1302_data_pin.pin);
+    return gpio_hal_read(ds1302_config->data.port, ds1302_config->data.pin);
 }
 
 /**
@@ -284,10 +285,15 @@ static void ds1302_refresh_cache(void)
 }
 
 /** @brief Initializes GPIO, starts the clock, and seeds cache or default time. */
-static void ds1302_init(void)
+static void ds1302_init(const void *config)
 {
-    gpio_hal_config_pin(&board_ds1302_ce_pin);
-    gpio_hal_config_pin(&board_ds1302_sclk_pin);
+    ds1302_config = (const ds1302_driver_config_t *)config;
+    if (ds1302_config == 0) {
+        return;
+    }
+
+    gpio_hal_config_pin(&ds1302_config->ce);
+    gpio_hal_config_pin(&ds1302_config->sclk);
     ds1302_ce_write(0U);
     ds1302_sclk_write(0U);
 

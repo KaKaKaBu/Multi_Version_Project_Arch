@@ -27,7 +27,7 @@ typedef struct gnss_fix {
 /** @brief GNSS 模块驱动的虚函数表。 */
 typedef struct gnss_driver {
     const char *name;              ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);            ///< 一次性硬件初始化。
+    void (*init)(const void *config);            ///< 一次性硬件初始化。
     void (*poll)(void);            ///< 处理待处理的 NMEA 或二进制语句。
     /**
      * @brief 将最新解析的定位数据复制到调用方结构体。

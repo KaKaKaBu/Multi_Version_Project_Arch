@@ -34,7 +34,7 @@ typedef void (*comm_rx_callback_t)(const unsigned char *data, unsigned short len
 typedef struct comm_driver {
     const char *name;                                      ///< 驱动实例名称，供 devmgr 查找。
     comm_kind_t kind;                                      ///< 流式或分组语义。
-    void (*init)(void);                                    ///< 一次性硬件初始化。
+    void (*init)(const void *config);                                    ///< 一次性硬件初始化。
     /**
      * @brief 发送数据。
      * @param[in] data 待发送字节。

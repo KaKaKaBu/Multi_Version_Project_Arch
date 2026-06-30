@@ -2,7 +2,7 @@
 # 由 export_project.py 调用，避免 Python 侧重复 CMake 逻辑。
 #
 # 必需：TEMPLATE_ROOT
-# 可选：CATALOG_NAME, PROJECT_HAL_PREAMBLE, 以及工程版本/cache 变量（-DRTJK_VERSION=10 等）
+# 可选：CATALOG_NAME, PROJECT_HAL_PREAMBLE, 以及工程版本/cache 变量（-DAPP_VERSION=10 等）
 
 cmake_minimum_required(VERSION 3.20)
 

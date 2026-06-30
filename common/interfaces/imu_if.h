@@ -27,7 +27,7 @@ typedef struct imu_sample {
 /** @brief 六轴 IMU 驱动的虚函数表。 */
 typedef struct imu_sensor {
     const char *name;                    ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                  ///< 一次性硬件初始化。
+    void (*init)(const void *config);                  ///< 一次性硬件初始化。
     /**
      * @brief 填入最新加速度计与陀螺仪读数。
      * @param[out] sample 输出采样缓冲；不可为 null。

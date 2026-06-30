@@ -73,51 +73,29 @@ void app_logic_init(void)
 
     /* Get sensor drivers */
     pm25_sensor = devmgr_get_gas_sensor("pm25");
-    if (pm25_sensor) {
-        pm25_sensor->init();
-    }
 
 #if VERSION_FEATURE_DHT11
     dht11_sensor = devmgr_get_temp_hum_sensor("dht11");
-    if (dht11_sensor) {
-        dht11_sensor->init();
-    }
 #endif
 
 #if VERSION_FEATURE_MQ2
     mq2_sensor = devmgr_get_gas_sensor("mq2_smoke");
-    if (mq2_sensor) {
-        mq2_sensor->init();
-    }
 #endif
 
 #if VERSION_FEATURE_MQ7
     mq7_sensor = devmgr_get_gas_sensor("mq7_co");
-    if (mq7_sensor) {
-        mq7_sensor->init();
-    }
 #endif
 
     /* Get actuator drivers */
     relay_drv = devmgr_get_relay("relay");
-    if (relay_drv) {
-        relay_drv->init();
-    }
 
     buzzer_drv = devmgr_get_misc("buzzer");
-    if (buzzer_drv) {
-        buzzer_drv->init();
-    }
 
     led_drv = devmgr_get_misc("led");
-    if (led_drv) {
-        led_drv->init();
-    }
 
     /* Get display driver */
     display = devmgr_get_display("oled");
     if (display) {
-        display->init();
         display->clear();
     }
 }
@@ -614,7 +592,7 @@ void app_logic_build_telemetry(char *buf, size_t bufsize)
     if (!root) return;
 
     cJSON_AddStringToObject(root, "version", VERSION_NAME);
-    cJSON_AddNumberToObject(root, "version_no", KQZL3_VERSION);
+    cJSON_AddNumberToObject(root, "version_no", APP_VERSION);
     cJSON_AddNumberToObject(root, "pm25", g_app.pm25_ppm);
 
 #if VERSION_FEATURE_DHT11

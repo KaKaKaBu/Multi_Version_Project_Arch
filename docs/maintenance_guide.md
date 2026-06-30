@@ -13,9 +13,9 @@
 | 核心与硬件解耦 | 应用层只通过 `devmgr_get_*()` 访问设备，不包含具体驱动头文件 |
 | 驱动即插即用 | 新增驱动 = 新增 `.c` + 实现标准接口 + `REGISTER_DRIVER`，**不修改** `devmgr.c` / `main` 初始化列表 |
 | 资源静态分配 | 禁止依赖 libc 堆；动态需求走 **mem_pool**（覆盖 `malloc/free/realloc`）或编译期静态缓冲 |
-| 板级与逻辑分离 | 引脚、外设实例、波特率写在 `board_config.h`；驱动只读配置，不写死 GPIO |
-| 版本差异在编译期 | 不同成品通过 **CMake 选源文件** + **项目级 board_config** 区分，不改公共核心 |
-| HAL 统一入口 | 驱动/应用不直接调用 SPL 函数（除 `board_config.h` 中的类型引用），统一走 `*_hal_*` |
+| 板级与逻辑分离 | 引脚、外设实例、波特率写在 `projects/<NAME>/board/`；驱动只接收配置结构，不写死 GPIO |
+| 版本差异在编译期 | 不同成品通过 **CMake 选源文件** + **项目级 board 目录** 区分，不改公共核心 |
+| HAL 统一入口 | 驱动/应用不直接调用 SPL 函数；平台无关头文件在 `hal_wrapper/`，平台实现放 `bsp/<platform>/hal/` |
 
 ---
 
@@ -25,7 +25,8 @@
 
 ```
 project_template/
-├── projects/<VERSION>/app/     # 应用层：业务、任务、回调、board_config.h
+├── projects/<VERSION>/app/     # 应用层：业务、任务、回调
+├── projects/<VERSION>/board/   # 板级配置与设备实例表：board_config.h、board_devices.c
 ├── projects/<VERSION>/<VERSION>_upper_ui_flutter/  # Flutter 主上位机（默认 App/Web）
 ├── projects/<VERSION>/<VERSION>_upper_ui/          # 可选 uni-app 小程序/历史兼容栈
 ├── common/
@@ -37,12 +38,11 @@ project_template/
 │   ├── app_framework/          # app_fsm（ZNCZ_001 UI 导航已接入）
 │   └── utils/                  # comm_port、mem_pool、cJSON、cjson_port、tiny_printf、soft_uart
 ├── drivers/                    # 外设驱动（按类型分子目录）
+├── hal_wrapper/                 # 平台无关 HAL 接口头文件
 ├── bsp/
-│   ├── hal_wrapper/            # GPIO/I2C/USART/TIMER/SPI HAL
-│   ├── irq_handlers/           # 统一 IRQ 入口，转发至 HAL
 │   ├── board/                  # board_config 模板
-│   ├── linker_scripts/         # .driver_list 段定义
-│   └── stm32f10x_std_lib/      # CMSIS + SPL
+│   ├── stm32/                  # STM32 HAL 实现、IRQ、启动文件、链接脚本、CMSIS/SPL
+│   └── mcs51/                  # C51 HAL 实现与本地轮询支持
 ├── cmake/                      # 工具链、hal_options.cmake、driver_catalog.cmake
 └── tools/
     ├── gen_project.py          # 新建项目脚手架（含上位机 scaffold 与版本特性模板）
@@ -58,7 +58,7 @@ project_template/
   └─ sched_init()
   └─ irq_event_init()
   └─ irq_event_bind(...)  可选：USART RX → APP_EVENT_*
-  └─ devmgr_init_all()    遍历 .driver_list，调用各驱动 init()
+  └─ devmgr_init_all()    遍历驱动实现与板级设备表，匹配后调用 init(config)
   └─ sched_add_task(...)  注册应用任务
   └─ sched_start()        永不返回，协作调度
 
@@ -90,7 +90,7 @@ static const temp_hum_sensor_t dht11_drv = {
 REGISTER_DRIVER(TEMP_HUM_SENSOR, dht11_drv);
 ```
 
-链接脚本保留 `.driver_list` 段，符号 `__driver_list_start` / `__driver_list_end` 供 `devmgr.c` 遍历。
+链接脚本保留 `.driver_list` 和 `.board_device_list` 段。`REGISTER_DRIVER()` 注册驱动实现，`REGISTER_BOARD_DEVICE()` 注册板上设备实例，`devmgr_init_all()` 按类型和名称匹配后调用驱动的 `init(config)`。
 
 **当前支持的驱动类型**（`driver_core.h`）：
 
@@ -122,8 +122,8 @@ REGISTER_DRIVER(TEMP_HUM_SENSOR, dht11_drv);
 
 - 默认 `drivers/misc/key.c` 负责配套 `board_key*_pin`，以 EXTI 中断 + 状态机输出单击/双击/长按。
 - 应用层只包含 `common/interfaces/key_service.h`，在 `devmgr_init_all()` 之后 `key_register_callback(app_key_event_handler, ctx);`，回调中自行设置 `APP_EVENT_KEY` 并转发到业务逻辑。
-- 按键驱动内部通过 `bsp/hal_wrapper/gpio_hal.c` + `exti_hal.c` 配置 GPIO/EXTI，并在 `bsp/irq_handlers/irq_handlers.c` → `irq_event` → 调度任务的链路中运行，不允许在驱动里声明 NVIC ISR。
-- 如需更换引脚/数量，可在 `board_config.h` 重定义 `KEY_DRIVER_PIN_TABLE` / `KEY_DRIVER_BUTTON_COUNT`。
+- 按键驱动内部通过 `bsp/stm32/hal/gpio_hal.c` + `exti_hal.c` 配置 GPIO/EXTI，并在 `bsp/stm32/irq_handlers/irq_handlers.c` → `irq_event` → 调度任务的链路中运行，不允许在驱动里声明 NVIC ISR。
+- 如需更换引脚/数量，可在 `projects/<NAME>/board/board_config.h` 重定义 `KEY_DRIVER_PIN_TABLE` / `KEY_DRIVER_BUTTON_COUNT`，并在 `board_devices.c` 中注册对应 `INPUT` 实例。
 
 ### 2.3.1 已迁移驱动清单
 
@@ -173,7 +173,7 @@ void app_main(void)
 
 ### 2.5 comm_port 与 ESP8266 MQTT
 
-**comm_port**（`common/utils/comm_port.c`）在 `board_config.h` 的 `BOARD_COMM_DEVICE` 与 `devmgr_get_comm()` 之间做薄封装：
+**comm_port**（`common/utils/comm_port.c`）在 `board/board_config.h` 的 `BOARD_COMM_DEVICE` 与 `devmgr_get_comm()` 之间做薄封装：
 
 ```c
 comm_port_bind(0);                          /* NULL → 使用 BOARD_COMM_DEVICE */
@@ -199,13 +199,13 @@ if (comm_port_has_irq()) {
 | 文件 | 职责 |
 | --- | --- |
 | `common/utils/soft_uart.c` | DWT 定时 GPIO 位bang，8N1，仅 TX |
-| `common/utils/debug_uart.c` | 读取 `board_config.h` 引脚/波特率，在 `bsp_init()` 中 init |
-| `bsp/syscalls/syscalls.c` | `_write()` 转发 stdout/stderr |
+| `common/utils/debug_uart.c` | 读取 `board/board_config.h` 引脚/波特率，在 `bsp_init()` 中 init |
+| `bsp/stm32/syscalls/syscalls.c` | `_write()` 转发 stdout/stderr |
 
 **启用步骤**：
 
 1. CMake：`option(HAL_DEBUG_UART_ENABLE ... ON)` 或通过 `-DHAL_DEBUG_UART_ENABLE=ON`。
-2. `board_config.h` 增加 `board_debug_uart_tx` 与 `BOARD_DEBUG_UART_BAUDRATE`（模板见 `board_config_template.h`）。
+2. `board/board_config.h` 增加 `board_debug_uart_tx` 与 `BOARD_DEBUG_UART_BAUDRATE`（模板见 `board_config_template.h`）。
 3. 链接 `soft_uart.c`、`debug_uart.c`（ZNCZ_001 已默认加入 `COMMON_SRCS`）。
 4. 实板：USB-TTL RX ← PC13，GND 共地，**9600** 8N1。
 
@@ -230,9 +230,9 @@ if (comm_port_has_irq()) {
 | `HAL_ADC_ENABLE_DMA=ON` | ADC DMA 连续采集 |
 | `HAL_DEBUG_UART_ENABLE=ON` | PC13 软串口 TX，`printf` 调试输出 |
 
-`board_config.h` 中需与开关一致（例如软 I2C 时 SCL/SDA 用 `GPIO_HAL_MODE_OUT_OD`；软串口时配置 `board_debug_uart_tx`）。
+`board/board_config.h` 中需与开关一致（例如软 I2C 时 SCL/SDA 用 `GPIO_HAL_MODE_OUT_OD`；软串口时配置 `board_debug_uart_tx`）。
 
-> **统一入口**：驱动层不得直接 `#include "stm32f10x_*.h"`。GPIO/AFIO 用 `gpio_hal.*`，EXTI 用 `exti_hal.*`，NVIC/任务唤醒通过 `irq_event`，其余外设（I2C/SPI/USART/ADC/TIMER）同理。在 `hal_wrapper/` 内部才允许调用 SPL。
+> **统一入口**：驱动层不得直接 `#include "stm32f10x_*.h"` 或 `board_config.h`。GPIO/AFIO 用 `gpio_hal.*`，EXTI 用 `exti_hal.*`，NVIC/任务唤醒通过 `irq_event`，其余外设（I2C/SPI/USART/ADC/TIMER）同理。只有 `bsp/<platform>/hal/` 内部才允许调用芯片库。
 
 ---
 
@@ -243,22 +243,22 @@ if (comm_port_has_irq()) {
 1. **确定接口类型** — 在 `common/interfaces/` 中选已有接口；若无合适类型，先扩展接口（见 §6）。
 2. **创建驱动文件** — 放入 `drivers/<category>/`，如 `drivers/sensors/bme280.c`。
 3. **实现接口 + 自注册** — 文件内 `static` 函数 + 接口实例 + `REGISTER_DRIVER`。
-4. **添加板级配置** — 在 `projects/<VERSION>/app/board_config.h` 增加引脚/地址/速度宏。
-5. **加入编译** — 在 `cmake/driver_catalog.cmake` 扩展 `DRIVER_CATALOG_*`；工程 `CMakeLists.txt` 使用 `set(DRIVER_SRCS ${DRIVER_CATALOG_*})`（见 §12.2.5）。
-6. **应用层按名使用** — `devmgr_get_*("bme280")`，检查返回值是否为 `NULL`。
-7. **验证** — 编译通过；map 文件中可见 `.driver_list` 条目；必要时用逻辑分析仪/串口验证协议。
+4. **添加板级配置** — 在 `projects/<VERSION>/board/board_config.h` 增加引脚/地址/速度宏。
+5. **注册板上设备实例** — 在 `projects/<VERSION>/board/board_devices.c` 添加 `REGISTER_BOARD_DEVICE(type, "name", &config)`。
+6. **加入编译** — 在 `cmake/driver_catalog.cmake` 扩展 `DRIVER_CATALOG_*`；工程 `CMakeLists.txt` 通过公共模板引用 catalog（见 §12.2.5）。
+7. **应用层按名使用** — `devmgr_get_*("bme280")`，检查返回值是否为 `NULL`。
+8. **验证** — 编译通过；map 文件中可见 `.driver_list` 与 `.board_device_list` 条目；必要时用逻辑分析仪/串口验证协议。
 
 ### 3.2 驱动文件模板
 
 ```c
 #include "<interface>_if.h"
-#include "board_config.h"
 #include "driver_core.h"
 /* 按需：gpio_hal.h / i2c_hal.h / usart_hal.h / timer_hal.h */
 
-static void my_sensor_init(void)
+static void my_sensor_init(const void *config)
 {
-    /* 1. 从 board_config 读取引脚/总线 */
+    /* 1. 将 config 转为本驱动约定的配置结构 */
     /* 2. 调用 HAL init，检查 hal_status_t */
     /* 3. 初始化驱动私有静态缓存 */
 }
@@ -277,6 +277,20 @@ static const temp_hum_sensor_t my_sensor_drv = {
 };
 
 REGISTER_DRIVER(TEMP_HUM_SENSOR, my_sensor_drv);
+```
+
+对应项目的 `board/board_devices.c` 负责实例化配置：
+
+```c
+static const i2c_device_config_t board_bme280_config = {
+    BOARD_BME280_I2C,
+    BOARD_BME280_I2C_SPEED,
+    board_bme280_i2c_scl,
+    board_bme280_i2c_sda,
+    BOARD_BME280_I2C_REMAP,
+    BOARD_BME280_I2C_ADDR
+};
+REGISTER_BOARD_DEVICE(TEMP_HUM_SENSOR, "bme280", &board_bme280_config);
 ```
 
 ### 3.3 命名约定
@@ -323,14 +337,16 @@ NRF24 等无 IRQ 的分包设备需在 `comm_poll` 任务中周期性调用 `com
 
 | 层级 | 负责内容 | 不负责内容 |
 | --- | --- | --- |
-| `board_config.h` | 引脚、Remap、外设实例、波特率、I2C 地址、DMA 通道 | 业务逻辑、协议解析 |
-| `hal_wrapper/` | 寄存器操作封装、超时、错误码、总线恢复 | 具体传感器命令 |
-| `irq_handlers.c` | 统一 IRQ 入口，调用 HAL handler | 应用业务 |
-| `hal_common.c` | `bsp_init`、微秒计时、通用等待 | 设备特有初始化 |
+| `projects/<NAME>/board/board_config.h` | 引脚、Remap、外设实例、波特率、I2C 地址、DMA 通道 | 业务逻辑、协议解析 |
+| `projects/<NAME>/board/board_devices.c` | 板上设备实例描述，连接设备名、类型和配置结构 | 驱动协议实现 |
+| `hal_wrapper/` | 平台无关 HAL 接口头文件、错误码、公共类型 | 芯片寄存器操作 |
+| `bsp/<platform>/hal/` | 平台 HAL 实现、寄存器操作、超时、总线恢复 | 具体传感器命令 |
+| `bsp/stm32/irq_handlers/irq_handlers.c` | STM32 统一 IRQ 入口，调用 HAL handler | 应用业务 |
+| `bsp/<platform>/hal/hal_common.c` | `bsp_init`、微秒计时、通用等待 | 设备特有初始化 |
 
 ### 4.2 修改引脚 / 外设（同一 MCU）
 
-**只改** `projects/<VERSION>/app/board_config.h`：
+**只改** `projects/<VERSION>/board/board_config.h` 和必要的 `projects/<VERSION>/board/board_devices.c`：
 
 ```c
 #if HAL_I2C_USE_SOFT
@@ -346,7 +362,7 @@ static const hal_pin_t board_oled_i2c_sda = { GPIOB, GPIO_Pin_9, GPIO_HAL_MODE_A
 
 ### 4.3 新增 HAL 模块（如硬件 SPI、ADC）
 
-1. 在 `bsp/hal_wrapper/` 添加 `xxx_hal.h` / `xxx_hal.c`。
+1. 在 `hal_wrapper/` 定义平台无关公共接口，在 `bsp/<platform>/hal/` 添加 `xxx_hal.c`，平台私有头文件也放在对应 BSP 目录。
 2. 使用 `hal_status_t` 返回错误，超时用 `hal_wait_flag_us()` / `hal_get_us()`。
 3. 如需 IRQ，在 `irq_handlers.c` 增加转发，**不在驱动里写 `void XXX_IRQHandler`**。
 4. 在 `cmake/hal_options.cmake` 增加 option（若可选编译）。
@@ -354,8 +370,8 @@ static const hal_pin_t board_oled_i2c_sda = { GPIOB, GPIO_Pin_9, GPIO_HAL_MODE_A
 
 ### 4.4 更换 MCU / 更换 SPL 版本
 
-1. 替换 `bsp/stm32f10x_std_lib/` 与 `startup/`、`linker_scripts/`。
-2. 审查所有 `hal_wrapper` 中对寄存器/外设的假设。
+1. 替换 `bsp/stm32/vendor/` 与 `startup/`、`linker_scripts/`。
+2. 审查 `bsp/<platform>/hal/` 中对寄存器/外设的假设。
 3. 保留 `.driver_list` 链接段定义。
 4. **不要**为此修改 `common/` 与 `drivers/` 的业务接口。
 
@@ -377,21 +393,23 @@ static const hal_pin_t board_oled_i2c_sda = { GPIOB, GPIO_Pin_9, GPIO_HAL_MODE_A
 共享（所有版本相同）          版本专属（每个项目独立）
 ─────────────────────        ─────────────────────────
 common/*                     projects/<VERSION>/app/
-bsp/hal_wrapper/*            ├── app_main.c
-bsp/irq_handlers/*           ├── app_callbacks.c
-drivers/*（源文件库）         ├── board_config.h
-cmake/*                      ├── version_config.h
-                             └── CMakeLists.txt（选 DRIVER_SRCS）
+hal_wrapper/*                ├── app_main.c
+bsp/<platform>/hal/*         ├── app_callbacks.c
+bsp/stm32/irq_handlers/*     ├── version_config.h
+drivers/*（源文件库）         projects/<VERSION>/board/
+cmake/*                      ├── board_config.h
+                             ├── board_devices.c
+                             └── CMakeLists.txt（声明平台与 catalog）
 ```
 
-**原则**：公共代码不因某一版本特殊需求而分叉；版本差异通过「选哪些驱动编译」和「board_config 内容」表达。
+**原则**：公共代码不因某一版本特殊需求而分叉；版本差异通过「选哪些驱动编译」和「board 目录中的设备实例/配置」表达。
 
 **统一版本宏强制要求**：
 
 - 全局版本输入宏只能使用 `APP_VERSION`，并且必须由工程 `CMakeLists.txt` 以 `CACHE STRING` 定义。
 - C 代码里的功能条件输出只能使用 `VERSION_FEATURE_*`，并统一在 `projects/<NAME>/app/version_config.h` 中由 `APP_VERSION` 派生。
 - 应用层、板级配置和回调代码只判断 `VERSION_FEATURE_*`；除 `version_config.h` 和工程 CMake preamble 外，不得直接用 `APP_VERSION` 写业务分支。
-- 旧项目宏（如 `KQZL3_VERSION` / `RTJK_VERSION` / `KQZL3_HAS_*`）仅可作为兼容别名保留在 `CMakeLists.txt` 或 `version_config.h` 中，新代码不得新增或继续消费项目专属版本/功能宏。
+- 旧项目专属版本/功能宏不得保留或新增；历史代码迁移时统一改为 `APP_VERSION` 与 `VERSION_FEATURE_*`。
 
 ### 5.2 新建项目步骤
 
@@ -403,7 +421,8 @@ python tools/gen_project.py RTJK_001
 生成 `projects/RTJK_001/`，包含：
 
 - `app_main.c`（最小启动骨架）
-- `board_config.h`（自模板复制）
+- `board/board_config.h`（自模板复制）
+- `board/board_devices.c`（显式板级设备实例表）
 - `version_config.h`（`VERSION_NAME`、应用事件定义）
 - `CMakeLists.txt`（需手动编辑 `DRIVER_SRCS`）
 - `<NAME>_upper_ui_flutter/`：Flutter 主上位机脚手架，包含 `lib/core/version/`、`lib/app.dart`、`pubspec.yaml`、`version_features.json`，默认覆盖 App/Web 交付
@@ -472,7 +491,8 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 | 需求 | 正确做法 |
 | --- | --- |
 | A 版有 DHT11，B 版有 DS18B20 | 两项目 `DRIVER_SRCS` 各选不同 sensor 源文件 |
-| 引脚不同 | 各项目独立 `board_config.h` |
+| 引脚不同 | 各项目独立 `board/board_config.h` |
+| 板上设备实例不同 | 各项目独立 `board/board_devices.c` |
 | 业务逻辑不同 | 各项目独立 `app_main.c` / `app_callbacks.c` |
 | 应用事件不同 | 各项目 `version_config.h` 定义 `APP_EVENT_*` |
 | 功能宏文档化 | `version_config.h` 中强制输出 `VERSION_FEATURE_*`；应用/板级代码只消费这些功能宏 |
@@ -482,7 +502,7 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 1. 复制 `projects/ZNCZ_001` → `projects/NEW_XXX`。
 2. 修改 `CMakeLists.txt` 中 `project(NEW_XXX)` 与 `DRIVER_SRCS`。
 3. 修改 `version_config.h` 中 `VERSION_NAME`。
-4. 按新硬件改 `board_config.h`。
+4. 按新硬件改 `board/board_config.h` 与 `board/board_devices.c`。
 5. 重写 `app_main.c` 业务，**保留启动顺序**。
 
 ---
@@ -521,7 +541,8 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 
 | 禁止 | 原因 | 正确做法 |
 | --- | --- | --- |
-| 在驱动内写死 `GPIOB Pin_6` | 无法跨板复用 | 读 `board_config.h` |
+| 在驱动内写死 `GPIOB Pin_6` | 无法跨板复用 | 从 `init(config)` 接收板级配置 |
+| 在驱动内 `#include "board_config.h"` | 驱动绑定单一项目 | 在 `board/board_devices.c` 构造配置结构 |
 | 直接调用 `GPIO_SetBits`、`I2C_GenerateSTART` 等 SPL API | 绕过 HAL，难以移植 | 调用 `gpio_hal_*` / `i2c_hal_*` |
 | 在驱动文件定义 `void USART1_IRQHandler` | 与 `irq_handlers.c` 冲突 | 通过 HAL + `irq_event` |
 | 恢复已删除的旧 API 封装 | 造成双轨维护 | 使用 `*_hal_init(&cfg)` 配置结构体 |
@@ -533,7 +554,7 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 | 禁止 | 原因 | 正确做法 |
 | --- | --- | --- |
 | 修改链接脚本删除 `.driver_list` | 自注册失效 | 保留 `KEEP(*(.driver_list))` |
-| 在 `common/` 里 `#include "board_config.h"` | 公共层依赖具体项目 | 仅驱动和 app 包含 board_config |
+| 在 `common/` 或 `drivers/` 里 `#include "board_config.h"` | 公共层/驱动层依赖具体项目 | 仅 `projects/<NAME>/board/` 与必要 app 代码包含 board_config |
 | 为省 Flash 在 core 里 `#ifdef VERSION_XXX` | 公共代码分叉 | 版本差异放在 `projects/` |
 | 软 I2C 开关打开但 board 仍用 AF_OD | 引脚模式错误 | `#if HAL_I2C_USE_SOFT` 分支 |
 | 启用 DMA 但未在 board 定义 DMA 通道 | 编译或运行错误 | 同步 `HAL_USART_ENABLE_DMA` 与 board 宏 |
@@ -593,7 +614,7 @@ cmake -S . -B build -DHAL_I2C_USE_SOFT=ON -DHAL_SPI_USE_SOFT=ON
 
 | 场景 | 改哪些文件 |
 | --- | --- |
-| 换 OLED I2C 引脚 | `projects/*/app/board_config.h` |
+| 换 OLED I2C 引脚 | `projects/*/board/board_config.h` |
 | 新增 BH1750 光照传感器 | `drivers/sensors/bh1750.c`、board_config、`driver_catalog.cmake` 中 `DRIVER_CATALOG_*` |
 | 新增多版本成品工程 | `driver_catalog.cmake`、`version_config.h`、§12.5 Checklist |
 | 交付独立编译包 | `python tools/export_project.py …`（§12.6）+ §10.1 回归 |
@@ -741,8 +762,8 @@ include(${TEMPLATE_ROOT}/cmake/hal_options.cmake)
 include(${TEMPLATE_ROOT}/cmake/driver_catalog.cmake)
 
 set(STM32_TOOLCHAIN_BIN "..." CACHE PATH "...")
-set(LINKER_SCRIPT ${TEMPLATE_ROOT}/bsp/linker_scripts/STM32F103XX_FLASH.ld)
-set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/startup/startup_stm32f103xb.s)
+set(LINKER_SCRIPT ${TEMPLATE_ROOT}/bsp/stm32/linker_scripts/STM32F103XX_FLASH.ld)
+set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/stm32/startup/startup_stm32f103xb.s)
 
 set(CPU_FLAGS
     -mcpu=cortex-m3
@@ -758,7 +779,7 @@ set(BSP_SRCS
     ${BSP_HAL_ADC_SRC}
 )
 set(SPL_SRCS
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/...
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/...
     ${SPL_HAL_I2C_SRC}
 )
 set(DRIVER_SRCS ${DRIVER_CATALOG_MY_PROJECT})   # ③ 必须引用 catalog 变量
@@ -800,7 +821,7 @@ hal_apply_compile_definitions(${PROJECT_NAME}.elf)
 | 应用源文件 | `app/app_main.c`（相对 `projects/<NAME>/`） | `projects/MY/app_main.c` |
 | 驱动选用 | `set(DRIVER_SRCS ${DRIVER_CATALOG_MY_PROJECT})` | `list(APPEND DRIVER_SRCS ${TEMPLATE_ROOT}/drivers/...)` |
 | HAL 条件源 | `${BSP_HAL_ADC_SRC}`、`${SPL_HAL_DMA_SRC}` | 在工程 CMake 里手写 `adc_hal.c` |
-| 启动/链接脚本 | `set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/startup/...)` | 省略或使用相对仓库外的路径 |
+| 启动/链接脚本 | `set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/stm32/startup/...)` | 省略或使用相对仓库外的路径 |
 
 #### 12.2.3 多版本工程
 
@@ -821,7 +842,7 @@ hal_apply_compile_definitions(${PROJECT_NAME}.elf)
 option(HAL_FOO_ENABLE "..." OFF)
 
 if(HAL_FOO_ENABLE)
-    list(APPEND BSP_HAL_FOO_SRC ${TEMPLATE_ROOT}/bsp/hal_wrapper/foo_hal.c)
+    list(APPEND BSP_HAL_FOO_SRC ${TEMPLATE_ROOT}/bsp/stm32/hal/foo_hal.c)
 endif()
 ```
 
@@ -851,10 +872,11 @@ endif()
 | 类别 | 规则 |
 | --- | --- |
 | 目录 | 应用代码仅放在 `projects/<NAME>/app/`；可被 `app/` 前缀解析 |
-| 板级配置 | 每工程独立 `board_config.h`；引脚/外设实例不写死在 `drivers/` |
+| 目录 | 应用代码放在 `projects/<NAME>/app/`；板级配置和设备实例放在 `projects/<NAME>/board/` |
+| 板级配置 | 每工程独立 `board/board_config.h` 与 `board/board_devices.c`；引脚/外设实例不写死在 `drivers/` |
 | 版本功能宏 | 在 `version_config.h` 用 `#if APP_VERSION >= N` 生成 `VERSION_FEATURE_*`；应用层/板级代码只判断 `VERSION_FEATURE_*`，不直接判断版本号 |
 | 头文件依赖 | 新增驱动所需 `.h` 应位于 `target_include_directories` 已列目录下，或驱动同目录 `.h`（导出会随驱动复制） |
-| 条件编译 | 版本差异优先 `#if` + catalog 选源；**禁止**在 `common/`、`bsp/hal_wrapper/`、`drivers/` 源文件中 `#ifdef ZNCZ_001` / `#ifdef RTJK_001` |
+| 条件编译 | 版本差异优先 `#if` + catalog 选源；**禁止**在 `common/`、`hal_wrapper/` 定义公共接口，在 `bsp/<platform>/hal/`、`drivers/` 源文件中 `#ifdef ZNCZ_001` / `#ifdef RTJK_001` |
 | JSON 协议 | 业务 JSON 字段必须通过 cJSON API 构建/解析，禁止 `sprintf`/字符串拼接生成 JSON |
 | 未链接驱动 | 应用层 `devmgr_get_*()` 必须判空；catalog 未编入的驱动不应被强依赖 |
 | 上位机特性资源 | `version_features.json` 的 glob 路径应保持可导出：所有条目都以相对路径（相对上位机根目录）书写，并可匹配到真实文件；排除规则使用 `!glob` 表示 |
@@ -903,7 +925,7 @@ endif()
 1. `python tools/gen_project.py <NAME>` 默认生成 Flutter 主上位机；如需微信小程序，再使用 `python tools/gen_project.py <NAME> --with-mini-program` 生成双栈。
 2. `cmake/driver_catalog.cmake` 增加 `DRIVER_CATALOG_<NAME>`（含版本条件）。
 3. `CMakeLists.txt`：`project(<NAME>)`、`DRIVER_SRCS`、`include(hal_options)` 顺序符合 §12.2。
-4. `app/version_config.h`、`app/board_config.h` 就绪；版本输入统一为 `APP_VERSION`，功能输出统一为 `VERSION_FEATURE_*`。
+4. `app/version_config.h`、`board/board_config.h`、`board/board_devices.c` 就绪；版本输入统一为 `APP_VERSION`，功能输出统一为 `VERSION_FEATURE_*`。
 5. 如涉及 MQTT/BLE/串口 JSON 协议，确认字段构建/解析全部使用 cJSON API。
 6. Flutter 上位机：维护 `<NAME>_upper_ui_flutter/version_features.json`，执行 `flutter analyze` / `flutter test`，确认 Debug 才显示通信日志、Release/Profile 不显示也不采集原始 TX/RX 日志。
 7. 上位机通信必须使用真实 MQTT/BLE/平台通道；禁止 mock transport、模拟上报、本地随机遥测、缺少 Broker/remote 时自动回退模拟数据。

@@ -28,7 +28,7 @@ typedef struct rtc_time {
 /** @brief 实时时钟芯片驱动的虚函数表。 */
 typedef struct rtc_driver {
     const char *name;                       ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                     ///< 一次性硬件初始化。
+    void (*init)(const void *config);                     ///< 一次性硬件初始化。
     /**
      * @brief 读取当前日历时间。
      * @param[out] time 输出时间；为 null 时忽略。

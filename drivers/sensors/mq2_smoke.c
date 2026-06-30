@@ -1,7 +1,7 @@
 #include "gas_if.h"
 #include "adc_hal.h"
 #include "timer_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 #include <math.h>
 
@@ -11,6 +11,7 @@
 #define MQ2_ADC_SAMPLE_TIME ADC_HAL_SAMPLE_TIME_LONG
 
 static unsigned short mq2_ppm_cache;
+static const adc_channel_driver_config_t *mq2_config;
 
 static unsigned short mq2_adc_to_ppm(uint16_t adc_raw)
 {
@@ -35,17 +36,22 @@ static unsigned short mq2_adc_to_ppm(uint16_t adc_raw)
     return (unsigned short)ppm;
 }
 
-static void mq2_init(void)
+static void mq2_init(const void *config)
 {
     adc_hal_config_t adc_cfg;
     adc_hal_channel_cfg_t ch_cfg;
 
-    adc_cfg.instance = BOARD_ADC_INSTANCE;
+    mq2_config = (const adc_channel_driver_config_t *)config;
+    if (mq2_config == 0) {
+        return;
+    }
+
+    adc_cfg.instance = mq2_config->instance;
     adc_cfg.timeout_us = ADC_HAL_DEFAULT_TIMEOUT_US;
     (void)adc_hal_init(&adc_cfg);
 
-    ch_cfg.channel = BOARD_MQ2_ADC_CHANNEL;
-    ch_cfg.pin = board_mq2_adc_pin;
+    ch_cfg.channel = mq2_config->channel;
+    ch_cfg.pin = mq2_config->pin;
     ch_cfg.sample_time = MQ2_ADC_SAMPLE_TIME;
     ch_cfg.rank = 1U;
     (void)adc_hal_config_channel(&ch_cfg);
@@ -61,7 +67,7 @@ static unsigned short mq2_read_ppm(void)
 
     sum = 0U;
     for (i = 0U; i < MQ2_READ_TIMES; i++) {
-        if (adc_hal_read(BOARD_MQ2_ADC_CHANNEL, &adc_raw) == HAL_OK) {
+        if ((mq2_config != 0) && (adc_hal_read(mq2_config->channel, &adc_raw) == HAL_OK)) {
             sum += mq2_adc_to_ppm(adc_raw);
         }
         timer_hal_delay_us(5000U);

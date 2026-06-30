@@ -1,6 +1,6 @@
 #include "bp_if.h"
 #include "adc_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #if HAL_ADC_ENABLE
@@ -13,6 +13,7 @@ static unsigned char msp20_filter_index;
 static unsigned char msp20_filter_count;
 static unsigned char msp20_sys_cache;
 static unsigned char msp20_dia_cache;
+static const msp20_driver_config_t *msp20_config;
 
 static float msp20_adc_to_voltage(uint16_t adc_raw)
 {
@@ -25,7 +26,7 @@ static float msp20_read_voltage_avg(void)
     float sum;
     unsigned char i;
 
-    if (adc_hal_read(BOARD_MSP20_ADC_CHANNEL, &adc_raw) != HAL_OK) {
+    if ((msp20_config == 0) || (adc_hal_read(msp20_config->adc.channel, &adc_raw) != HAL_OK)) {
         return 0.0f;
     }
 
@@ -47,7 +48,7 @@ static unsigned char msp20_volt_to_sys(float voltage)
 {
     int value;
 
-    value = (int)(BOARD_MSP20_VOLT_TO_SYS_K * voltage + BOARD_MSP20_VOLT_TO_SYS_OFFSET);
+    value = (int)(msp20_config->sys_k * voltage + msp20_config->sys_offset);
     if (value < 0) {
         value = 0;
     }
@@ -62,7 +63,7 @@ static unsigned char msp20_volt_to_dia(float voltage)
 {
     int value;
 
-    value = (int)(BOARD_MSP20_VOLT_TO_DIA_K * voltage + BOARD_MSP20_VOLT_TO_DIA_OFFSET);
+    value = (int)(msp20_config->dia_k * voltage + msp20_config->dia_offset);
     if (value < 0) {
         value = 0;
     }
@@ -79,21 +80,26 @@ static void msp20_refresh(void)
 
     voltage = msp20_read_voltage_avg();
     msp20_sys_cache = msp20_volt_to_sys(voltage);
-    msp20_dia_cache = msp20_volt_to_dia(voltage * BOARD_MSP20_DIA_RATIO);
+    msp20_dia_cache = msp20_volt_to_dia(voltage * msp20_config->dia_ratio);
 }
 
-static void msp20_init(void)
+static void msp20_init(const void *config)
 {
     adc_hal_config_t adc_cfg;
     adc_hal_channel_cfg_t ch_cfg;
     unsigned char i;
 
-    adc_cfg.instance = BOARD_ADC_INSTANCE;
+    msp20_config = (const msp20_driver_config_t *)config;
+    if (msp20_config == 0) {
+        return;
+    }
+
+    adc_cfg.instance = msp20_config->adc.instance;
     adc_cfg.timeout_us = ADC_HAL_DEFAULT_TIMEOUT_US;
     (void)adc_hal_init(&adc_cfg);
 
-    ch_cfg.channel = BOARD_MSP20_ADC_CHANNEL;
-    ch_cfg.pin = board_msp20_adc_pin;
+    ch_cfg.channel = msp20_config->adc.channel;
+    ch_cfg.pin = msp20_config->adc.pin;
     ch_cfg.sample_time = MSP20_ADC_SAMPLE_TIME;
     ch_cfg.rank = 1U;
     (void)adc_hal_config_channel(&ch_cfg);

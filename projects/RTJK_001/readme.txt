@@ -1,7 +1,7 @@
 RTJK_001 — 人体健康监测仪
 ================================
 
-本工程覆盖 10 个固件版本（`APP_VERSION=1..10`，`RTJK_VERSION` 仅兼容旧命令），通过 CMake 条件与 `version_config.h` 功能宏在单一工程内切换心率、血氧、血压、温度、BLE、WiFi、语音等组合。下文说明目录结构、版本矩阵、板级配置以及构建与导出流程，便于在 `project_template` 模板中维护或派生新版本。
+本工程覆盖 10 个固件版本（`APP_VERSION=1..10`），通过 CMake 条件与 `version_config.h` 功能宏在单一工程内切换心率、血氧、血压、温度、BLE、WiFi、语音等组合。下文说明目录结构、版本矩阵、板级配置以及构建与导出流程，便于在 `project_template` 模板中维护或派生新版本。
 
 1. 目录速览
 ------------
@@ -15,8 +15,9 @@ projects/RTJK_001/
 │   ├── app_main.c         # 启动顺序、sched_loop/task 注册
 │   ├── app_logic.c        # 业务逻辑（模式切换、遥测格式化等）
 │   ├── app_callbacks.c    # device_manager 回调、comm_port 事件
-│   ├── board_config.h     # 项目级引脚/USART/I2C/MQTT 配置
 │   └── version_config.h   # APP_VERSION 功能矩阵与 APP_EVENT_*
+├── board/
+│   └── board_config.h     # 项目级引脚/USART/I2C/MQTT 配置
 └── RTJK_001_upper_ui/     # Uni-app + Vite + Capacitor 上位机
 ```
 
@@ -25,7 +26,7 @@ projects/RTJK_001/
 2. 版本切换与 HAL 前置条件
 ------------------------------
 
-1. **CMake 变量**：`APP_VERSION=1..10`（默认 10）。必须为 `CACHE STRING`，切勿用 `option()`，否则 CLion 会把数值视为布尔量。`RTJK_VERSION` 仍作为旧命令兼容别名。
+1. **CMake 变量**：`APP_VERSION=1..10`（默认 10）。必须为 `CACHE STRING`，切勿用 `option()`，否则 CLion 会把数值视为布尔量。
 2. **CLion**：Settings → CMake → CMake options 添加 `-DAPP_VERSION=10`，或在 CMake Profiles 指定。
 3. **手工覆盖**：`app/version_config.h` 中的 `#define APP_VERSION` 仅在 CMake 未定义时生效；保持与构建参数一致。
 
@@ -52,7 +53,7 @@ projects/RTJK_001/
 
 通用特性：OLED 显示、蜂鸣器、LED、按键、脉搏读取始终启用。`BOARD_COMM_DEVICE` 会根据版本在 `board_config.h` 中切换 `esp8266`/`jdy31`/`none`。
 
-4. 板级配置入口（`app/board_config.h`）
+4. 板级配置入口（`board/board_config.h`）
 ----------------------------------------
 
 - **通信模块**：`BOARD_ESP8266_*` WiFi/MQTT 参数、`BOARD_JDY31_*` BLE UART 以及 `BOARD_COMM_DEVICE` 决定 `comm_port` 默认实例。

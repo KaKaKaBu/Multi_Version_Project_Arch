@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 称重传感器的虚函数表。 */
 typedef struct weight_sensor {
     const char *name;                 ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);               ///< 一次性硬件初始化。
+    void (*init)(const void *config);               ///< 一次性硬件初始化。
     /**
      * @brief 读取质量。
      * @return 质量值（克）。

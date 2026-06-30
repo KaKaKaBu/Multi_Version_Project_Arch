@@ -1,6 +1,6 @@
 #include "gnss_if.h"
 #include "usart_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #include <string.h>
@@ -11,6 +11,7 @@ static gnss_fix_t l76k_fix;
 static uint8_t l76k_rx_buf[L76K_GPS_BUF_SIZE];
 static uint16_t l76k_rx_len;
 static uint8_t l76k_rx_complete;
+static const usart_device_config_t *l76k_config;
 
 static int l76k_parse_int(const char *s)
 {
@@ -174,7 +175,11 @@ static void l76k_drain_rx(void)
 {
     uint8_t byte;
 
-    while (usart_hal_recv_byte(BOARD_L76K_USART, &byte) == 1) {
+    if (l76k_config == 0) {
+        return;
+    }
+
+    while (usart_hal_recv_byte(l76k_config->instance, &byte) == 1) {
         if (l76k_rx_len < (L76K_GPS_BUF_SIZE - 1U)) {
             l76k_rx_buf[l76k_rx_len++] = byte;
             if (l76k_rx_buf[l76k_rx_len - 1U] == '\n') {
@@ -189,7 +194,7 @@ static void l76k_drain_rx(void)
     }
 }
 
-static void l76k_init(void)
+static void l76k_init(const void *config)
 {
     usart_hal_config_t cfg;
 
@@ -198,16 +203,24 @@ static void l76k_init(void)
     l76k_rx_complete = 0U;
     memset(l76k_rx_buf, 0, sizeof(l76k_rx_buf));
 
-    cfg.instance = BOARD_L76K_USART;
-    cfg.baudrate = BOARD_L76K_BAUDRATE;
-    cfg.tx = board_l76k_tx;
-    cfg.rx = board_l76k_rx;
-    cfg.remap = BOARD_L76K_USART_REMAP;
+    l76k_config = (const usart_device_config_t *)config;
+    if (l76k_config == 0) {
+        return;
+    }
+
+    cfg.instance = l76k_config->instance;
+    cfg.baudrate = l76k_config->baudrate;
+    cfg.tx = l76k_config->tx;
+    cfg.rx = l76k_config->rx;
+    cfg.remap = l76k_config->remap;
     cfg.rx_buf_size = USART_HAL_DEFAULT_RX_BUF_SIZE;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;
-    cfg.tx_mode = USART_HAL_TX_MODE_IRQ;
+    cfg.tx_mode = l76k_config->tx_mode;
+#if HAL_USART_ENABLE_DMA
+    cfg.tx_dma_channel = l76k_config->tx_dma_channel;
+#endif
     (void)usart_hal_init(&cfg);
-    usart_hal_enable_rx_irq(BOARD_L76K_USART);
+    usart_hal_enable_rx_irq(l76k_config->instance);
 }
 
 static void l76k_poll(void)

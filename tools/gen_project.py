@@ -395,6 +395,107 @@ VERSION_CONFIG = '''#ifndef VERSION_CONFIG_H
 #endif
 '''
 
+BOARD_DEVICES_C = '''#include "board_config.h"
+#include "driver_core.h"
+#include "driver_configs.h"
+
+#if defined(BOARD_OLED_I2C)
+static const i2c_device_config_t board_oled_config = {
+    BOARD_OLED_I2C,
+    BOARD_OLED_I2C_SPEED,
+    board_oled_i2c_scl,
+    board_oled_i2c_sda,
+    BOARD_OLED_I2C_REMAP,
+    BOARD_OLED_I2C_ADDR
+};
+REGISTER_BOARD_DEVICE(DISPLAY, "oled", &board_oled_config);
+#endif
+
+#if defined(KEY_DRIVER_PIN_TABLE)
+static const gpio_input_driver_config_t board_key_config = {
+    0,
+    KEY_DRIVER_PIN_TABLE,
+    KEY_DRIVER_BUTTON_COUNT,
+    1U
+};
+REGISTER_BOARD_DEVICE(INPUT, "key", &board_key_config);
+#elif defined(BOARD_KEY_COUNT)
+static const hal_pin_t board_key_pins[] = {
+#if BOARD_KEY_COUNT >= 1U
+    board_key1_pin,
+#endif
+#if BOARD_KEY_COUNT >= 2U
+    board_key2_pin,
+#endif
+#if BOARD_KEY_COUNT >= 3U
+    board_key3_pin,
+#endif
+#if BOARD_KEY_COUNT >= 4U
+    board_key4_pin,
+#endif
+#if BOARD_KEY_COUNT >= 5U
+    board_key5_pin,
+#endif
+};
+static const gpio_input_driver_config_t board_key_config = {
+    board_key_pins,
+    0,
+    BOARD_KEY_COUNT,
+    1U
+};
+REGISTER_BOARD_DEVICE(INPUT, "key", &board_key_config);
+#endif
+
+#if defined(BOARD_ESP8266_USART)
+static const esp8266_driver_config_t board_esp8266_config = {
+    {
+        BOARD_ESP8266_USART,
+        BOARD_ESP8266_BAUDRATE,
+        board_esp8266_tx,
+        board_esp8266_rx,
+        BOARD_ESP8266_USART_REMAP,
+        BOARD_ESP8266_USART_TX_MODE,
+#if HAL_USART_ENABLE_DMA && defined(BOARD_ESP8266_USART_TX_DMA)
+        BOARD_ESP8266_USART_TX_DMA,
+#else
+        0U,
+#endif
+#if defined(BOARD_ESP8266_USART_ID)
+        BOARD_ESP8266_USART_ID
+#else
+        0U
+#endif
+    },
+    board_esp8266_ch_pd_pin,
+    board_esp8266_rst_pin,
+#if defined(BOARD_ESP8266_DEBUG_TRACE_ENABLE)
+    BOARD_ESP8266_DEBUG_TRACE_ENABLE
+#else
+    0U
+#endif
+};
+REGISTER_BOARD_DEVICE(COMM, "esp8266", &board_esp8266_config);
+#endif
+
+#if defined(BOARD_JDY31_USART)
+static const usart_device_config_t board_jdy31_config = {
+    BOARD_JDY31_USART,
+    BOARD_JDY31_BAUDRATE,
+    board_jdy31_tx,
+    board_jdy31_rx,
+    BOARD_JDY31_USART_REMAP,
+    BOARD_JDY31_USART_TX_MODE,
+#if HAL_USART_ENABLE_DMA && defined(BOARD_JDY31_USART_TX_DMA)
+    BOARD_JDY31_USART_TX_DMA,
+#else
+    0U,
+#endif
+    0U
+};
+REGISTER_BOARD_DEVICE(COMM, "jdy31", &board_jdy31_config);
+#endif
+'''
+
 CALLBACKS = '''#include "version_config.h"
 #include "scheduler.h"
 #include "debug_log.h"
@@ -548,7 +649,7 @@ README = '''{name} 项目骨架
 
 ## 快速开始
 1. 根据产品版本在 `cmake/driver_catalog.cmake` 中新增 `DRIVER_CATALOG_{name}` 并在本工程 `CMakeLists.txt` 的 `DRIVER_SRCS` 中引用。
-2. 更新 `app/board_config.h` 引脚、通讯外设、WiFi/MQTT 参数。
+2. 更新 `board/board_config.h` 引脚、通讯外设、WiFi/MQTT 参数。
 3. 在 `app/app_logic.c` 中实现实际的传感器采集、UI 状态机与通讯处理。
 
 ## 构建方式
@@ -802,141 +903,17 @@ include(${{CMAKE_CURRENT_LIST_DIR}}/../../cmake/stm32-gcc-toolchain.cmake)
 
 project({name} C ASM)
 
-set(TEMPLATE_ROOT ${{CMAKE_CURRENT_LIST_DIR}}/../..)
+include(${{CMAKE_CURRENT_LIST_DIR}}/../../cmake/project_template.cmake)
 
-set(APP_VERSION 1 CACHE STRING "Application version (1-__VERSION_COUNT__)")
-if(APP_VERSION LESS 1 OR APP_VERSION GREATER __VERSION_COUNT__)
-    message(FATAL_ERROR "APP_VERSION must be 1-__VERSION_COUNT__, got '${{APP_VERSION}}'")
-endif()
+mvp_resolve_app_version(DEFAULT 1 MIN 1 MAX __VERSION_COUNT__)
 
-include(${{TEMPLATE_ROOT}}/cmake/hal_options.cmake)
-include(${{TEMPLATE_ROOT}}/cmake/driver_catalog.cmake)
-
-set(LINKER_SCRIPT ${{TEMPLATE_ROOT}}/bsp/linker_scripts/STM32F103XX_FLASH.ld)
-set(STARTUP_FILE ${{TEMPLATE_ROOT}}/bsp/startup/startup_stm32f103xb.s)
-
-set(CPU_FLAGS
-    -mcpu=cortex-m3
-    -mthumb
+set(DRIVER_CATALOG_{name}
+    # TODO: add driver source list or reference a shared catalog entry.
 )
 
-set(COMMON_SRCS
-    ${{TEMPLATE_ROOT}}/common/device_manager/devmgr.c
-    ${{TEMPLATE_ROOT}}/common/scheduler/scheduler.c
-    ${{TEMPLATE_ROOT}}/common/scheduler/sched_loop.c
-    ${{TEMPLATE_ROOT}}/common/app_framework/app_fsm.c
-    ${{TEMPLATE_ROOT}}/common/irq_event/irq_event.c
-    ${{TEMPLATE_ROOT}}/common/utils/tiny_printf.c
-    ${{TEMPLATE_ROOT}}/common/utils/cJSON.c
-    ${{TEMPLATE_ROOT}}/common/utils/cjson_port.c
-    ${{TEMPLATE_ROOT}}/common/utils/mem_pool.c
-    ${{TEMPLATE_ROOT}}/common/utils/debug_uart.c
-    ${{TEMPLATE_ROOT}}/common/utils/soft_uart.c
-)
-
-set(BSP_SRCS
-    ${{TEMPLATE_ROOT}}/bsp/hal_wrapper/hal_common.c
-    ${{TEMPLATE_ROOT}}/bsp/hal_wrapper/gpio_hal.c
-    ${{BSP_HAL_I2C_SRC}}
-    ${{TEMPLATE_ROOT}}/bsp/hal_wrapper/usart_hal.c
-    ${{BSP_HAL_USART_DMA_SRC}}
-    ${{BSP_HAL_SPI_SRC}}
-    ${{BSP_HAL_SPI_DMA_SRC}}
-    ${{BSP_HAL_ADC_SRC}}
-    ${{BSP_HAL_ADC_DMA_SRC}}
-    ${{TEMPLATE_ROOT}}/bsp/hal_wrapper/timer_hal.c
-    ${{TEMPLATE_ROOT}}/bsp/irq_handlers/irq_handlers.c
-)
-
-set(DRIVER_SRCS
-    # TODO: set to DRIVER_CATALOG_{name} after adding catalog entry
-)
-
-set(SPL_SRCS
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/CMSIS/system_stm32f10x.c
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/misc.c
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_gpio.c
-    ${{SPL_HAL_I2C_SRC}}
-    ${{SPL_HAL_SPI_SRC}}
-    ${{SPL_HAL_ADC_SRC}}
-    ${{SPL_HAL_DMA_SRC}}
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_rcc.c
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_tim.c
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_usart.c
-)
-
-set(APP_SRCS
-    app/app_main.c
-    app/app_logic.c
-    app/app_callbacks.c
-)
-
-add_executable(${{PROJECT_NAME}}.elf
-    ${{APP_SRCS}}
-    ${{COMMON_SRCS}}
-    ${{BSP_SRCS}}
-    ${{DRIVER_SRCS}}
-    ${{SPL_SRCS}}
-    ${{STARTUP_FILE}}
-)
-
-set_target_properties(${{PROJECT_NAME}}.elf PROPERTIES
-    C_STANDARD 99
-    C_STANDARD_REQUIRED ON
-    SUFFIX ""
-)
-
-target_include_directories(${{PROJECT_NAME}}.elf PRIVATE
-    app
-    ${{TEMPLATE_ROOT}}/common/interfaces
-    ${{TEMPLATE_ROOT}}/common/driver_core
-    ${{TEMPLATE_ROOT}}/common/device_manager
-    ${{TEMPLATE_ROOT}}/common/scheduler
-    ${{TEMPLATE_ROOT}}/common/app_framework
-    ${{TEMPLATE_ROOT}}/common/irq_event
-    ${{TEMPLATE_ROOT}}/common/utils
-    ${{TEMPLATE_ROOT}}/bsp/board
-    ${{TEMPLATE_ROOT}}/bsp/hal_wrapper
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/CMSIS
-    ${{TEMPLATE_ROOT}}/bsp/stm32f10x_std_lib/Libraries/FWlib/inc
-)
-
-target_compile_definitions(${{PROJECT_NAME}}.elf PRIVATE
-    STM32F10X_MD
-    USE_STDPERIPH_DRIVER
-    APP_VERSION=${{APP_VERSION}}
-)
-
-hal_apply_compile_definitions(${{PROJECT_NAME}}.elf)
-
-target_compile_options(${{PROJECT_NAME}}.elf PRIVATE
-    ${{CPU_FLAGS}}
-    $<$<COMPILE_LANGUAGE:C>:-Wall>
-    $<$<COMPILE_LANGUAGE:C>:-Wextra>
-    $<$<COMPILE_LANGUAGE:C>:-Os>
-    $<$<COMPILE_LANGUAGE:C>:-ffunction-sections>
-    $<$<COMPILE_LANGUAGE:C>:-fdata-sections>
-    $<$<COMPILE_LANGUAGE:ASM>:-x>
-    $<$<COMPILE_LANGUAGE:ASM>:assembler-with-cpp>
-)
-
-target_link_libraries(${{PROJECT_NAME}}.elf PRIVATE m)
-
-target_link_options(${{PROJECT_NAME}}.elf PRIVATE
-    ${{CPU_FLAGS}}
-    -T${{LINKER_SCRIPT}}
-    -Wl,--gc-sections
-    -Wl,-Map=${{PROJECT_NAME}}.map
-    -Wl,--print-memory-usage
-    -Wl,-u,malloc
-    -Wl,-u,_malloc_r
-    -Wl,-u,cjson_port_init
-)
-
-add_custom_command(TARGET ${{PROJECT_NAME}}.elf POST_BUILD
-    COMMAND ${{CMAKE_OBJCOPY}} -O binary $<TARGET_FILE:${{PROJECT_NAME}}.elf> ${{PROJECT_NAME}}.bin
-    COMMAND ${{CMAKE_SIZE}} $<TARGET_FILE:${{PROJECT_NAME}}.elf>
-    BYPRODUCTS ${{PROJECT_NAME}}.bin ${{PROJECT_NAME}}.map
+mvp_add_stm32f1_project(${{PROJECT_NAME}}
+    DRIVER_CATALOG_VAR DRIVER_CATALOG_{name}
+    ENABLE_APP_FRAMEWORK
 )
 '''
 
@@ -1002,8 +979,10 @@ def create_project_with_options(root: Path, options: ProjectCreateOptions) -> No
     logger = options.log or print
     project_dir = root / "projects" / name
     app_dir = project_dir / "app"
+    board_dir = project_dir / "board"
     board_template = (root / "bsp" / "board" / "board_config_template.h").read_text(encoding="utf-8")
     app_dir.mkdir(parents=True, exist_ok=False)
+    board_dir.mkdir(parents=True, exist_ok=False)
     logger(f"[gen_project] Creating firmware project: {project_dir}")
     (app_dir / "app_main.c").write_text(APP_MAIN, encoding="utf-8")
     (app_dir / "version_config.h").write_text(VERSION_CONFIG.format(name=name), encoding="utf-8")
@@ -1011,10 +990,11 @@ def create_project_with_options(root: Path, options: ProjectCreateOptions) -> No
     (app_dir / "app_logic.c").write_text(APP_LOGIC_C.replace("__PROJECT_NAME__", name), encoding="utf-8")
     (app_dir / "app_callbacks.c").write_text(CALLBACKS, encoding="utf-8")
     (app_dir / "stm32f10x_conf.h").write_text(STM32F10X_CONF, encoding="utf-8")
-    (app_dir / "board_config.h").write_text(
+    (board_dir / "board_config.h").write_text(
         board_template.replace("BOARD_CONFIG_TEMPLATE_H", "BOARD_CONFIG_H"),
         encoding="utf-8",
     )
+    (board_dir / "board_devices.c").write_text(BOARD_DEVICES_C, encoding="utf-8")
     (project_dir / "readme.txt").write_text(README.format(name=name), encoding="utf-8")
     (project_dir / "CMakeLists.txt").write_text(
         render_template(CMAKELISTS.format(name=name), version_count=str(options.version_count)),

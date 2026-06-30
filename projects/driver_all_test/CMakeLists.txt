@@ -13,8 +13,8 @@ set(HAL_ADC_ENABLE ON CACHE BOOL "Enable ADC HAL" FORCE)
 include(${TEMPLATE_ROOT}/cmake/hal_options.cmake)
 include(${TEMPLATE_ROOT}/cmake/driver_catalog.cmake)
 
-set(LINKER_SCRIPT ${TEMPLATE_ROOT}/bsp/linker_scripts/STM32F103XX_FLASH.ld)
-set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/startup/startup_stm32f103xb.s)
+set(LINKER_SCRIPT ${TEMPLATE_ROOT}/bsp/stm32/linker_scripts/STM32F103XX_FLASH.ld)
+set(STARTUP_FILE ${TEMPLATE_ROOT}/bsp/stm32/startup/startup_stm32f103xb.s)
 
 
 
@@ -36,42 +36,46 @@ set(COMMON_SRCS
 )
 
 set(BSP_SRCS
-    ${TEMPLATE_ROOT}/bsp/syscalls/syscalls.c
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/hal_common.c
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/gpio_hal.c
+    ${TEMPLATE_ROOT}/bsp/stm32/syscalls/syscalls.c
+    ${TEMPLATE_ROOT}/bsp/stm32/hal/stm32f1_hal_map.c
+    ${TEMPLATE_ROOT}/bsp/stm32/hal/hal_common.c
+    ${TEMPLATE_ROOT}/bsp/stm32/hal/gpio_hal.c
+    ${TEMPLATE_ROOT}/bsp/stm32/hal/exti_hal.c
     ${BSP_HAL_I2C_SRC}
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/usart_hal.c
+    ${TEMPLATE_ROOT}/bsp/stm32/hal/usart_hal.c
     ${BSP_HAL_USART_DMA_SRC}
     ${BSP_HAL_SPI_SRC}
     ${BSP_HAL_SPI_DMA_SRC}
     ${BSP_HAL_ADC_SRC}
     ${BSP_HAL_ADC_DMA_SRC}
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper/timer_hal.c
-    ${TEMPLATE_ROOT}/bsp/irq_handlers/irq_handlers.c
+    ${TEMPLATE_ROOT}/bsp/stm32/hal/timer_hal.c
+    ${TEMPLATE_ROOT}/bsp/stm32/irq_handlers/irq_handlers.c
 )
 
 set(DRIVER_SRCS ${DRIVER_CATALOG_ALL})
 
 set(SPL_SRCS
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/CMSIS/system_stm32f10x.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/misc.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_gpio.c
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/CMSIS/system_stm32f10x.c
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/FWlib/src/misc.c
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/FWlib/src/stm32f10x_gpio.c
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/FWlib/src/stm32f10x_exti.c
     ${SPL_HAL_I2C_SRC}
     ${SPL_HAL_SPI_SRC}
     ${SPL_HAL_ADC_SRC}
     ${SPL_HAL_DMA_SRC}
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_rcc.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_tim.c
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/src/stm32f10x_usart.c
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/FWlib/src/stm32f10x_rcc.c
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/FWlib/src/stm32f10x_tim.c
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/FWlib/src/stm32f10x_usart.c
 )
 
-set(APP_SRCS app/app_main.c app/app_callbacks.c)
+set(APP_SRCS app/app_main.c app/app_callbacks.c board/board_devices.c)
 
 add_executable(${PROJECT_NAME}.elf ${APP_SRCS} ${COMMON_SRCS} ${BSP_SRCS} ${DRIVER_SRCS} ${SPL_SRCS} ${STARTUP_FILE})
 
 set_target_properties(${PROJECT_NAME}.elf PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON SUFFIX "")
 
 target_include_directories(${PROJECT_NAME}.elf PRIVATE
+    board
     app
     ${TEMPLATE_ROOT}/common/interfaces
     ${TEMPLATE_ROOT}/common/driver_core
@@ -80,10 +84,12 @@ target_include_directories(${PROJECT_NAME}.elf PRIVATE
     ${TEMPLATE_ROOT}/common/app_framework
     ${TEMPLATE_ROOT}/common/irq_event
     ${TEMPLATE_ROOT}/common/utils
+    ${TEMPLATE_ROOT}/drivers/config
     ${TEMPLATE_ROOT}/bsp/board
-    ${TEMPLATE_ROOT}/bsp/hal_wrapper
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/CMSIS
-    ${TEMPLATE_ROOT}/bsp/stm32f10x_std_lib/Libraries/FWlib/inc
+    ${TEMPLATE_ROOT}/hal_wrapper
+    ${TEMPLATE_ROOT}/bsp/stm32/hal
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/CMSIS
+    ${TEMPLATE_ROOT}/bsp/stm32/vendor/Libraries/FWlib/inc
 )
 
 target_compile_definitions(${PROJECT_NAME}.elf PRIVATE

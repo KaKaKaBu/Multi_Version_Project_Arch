@@ -5,7 +5,7 @@
 
 #include "analog_probe_if.h"
 #include "adc_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #if HAL_ADC_ENABLE
@@ -17,16 +17,17 @@ static float water_level_filter_buffer[WATER_LEVEL_FILTER_SIZE];
 static unsigned char water_level_filter_index;
 static unsigned char water_level_filter_count;
 static float water_level_value_cache;
+static const adc_channel_driver_config_t *water_level_config;
 
 static float water_level_adc_to_percent(uint16_t adc_raw)
 {
     float percent;
 
-#if BOARD_WATER_LEVEL_INVERT
-    percent = (1.0f - (float)adc_raw / 4095.0f) * 100.0f;
-#else
-    percent = (float)adc_raw / 4095.0f * 100.0f;
-#endif
+    if ((water_level_config != 0) && (water_level_config->invert != 0U)) {
+        percent = (1.0f - (float)adc_raw / 4095.0f) * 100.0f;
+    } else {
+        percent = (float)adc_raw / 4095.0f * 100.0f;
+    }
 
     if (percent < 0.0f) {
         percent = 0.0f;
@@ -38,18 +39,23 @@ static float water_level_adc_to_percent(uint16_t adc_raw)
     return percent;
 }
 
-static void water_level_init(void)
+static void water_level_init(const void *config)
 {
     adc_hal_config_t adc_cfg;
     adc_hal_channel_cfg_t ch_cfg;
     unsigned char i;
 
-    adc_cfg.instance = BOARD_ADC_INSTANCE;
+    water_level_config = (const adc_channel_driver_config_t *)config;
+    if (water_level_config == 0) {
+        return;
+    }
+
+    adc_cfg.instance = water_level_config->instance;
     adc_cfg.timeout_us = ADC_HAL_DEFAULT_TIMEOUT_US;
     (void)adc_hal_init(&adc_cfg);
 
-    ch_cfg.channel = BOARD_WATER_LEVEL_ADC_CHANNEL;
-    ch_cfg.pin = board_water_level_adc_pin;
+    ch_cfg.channel = water_level_config->channel;
+    ch_cfg.pin = water_level_config->pin;
     ch_cfg.sample_time = WATER_LEVEL_ADC_SAMPLE_TIME;
     ch_cfg.rank = 1U;
     (void)adc_hal_config_channel(&ch_cfg);
@@ -68,7 +74,7 @@ static float water_level_read_value(void)
     float sum;
     unsigned char i;
 
-    if (adc_hal_read(BOARD_WATER_LEVEL_ADC_CHANNEL, &adc_raw) != HAL_OK) {
+    if ((water_level_config == 0) || (adc_hal_read(water_level_config->channel, &adc_raw) != HAL_OK)) {
         return water_level_value_cache;
     }
 

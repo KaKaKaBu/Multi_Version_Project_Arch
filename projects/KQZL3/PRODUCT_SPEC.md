@@ -144,7 +144,7 @@
 
 ### 7.3 WiFi/网页/小程序/App 默认 MQTT 参数
 
-带有 WiFi/网页/小程序/App 的版本默认自动使用以下 MQTT 参数，与 `app/board_config.h` 保持一致：
+带有 WiFi/网页/小程序/App 的版本默认自动使用以下 MQTT 参数，与 `board/board_config.h` 保持一致：
 
 | 参数 | 值 |
 |------|----|

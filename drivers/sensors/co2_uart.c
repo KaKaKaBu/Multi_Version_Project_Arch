@@ -1,6 +1,6 @@
 #include "gas_if.h"
 #include "usart_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #include <string.h>
@@ -10,12 +10,17 @@
 static uint8_t co2_rx_buf[CO2_RX_BUF_SIZE];
 static uint32_t co2_rx_cnt;
 static uint16_t co2_ppm;
+static const usart_device_config_t *co2_config;
 
 static void co2_drain_rx(void)
 {
     uint8_t byte;
 
-    while ((co2_rx_cnt < CO2_RX_BUF_SIZE) && (usart_hal_recv_byte(BOARD_CO2_USART, &byte) == 1)) {
+    if (co2_config == 0) {
+        return;
+    }
+
+    while ((co2_rx_cnt < CO2_RX_BUF_SIZE) && (usart_hal_recv_byte(co2_config->instance, &byte) == 1)) {
         co2_rx_buf[co2_rx_cnt++] = byte;
     }
 }
@@ -31,7 +36,7 @@ static void co2_parse_frame(void)
     co2_rx_cnt = 0U;
 }
 
-static void co2_init(void)
+static void co2_init(const void *config)
 {
     usart_hal_config_t cfg;
 
@@ -39,16 +44,24 @@ static void co2_init(void)
     co2_ppm = 0U;
     memset(co2_rx_buf, 0, sizeof(co2_rx_buf));
 
-    cfg.instance = BOARD_CO2_USART;
-    cfg.baudrate = BOARD_CO2_BAUDRATE;
-    cfg.tx = board_co2_tx;
-    cfg.rx = board_co2_rx;
-    cfg.remap = BOARD_CO2_USART_REMAP;
+    co2_config = (const usart_device_config_t *)config;
+    if (co2_config == 0) {
+        return;
+    }
+
+    cfg.instance = co2_config->instance;
+    cfg.baudrate = co2_config->baudrate;
+    cfg.tx = co2_config->tx;
+    cfg.rx = co2_config->rx;
+    cfg.remap = co2_config->remap;
     cfg.rx_buf_size = USART_HAL_DEFAULT_RX_BUF_SIZE;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;
-    cfg.tx_mode = USART_HAL_TX_MODE_IRQ;
+    cfg.tx_mode = co2_config->tx_mode;
+#if HAL_USART_ENABLE_DMA
+    cfg.tx_dma_channel = co2_config->tx_dma_channel;
+#endif
     (void)usart_hal_init(&cfg);
-    usart_hal_enable_rx_irq(BOARD_CO2_USART);
+    usart_hal_enable_rx_irq(co2_config->instance);
 }
 
 static unsigned short co2_read_ppm(void)

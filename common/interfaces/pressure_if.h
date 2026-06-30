@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 带可选温度读数的气压传感器虚函数表。 */
 typedef struct pressure_sensor {
     const char *name;                      ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                    ///< 一次性硬件初始化。
+    void (*init)(const void *config);                    ///< 一次性硬件初始化。
     /**
      * @brief 读取气压。
      * @return 气压值（帕斯卡）。

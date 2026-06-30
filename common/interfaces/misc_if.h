@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 通用杂项 GPIO 驱动的虚函数表。 */
 typedef struct misc_driver {
     const char *name;                    ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                  ///< 一次性硬件初始化。
+    void (*init)(const void *config);                  ///< 一次性硬件初始化。
     /**
      * @brief 设置 GPIO 输出状态。
      * @param[in] on 非零表示有效（极性由驱动定义）。

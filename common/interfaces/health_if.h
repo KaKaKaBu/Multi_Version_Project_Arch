@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 脉搏血氧仪传感器的虚函数表。 */
 typedef struct pulse_oximeter {
     const char *name;                         ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                       ///< 一次性硬件初始化。
+    void (*init)(const void *config);                       ///< 一次性硬件初始化。
     /**
      * @brief 读取心率。
      * @return 心率（次/分）。

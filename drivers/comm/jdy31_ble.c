@@ -1,33 +1,39 @@
 #include "comm_if.h"
 #include "usart_hal.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 static comm_rx_callback_t jdy31_rx_callback;
+static const usart_device_config_t *jdy31_config;
 
-static void jdy31_init(void)
+static void jdy31_init(const void *config)
 {
     usart_hal_config_t cfg;
 
-    cfg.instance = BOARD_JDY31_USART;
-    cfg.baudrate = BOARD_JDY31_BAUDRATE;
-    cfg.tx = board_jdy31_tx;
-    cfg.rx = board_jdy31_rx;
-    cfg.remap = BOARD_JDY31_USART_REMAP;
+    jdy31_config = (const usart_device_config_t *)config;
+    if (jdy31_config == 0) {
+        return;
+    }
+
+    cfg.instance = jdy31_config->instance;
+    cfg.baudrate = jdy31_config->baudrate;
+    cfg.tx = jdy31_config->tx;
+    cfg.rx = jdy31_config->rx;
+    cfg.remap = jdy31_config->remap;
     cfg.rx_buf_size = USART_HAL_DEFAULT_RX_BUF_SIZE;
     cfg.tx_timeout_us = USART_HAL_DEFAULT_TX_TIMEOUT_US;
-    cfg.tx_mode = BOARD_JDY31_USART_TX_MODE;
+    cfg.tx_mode = jdy31_config->tx_mode;
 #if HAL_USART_ENABLE_DMA
-    cfg.tx_dma_channel = BOARD_JDY31_USART_TX_DMA;
+    cfg.tx_dma_channel = jdy31_config->tx_dma_channel;
 #endif
     (void)usart_hal_init(&cfg);
-    usart_hal_enable_rx_irq(BOARD_JDY31_USART);
+    usart_hal_enable_rx_irq(jdy31_config->instance);
     jdy31_rx_callback = 0;
 }
 
 static int jdy31_send(const unsigned char *data, unsigned short len)
 {
-    if (usart_hal_send_buffer(BOARD_JDY31_USART, data, len) != HAL_OK) {
+    if ((jdy31_config == 0) || (usart_hal_send_buffer(jdy31_config->instance, data, len) != HAL_OK)) {
         return -1;
     }
 
@@ -42,7 +48,7 @@ static int jdy31_recv(unsigned char *buf, unsigned short max_len)
         return -1;
     }
 
-    if (usart_hal_recv_byte(BOARD_JDY31_USART, &data) == 1) {
+    if ((jdy31_config != 0) && (usart_hal_recv_byte(jdy31_config->instance, &data) == 1)) {
         buf[0] = data;
         if (jdy31_rx_callback != 0) {
             jdy31_rx_callback(buf, 1U);

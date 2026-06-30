@@ -16,7 +16,7 @@ extern "C" {
 /** @brief 测距传感器的虚函数表。 */
 typedef struct distance_sensor {
     const char *name;                              ///< 驱动实例名称，供 devmgr 查找。
-    void (*init)(void);                            ///< 一次性硬件初始化。
+    void (*init)(const void *config);                            ///< 一次性硬件初始化。
     /**
      * @brief 读取距离。
      * @return 距离值（厘米）。

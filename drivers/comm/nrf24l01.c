@@ -2,7 +2,7 @@
 #include "spi_hal.h"
 #include "gpio_hal.h"
 #include "hal_common.h"
-#include "board_config.h"
+#include "driver_configs.h"
 #include "driver_core.h"
 
 #include <string.h>
@@ -39,20 +39,21 @@ static uint8_t nrf24_rx_address[NRF24L01_ADDR_WIDTH] = { 0x11U, 0x22U, 0x33U, 0x
 static uint8_t nrf24_tx_packet[NRF24L01_TX_PACKET_WIDTH];
 static uint8_t nrf24_rx_packet[NRF24L01_RX_PACKET_WIDTH];
 static comm_rx_callback_t nrf24_rx_callback;
+static const spi_device_config_t *nrf24_config;
 
 static void nrf24_ce_write(uint8_t value)
 {
-    gpio_hal_write(board_nrf24_ce_pin.port, board_nrf24_ce_pin.pin, value);
+    gpio_hal_write(nrf24_config->aux.port, nrf24_config->aux.pin, value);
 }
 
 static void nrf24_csn_write(uint8_t value)
 {
-    gpio_hal_write(board_nrf24_csn_pin.port, board_nrf24_csn_pin.pin, value);
+    gpio_hal_write(nrf24_config->cs.port, nrf24_config->cs.pin, value);
 }
 
 static uint8_t nrf24_spi_swap(uint8_t byte)
 {
-    return spi_hal_transfer_byte(BOARD_NRF24_SPI_BUS_ID, byte);
+    return spi_hal_transfer_byte(nrf24_config->bus_id, byte);
 }
 
 static uint8_t nrf24_read_reg(uint8_t reg)
@@ -260,29 +261,34 @@ static uint8_t nrf24_do_receive(void)
     return receive_flag;
 }
 
-static void nrf24_init(void)
+static void nrf24_init(const void *config)
 {
     spi_hal_config_t cfg;
 
-    gpio_hal_config_pin(&board_nrf24_ce_pin);
-    gpio_hal_config_pin(&board_nrf24_csn_pin);
+    nrf24_config = (const spi_device_config_t *)config;
+    if (nrf24_config == 0) {
+        return;
+    }
+
+    gpio_hal_config_pin(&nrf24_config->aux);
+    gpio_hal_config_pin(&nrf24_config->cs);
     nrf24_ce_write(0U);
     nrf24_csn_write(1U);
 
-    cfg.instance = BOARD_HW_SPI1_INSTANCE;
-    cfg.sck = board_hw_spi1_sck;
-    cfg.mosi = board_hw_spi1_mosi;
-    cfg.miso = board_hw_spi1_miso;
-    cfg.remap = BOARD_HW_SPI1_REMAP;
-    cfg.prescaler = BOARD_HW_SPI1_PRESCALER;
-    cfg.cpol = BOARD_HW_SPI1_CPOL;
-    cfg.cpha = BOARD_HW_SPI1_CPHA;
+    cfg.instance = nrf24_config->instance;
+    cfg.sck = nrf24_config->sck;
+    cfg.mosi = nrf24_config->mosi;
+    cfg.miso = nrf24_config->miso;
+    cfg.remap = nrf24_config->remap;
+    cfg.prescaler = nrf24_config->prescaler;
+    cfg.cpol = nrf24_config->cpol;
+    cfg.cpha = nrf24_config->cpha;
     cfg.timeout_us = SPI_HAL_DEFAULT_TIMEOUT_US;
 #if HAL_SPI_ENABLE_DMA
-    cfg.tx_dma_channel = BOARD_HW_SPI1_TX_DMA;
-    cfg.rx_dma_channel = BOARD_HW_SPI1_RX_DMA;
+    cfg.tx_dma_channel = nrf24_config->tx_dma_channel;
+    cfg.rx_dma_channel = nrf24_config->rx_dma_channel;
 #endif
-    (void)spi_hal_init(BOARD_NRF24_SPI_BUS_ID, &cfg);
+    (void)spi_hal_init(nrf24_config->bus_id, &cfg);
     nrf24_rx_callback = 0;
     nrf24_chip_init();
 }
@@ -291,7 +297,7 @@ static int nrf24_send(const unsigned char *data, unsigned short len)
 {
     uint16_t copy_len = len;
 
-    if ((data == 0) || (len == 0U)) {
+    if ((nrf24_config == 0) || (data == 0) || (len == 0U)) {
         return -1;
     }
 
@@ -313,7 +319,7 @@ static int nrf24_recv(unsigned char *data, unsigned short max_len)
 {
     uint16_t copy_len;
 
-    if ((data == 0) || (max_len == 0U)) {
+    if ((nrf24_config == 0) || (data == 0) || (max_len == 0U)) {
         return -1;
     }
 

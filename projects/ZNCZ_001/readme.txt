@@ -23,5 +23,5 @@ MCU：STM32F103C8T6
   python ../../tools/export_project.py --project ZNCZ_001 -o ../../exports
     --extras readme.txt,PRODUCT_SPEC.md
 
-WiFi/MQTT：修改 app/board_config.h 中 BOARD_ESP8266_* 宏。
+WiFi/MQTT：修改 board/board_config.h 中 BOARD_ESP8266_* 宏。
 调试串口：默认 HAL_DEBUG_UART_ENABLE=ON，PC13 9600 TX。
