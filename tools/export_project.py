@@ -857,6 +857,7 @@ def resolve_mvp_stm32_source_lists(
         template_root / "common" / "utils" / "soft_uart.c",
         template_root / "common" / "utils" / "debug_uart.c",
         template_root / "common" / "utils" / "comm_port.c",
+        template_root / "common" / "interfaces" / "display_font.c",
     ]
     if mvp_has_option(cmake_text, "ENABLE_APP_FRAMEWORK"):
         common_sources.append(template_root / "common" / "app_framework" / "app_fsm.c")
@@ -981,6 +982,7 @@ def collect_include_dirs(cmake_text: str, template_root: Path, project_dir: Path
             template_root / "common" / "irq_event",
             template_root / "common" / "utils",
             template_root / "drivers" / "comm",
+            template_root / "drivers" / "displays",
             template_root / "drivers" / "config",
             template_root / "bsp" / "board",
             template_root / "hal_wrapper",
@@ -1636,6 +1638,12 @@ def copy_if_exists(src: Path, dst: Path) -> None:
         copy_any_path(src, dst)
 
 
+def copytree_clean(src: Path, dst: Path, ignore=None) -> None:
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst, ignore=ignore)
+
+
 def load_upper_version_config(upper_src: Path) -> Optional[Dict]:
     config_path = upper_src / "version_features.json"
     if not config_path.exists():
@@ -1735,6 +1743,111 @@ def flutter_command(*args: str) -> List[str]:
     return ["flutter", *args]
 
 
+def cmake_build_command(*args: str) -> List[str]:
+    return [find_cmake_executable(), *args]
+
+
+def ensure_clean_dir(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def dart_defines_for_upper(version: Optional[int], features: List[str]) -> List[str]:
+    return [
+        f"--dart-define=UPPER_VERSION={version if version is not None else 0}",
+        f"--dart-define=UPPER_FEATURES={','.join(features)}",
+    ]
+
+
+def copy_flutter_apks(flutter_dir: Path, apk_dst: Path) -> List[Path]:
+    apk_src = flutter_dir / "build" / "app" / "outputs" / "flutter-apk"
+    if not apk_src.exists():
+        raise FileNotFoundError(f"Flutter APK 产物不存在: {apk_src}")
+
+    ensure_clean_dir(apk_dst)
+    copied: List[Path] = []
+    for apk in sorted(apk_src.glob("*.apk")):
+        target = apk_dst / apk.name
+        shutil.copy2(apk, target)
+        copied.append(target)
+    if not copied:
+        raise FileNotFoundError(f"Flutter APK 目录为空: {apk_src}")
+    return copied
+
+
+def remove_flutter_intermediates(flutter_dir: Path) -> None:
+    for rel in ("build", ".gradle", "android/.gradle", "android/local.properties"):
+        target = flutter_dir / rel
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+
+
+def prepare_flutter_upper_export(
+    flutter_dir: Path,
+    version: Optional[int],
+    features: List[str],
+) -> List[Path]:
+    subprocess.run(flutter_command("pub", "get"), cwd=flutter_dir, check=True)
+    subprocess.run(
+        flutter_command("build", "apk", "--debug", *dart_defines_for_upper(version, features)),
+        cwd=flutter_dir,
+        check=True,
+    )
+    copied = copy_flutter_apks(flutter_dir, flutter_dir / "apk")
+    remove_flutter_intermediates(flutter_dir)
+    return copied
+
+
+def build_exported_firmware_bin(
+    firmware_dir: Path,
+    toolchain_bin: str,
+    log: Callable[[str], None] = print,
+) -> Path:
+    cmake_text = read_text(firmware_dir / "CMakeLists.txt")
+    project_name = parse_project_name(cmake_text)
+
+    with tempfile.TemporaryDirectory(prefix=f"mvp_{project_name}_build_") as tmp:
+        build_dir = Path(tmp) / "build"
+        configure_cmd = cmake_build_command(
+            "-S",
+            str(firmware_dir),
+            "-B",
+            str(build_dir),
+            "-DCMAKE_BUILD_TYPE=Release",
+        )
+        if shutil.which("ninja"):
+            configure_cmd.extend(["-G", "Ninja"])
+        if toolchain_bin:
+            configure_cmd.append(f"-DSTM32_TOOLCHAIN_BIN={toolchain_bin}")
+
+        subprocess.run(configure_cmd, check=True)
+        subprocess.run(
+            cmake_build_command("--build", str(build_dir), "--parallel", "1"),
+            check=True,
+        )
+
+        bin_src = build_dir / f"{project_name}.bin"
+        if not bin_src.exists():
+            candidates = sorted(build_dir.glob("*.bin"))
+            if not candidates:
+                raise FileNotFoundError(f"未生成固件 bin: {build_dir}")
+            bin_src = candidates[0]
+
+        bin_dst = firmware_dir / bin_src.name
+        shutil.copy2(bin_src, bin_dst)
+
+    manifest = firmware_dir / "export_manifest.txt"
+    if manifest.exists():
+        with manifest.open("a", encoding="utf-8") as fp:
+            fp.write("\n[build_artifacts]\n")
+            fp.write(bin_dst.name + "\n")
+    log(f"已生成固件 bin: {bin_dst}")
+    return bin_dst
+
+
 def run_upper_builds(upper_src: Path, version: Optional[int], features: List[str]) -> None:
     dist_dir = upper_src / "dist"
     if dist_dir.exists():
@@ -1764,10 +1877,7 @@ def run_flutter_upper_builds(flutter_src: Path, version: Optional[int], features
     if build_dir.exists():
         shutil.rmtree(build_dir)
 
-    dart_defines = [
-        f"--dart-define=UPPER_VERSION={version if version is not None else 0}",
-        f"--dart-define=UPPER_FEATURES={','.join(features)}",
-    ]
+    dart_defines = dart_defines_for_upper(version, features)
     subprocess.run(flutter_command("pub", "get"), cwd=flutter_src, check=True)
     subprocess.run(flutter_command("build", "apk", "--debug", *dart_defines), cwd=flutter_src, check=True)
     if features and "web" in features:
@@ -1975,6 +2085,105 @@ def export_dual_stack_upper_ui_versions(
         )
 
 
+def upper_stack_info(project_dir: Path) -> List[Tuple[str, Path]]:
+    project_name = project_dir.name
+    stacks: List[Tuple[str, Path]] = []
+    flutter_src = project_dir / f"{project_name}_upper_ui_flutter"
+    uniapp_src = project_dir / f"{project_name}_upper_ui"
+    if flutter_src.exists():
+        stacks.append(("flutter", flutter_src))
+    if uniapp_src.exists():
+        stacks.append(("uniapp", uniapp_src))
+    return stacks
+
+
+def write_upper_stack_manifest(
+    dst: Path,
+    project_name: str,
+    stack: str,
+    src: Path,
+    version: Optional[int],
+    apk_files: Optional[List[Path]] = None,
+) -> None:
+    config = load_upper_version_config(src)
+    features = resolve_version_feature_list(config, version) if config else []
+    lines = [
+        f"project={project_name}",
+        f"stack={stack}",
+        f"source={src.name}",
+        f"version={version if version not in (None, 0) else 'default'}",
+        f"features={','.join(features)}",
+        "",
+        "说明:",
+        "  该目录为上位机源码导出，可在本目录按原项目方式继续开发。",
+        "  Flutter 导出时已执行 flutter pub get；APK 位于 apk/；build/ 中间产物已删除。",
+        "  Flutter 构建使用 --dart-define=UPPER_VERSION=<N> / UPPER_FEATURES=<list>。",
+        "  uni-app 使用环境变量 UPPER_VERSION=<N> / UPPER_FEATURES=<list>。",
+    ]
+    if apk_files:
+        lines.extend(["", "[apk]"])
+        for apk in apk_files:
+            try:
+                rel = apk.relative_to(dst)
+            except ValueError:
+                rel = apk
+            lines.append(rel.as_posix())
+    write_text(dst / "upper_manifest.txt", "\n".join(lines) + "\n")
+
+
+def export_upper_app_package(project_dir: Path, version_dir: Path, version: Optional[int]) -> None:
+    project_name = project_dir.name
+    upper_dst = version_dir / "upper_app"
+    stacks = upper_stack_info(project_dir)
+    if upper_dst.exists():
+        shutil.rmtree(upper_dst)
+    upper_dst.mkdir(parents=True, exist_ok=True)
+
+    if not stacks:
+        write_text(
+            upper_dst / "readme.txt",
+            f"{project_name} 当前没有上位机目录。\n",
+        )
+        return
+
+    ignored = shutil.ignore_patterns(
+        ".git",
+        ".idea",
+        ".dart_tool",
+        "build",
+        "node_modules",
+        "dist",
+        ".gradle",
+        "local.properties",
+    )
+
+    if len(stacks) == 1:
+        stack, src = stacks[0]
+        copytree_clean(src, upper_dst, ignore=ignored)
+        apk_files: List[Path] = []
+        if stack == "flutter":
+            config = load_upper_version_config(src)
+            features = resolve_version_feature_list(config, version) if config else []
+            apk_files = prepare_flutter_upper_export(upper_dst, version, features)
+        write_upper_stack_manifest(upper_dst, project_name, stack, src, version, apk_files)
+        return
+
+    for stack, src in stacks:
+        stack_dst = upper_dst / stack
+        copytree_clean(src, stack_dst, ignore=ignored)
+        apk_files = []
+        if stack == "flutter":
+            config = load_upper_version_config(src)
+            features = resolve_version_feature_list(config, version) if config else []
+            apk_files = prepare_flutter_upper_export(stack_dst, version, features)
+        write_upper_stack_manifest(stack_dst, project_name, stack, src, version, apk_files)
+    write_text(
+        upper_dst / "readme.txt",
+        "本版本包含多个上位机栈：flutter/ 与 uniapp/。\n"
+        "按交付目标选择对应目录安装依赖并构建。\n",
+    )
+
+
 def export_one_version(
     project_dir: Path,
     template_root: Path,
@@ -1983,6 +2192,7 @@ def export_one_version(
     extras: List[str],
     toolchain_bin: str,
     prune_conditionals: bool,
+    export_subdir_name: Optional[str] = None,
 ) -> Path:
     cmake_path = project_dir / "CMakeLists.txt"
     cmake_text = read_text(cmake_path)
@@ -2013,7 +2223,7 @@ def export_one_version(
         export_name = project_name
 
     project_export_root.mkdir(parents=True, exist_ok=True)
-    export_dir = project_export_root / export_name
+    export_dir = project_export_root / (export_subdir_name or export_name)
     if export_dir.exists():
         shutil.rmtree(export_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -2137,11 +2347,48 @@ def export_project_versions(
         firmware_export_root = project_export_root / "firmware"
         upper_export_root = project_export_root / "upper_ui"
         clean_root = project_export_root
+    elif layout == "version_package":
+        project_export_root = output_root / project_dir.name
+        firmware_export_root = project_export_root
+        upper_export_root = project_export_root
+        clean_root = project_export_root
     else:
         raise ValueError(f"未知导出布局: {layout}")
 
     if clean and clean_root.exists():
         shutil.rmtree(clean_root)
+
+    if layout == "version_package":
+        cmake_text = read_text(project_dir / "CMakeLists.txt")
+        project_name = parse_project_name(cmake_text)
+        version_var = parse_version_var(cmake_text)
+        for ver in versions:
+            actual_version = ver if ver > 0 else None
+            if version_var and ver > 0:
+                version_name = f"{project_name}_version{ver}"
+            else:
+                version_name = project_name
+            version_dir = project_export_root / version_name
+            if version_dir.exists():
+                shutil.rmtree(version_dir)
+            version_dir.mkdir(parents=True, exist_ok=True)
+            out = export_one_version(
+                project_dir,
+                template_root,
+                version_dir,
+                actual_version,
+                extras,
+                toolchain_bin,
+                prune_conditionals,
+                export_subdir_name="app",
+            )
+            log(f"已导出下位机: {out}")
+            build_exported_firmware_bin(out, toolchain_bin, log=log)
+            if not firmware_only:
+                export_upper_app_package(project_dir, version_dir, actual_version)
+                log(f"已导出上位机: {version_dir / 'upper_app'}")
+        log(f"导出完成: {project_export_root}")
+        return
 
     for ver in versions:
         actual_version = ver if ver > 0 else None
@@ -2155,10 +2402,53 @@ def export_project_versions(
             prune_conditionals,
         )
         log(f"已导出下位机: {out}")
+        build_exported_firmware_bin(out, toolchain_bin, log=log)
 
     if not firmware_only:
         export_upper_ui_versions(project_dir, upper_export_root, versions, clean=False)
     log(f"导出完成: {project_export_root}")
+
+
+def export_all_projects(
+    template_root: Path,
+    output_root: Path,
+    extras: List[str],
+    toolchain_bin_override: Optional[str],
+    clean: bool,
+    prune_conditionals: bool,
+    layout: str,
+    firmware_only: bool,
+    include_test_projects: bool,
+    log: Callable[[str], None] = print,
+) -> None:
+    projects = discover_projects(template_root)
+    if not include_test_projects:
+        projects = [project for project in projects if project.name != "driver_all_test"]
+    if clean and output_root.exists():
+        shutil.rmtree(output_root)
+    for project_dir in projects:
+        cmake_text = read_text(project_dir / "CMakeLists.txt")
+        version_var = parse_version_var(cmake_text)
+        if version_var:
+            lo, hi = parse_version_range(cmake_text, version_var)
+            versions = list(range(lo, hi + 1))
+        else:
+            versions = [0]
+        toolchain_bin = resolve_toolchain_bin(cmake_text, toolchain_bin_override)
+        log(f"开始导出项目: {project_dir.name} versions={versions}")
+        export_project_versions(
+            project_dir,
+            template_root,
+            output_root,
+            versions,
+            extras,
+            toolchain_bin,
+            clean=False,
+            prune_conditionals=prune_conditionals,
+            layout=layout,
+            firmware_only=firmware_only,
+            log=log,
+        )
 
 
 def get_project_export_info(project_dir: Path, template_root: Path) -> ProjectExportInfo:
@@ -2254,6 +2544,7 @@ def interactive_select(template_root: Path) -> Tuple[Path, List[int], Path, List
 def main() -> None:
     parser = argparse.ArgumentParser(description="按版本导出 project_template 工程为独立目录")
     parser.add_argument("--project", help="工程名或工程目录，如 RTJK_001")
+    parser.add_argument("--all-projects", action="store_true", help="导出 projects 下所有产品项目")
     parser.add_argument("--cmake", type=Path, help="CMakeLists.txt 路径")
     parser.add_argument("--version", type=int, help="导出指定版本")
     parser.add_argument("--batch", action="store_true", help="批量导出多个版本")
@@ -2294,6 +2585,17 @@ def main() -> None:
         help="只导出下位机固件，不构建/导出 Flutter 或 uni-app 上位机",
     )
     parser.add_argument(
+        "--layout",
+        choices=["legacy", "gui_package", "version_package"],
+        default="legacy",
+        help="导出布局；version_package 为 <项目>/<项目>_versionX/app + upper_app",
+    )
+    parser.add_argument(
+        "--include-test-projects",
+        action="store_true",
+        help="--all-projects 时同时导出 driver_all_test 等测试工程",
+    )
+    parser.add_argument(
         "--root",
         type=Path,
         default=Path(__file__).resolve().parents[1],
@@ -2303,6 +2605,22 @@ def main() -> None:
 
     template_root = find_template_root(args.root)
     extras = parse_extras_list(args.extras, args.no_extras)
+
+    output_root = args.output or template_root.parent / "exports"
+
+    if args.all_projects:
+        export_all_projects(
+            template_root,
+            output_root,
+            extras,
+            args.toolchain_bin,
+            args.clean,
+            not args.no_prune_conditionals,
+            args.layout,
+            args.firmware_only,
+            args.include_test_projects,
+        )
+        return
 
     if args.cmake:
         project_dir = args.cmake.parent
@@ -2329,7 +2647,6 @@ def main() -> None:
     if not project_dir.exists():
         raise SystemExit(f"工程不存在: {project_dir}")
 
-    output_root = args.output or template_root.parent / "exports"
     cmake_text = read_text(project_dir / "CMakeLists.txt")
     version_var = parse_version_var(cmake_text)
     toolchain_bin = resolve_toolchain_bin(cmake_text, args.toolchain_bin)
@@ -2358,6 +2675,7 @@ def main() -> None:
         toolchain_bin,
         args.clean,
         not args.no_prune_conditionals,
+        layout=args.layout,
         firmware_only=args.firmware_only,
     )
 

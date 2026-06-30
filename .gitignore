@@ -27,6 +27,8 @@
 .idea/caches/
 atlassian-ide-plugin.xml
 
+exports/
+
 # ==================== CMake Build ====================
 cmake-build-*/
 build-*/

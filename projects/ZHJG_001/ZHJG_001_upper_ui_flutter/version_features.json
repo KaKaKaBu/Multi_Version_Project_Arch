@@ -1,0 +1,9 @@
+{
+  "_comment": "ZHJG_001 upper UI features per firmware version.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common", "localAlarm"] },
+    "2": { "features": ["common", "gps", "sms"] },
+    "3": { "features": ["common", "gps", "wifi", "app", "alert"] }
+  }
+}

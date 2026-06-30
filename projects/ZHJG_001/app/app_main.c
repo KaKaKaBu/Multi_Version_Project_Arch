@@ -15,10 +15,6 @@
 #include <string.h>
 #endif
 
-#if VERSION_FEATURE_SMS
-#include "a7670c_sms.h"
-#endif
-
 void app_comm_rx_callback(const unsigned char *data, unsigned short len);
 #if VERSION_FEATURE_WIFI
 void app_mqtt_rx_callback(const char *topic,
@@ -99,9 +95,6 @@ static void app_comm_setup(void)
     }
 #endif
 
-#if VERSION_FEATURE_SMS
-    (void)a7670c_sms_setup();
-#endif
 }
 
 void app_main(void)

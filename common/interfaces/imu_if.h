@@ -24,6 +24,19 @@ typedef struct imu_sample {
     short gz;  ///< 陀螺仪 Z 轴。
 } imu_sample_t;
 
+typedef struct imu_quaternion {
+    long w;
+    long x;
+    long y;
+    long z;
+} imu_quaternion_t;
+
+typedef struct imu_euler {
+    float pitch;
+    float roll;
+    float yaw;
+} imu_euler_t;
+
 /** @brief 六轴 IMU 驱动的虚函数表。 */
 typedef struct imu_sensor {
     const char *name;                    ///< 驱动实例名称，供 devmgr 查找。
@@ -33,6 +46,9 @@ typedef struct imu_sensor {
      * @param[out] sample 输出采样缓冲；不可为 null。
      */
     void (*read_sample)(imu_sample_t *sample);
+    unsigned char (*dmp_ready)(void);
+    unsigned char (*read_quaternion)(imu_quaternion_t *quat);
+    unsigned char (*read_euler)(imu_euler_t *euler);
 } imu_sensor_t;
 
 #ifdef __cplusplus

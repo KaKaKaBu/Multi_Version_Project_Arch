@@ -143,12 +143,12 @@ REGISTER_DRIVER(TEMP_HUM_SENSOR, dht11_drv);
 | sg90 / sg90_2 | actuators/sg90.c | servo |
 | stepmotor | actuators/stepmotor.c | stepper |
 | esp8266 / jdy31 / su03t / l76k / nrf24 | comm/*.c | comm / gnss；esp8266_mqtt 为协议层（不单独注册） |
-| oled / hc595_1 | displays/*.c + oled_font.c | display / segment_display |
+| oled / ili9341 / st7789 / hc595_1 | displays/*.c + oled_font.c | display / segment_display |
 | led / buzzer / key | misc/*.c | misc / input |
 | gl5506 / e18_presence | sensors/gl5506_light.c, e18_presence.c | analog_probe |
 | light1–3 / key_4ch | actuators/light_channel.c, misc/key_4ch.c | relay / input |
 
-全量链接验证：`projects/driver_all_test/`（26 条 `.driver_list` 注册，Flash ~19.7 KB / RAM ~3.3 KB）。
+全量链接验证：`projects/driver_all_test/`（包含 OLED、ILI9341、ST7789、MPU6050 DMP 接口等全量驱动冒烟）。
 
 完成度与构建指标见 [project_status.md](./project_status.md)；架构分层见 [architecture.md](./architecture.md)。
 
@@ -692,7 +692,7 @@ python tools/export_project.py --project ZNCZ_001 -o ../exports --clean --extras
 | --- | --- | --- |
 | 高 | `esp8266_wifi`、`esp8266_mqtt`、OLED/按键/继电器、`max30102`、`msp20_bp`（RTJK V8+） | 已在参考工程中链接并编译通过 |
 | 中 | `jdy31_ble`、`su03t_voice`、`l76k_gnss`、`nrf24l01` | 透传/NMEA/分包框架就绪，需实板验证 |
-| 因器件而异 | DHT11、BMP180、MPU6050、HX711、RFID 等 | 协议代码已迁移，精度/时序需板级实测 |
+| 因器件而异 | DHT11、BMP180、MPU6050/DMP、HX711、RFID、ILI9341/ST7789 等 | 协议代码已迁移，精度/时序/屏幕偏移需板级实测 |
 
 新增或完善协议时仍遵循 **§3**；不要在 `drivers/` 内写 `#ifdef RTJK_001` 等工程名（见 **§12.3**）。
 

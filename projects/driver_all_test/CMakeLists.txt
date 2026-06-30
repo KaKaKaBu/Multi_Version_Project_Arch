@@ -33,6 +33,7 @@ set(COMMON_SRCS
     ${TEMPLATE_ROOT}/common/utils/cJSON.c
     ${TEMPLATE_ROOT}/common/utils/cjson_port.c
     ${TEMPLATE_ROOT}/common/utils/comm_port.c
+    ${TEMPLATE_ROOT}/common/interfaces/display_font.c
 )
 
 set(BSP_SRCS

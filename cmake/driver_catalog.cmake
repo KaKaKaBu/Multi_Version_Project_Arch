@@ -55,6 +55,9 @@ set(DRIVER_CATALOG_COMM
 set(DRIVER_CATALOG_DISPLAYS
     ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
     ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306.c
+    ${TEMPLATE_ROOT}/drivers/displays/lcd_color_spi.c
+    ${TEMPLATE_ROOT}/drivers/displays/ili9341.c
+    ${TEMPLATE_ROOT}/drivers/displays/st7789.c
     ${TEMPLATE_ROOT}/drivers/displays/hc595_seg.c
 )
 
@@ -327,4 +330,33 @@ if(DRIVER_CATALOG_ZNLYJ_001_VERSION EQUAL 4)
         ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c
         ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
     )
+endif()
+
+# FJXT_001 — Car window anti-pinch controller (APP_VERSION 1-10)
+driver_catalog_resolve_app_version(DRIVER_CATALOG_FJXT_001_VERSION _FJXT_001_UNUSED_LEGACY_VERSION 1)
+
+set(DRIVER_CATALOG_FJXT_001
+    ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
+    ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306.c
+    ${TEMPLATE_ROOT}/drivers/actuators/stepmotor.c
+    ${TEMPLATE_ROOT}/drivers/misc/key.c
+    ${TEMPLATE_ROOT}/drivers/misc/buzzer.c
+    ${TEMPLATE_ROOT}/drivers/misc/led.c
+)
+
+if(DRIVER_CATALOG_FJXT_001_VERSION EQUAL 2 OR DRIVER_CATALOG_FJXT_001_VERSION EQUAL 7)
+    list(APPEND DRIVER_CATALOG_FJXT_001 ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c)
+endif()
+
+if(DRIVER_CATALOG_FJXT_001_VERSION EQUAL 3 OR DRIVER_CATALOG_FJXT_001_VERSION EQUAL 4 OR
+   DRIVER_CATALOG_FJXT_001_VERSION EQUAL 5 OR DRIVER_CATALOG_FJXT_001_VERSION EQUAL 8 OR
+   DRIVER_CATALOG_FJXT_001_VERSION EQUAL 9 OR DRIVER_CATALOG_FJXT_001_VERSION EQUAL 10)
+    list(APPEND DRIVER_CATALOG_FJXT_001
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
+    )
+endif()
+
+if(DRIVER_CATALOG_FJXT_001_VERSION GREATER_EQUAL 6)
+    list(APPEND DRIVER_CATALOG_FJXT_001 ${TEMPLATE_ROOT}/drivers/comm/su03t_voice.c)
 endif()

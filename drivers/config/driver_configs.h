@@ -2,6 +2,7 @@
 #define DRIVER_CONFIGS_H
 
 #include <stdint.h>
+#include "display_font.h"
 #include "gpio_hal.h"
 #include "i2c_hal.h"
 #include "spi_hal.h"
@@ -132,6 +133,34 @@ typedef struct spi_device_config {
     hal_pin_t cs;
     hal_pin_t aux;
 } spi_device_config_t;
+
+typedef struct spi_lcd_driver_config {
+    spi_device_config_t spi;
+    hal_pin_t dc;
+    hal_pin_t rst;
+    uint16_t width;
+    uint16_t height;
+    uint16_t x_offset;
+    uint16_t y_offset;
+    uint8_t rotation;
+    uint8_t invert_colors;
+    uint16_t background_color;
+    uint16_t foreground_color;
+    const display_font_t *font;
+} spi_lcd_driver_config_t;
+
+typedef struct mpu6050_dmp_firmware {
+    const uint8_t *data;
+    uint16_t size;
+} mpu6050_dmp_firmware_t;
+
+typedef struct mpu6050_driver_config {
+    i2c_device_config_t i2c;
+    const mpu6050_dmp_firmware_t *dmp_firmware;
+    uint8_t enable_dmp;
+    uint8_t gyro_config;
+    uint8_t accel_config;
+} mpu6050_driver_config_t;
 
 typedef struct adc0832_driver_config {
     hal_pin_t cs;

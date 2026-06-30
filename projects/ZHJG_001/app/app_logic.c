@@ -200,7 +200,14 @@ static void zhjg_maybe_send_sms(uint32_t now)
         return;
     }
 
-    if ((g_zhjg.sms_sent_for_alarm != 0U) &&
+    if (g_zhjg.sms_sent_for_alarm != 0U) {
+        if ((now - g_zhjg.last_sms_tick) < ZHJG_SMS_COOLDOWN_MS) {
+            return;
+        }
+        g_zhjg.sms_sent_for_alarm = 0U;
+    }
+
+    if ((g_zhjg.last_sms_tick != 0U) &&
         ((now - g_zhjg.last_sms_tick) < ZHJG_SMS_COOLDOWN_MS)) {
         return;
     }
@@ -215,9 +222,9 @@ static void zhjg_maybe_send_sms(uint32_t now)
                         g_zhjg.gps_fix.latitude,
                         g_zhjg.gps_fix.longitude);
 
+    g_zhjg.last_sms_tick = now;
     if (a7670c_sms_send_text(BOARD_A7670C_ALERT_PHONE, text) == 0) {
         g_zhjg.sms_sent_for_alarm = 1U;
-        g_zhjg.last_sms_tick = now;
     }
 }
 #endif
@@ -507,7 +514,9 @@ void app_logic_request_telemetry(void)
 
 void comm_loop_run(sched_event_t events, void *ctx)
 {
+#if VERSION_FEATURE_REMOTE
     uint32_t now;
+#endif
 
     (void)ctx;
 

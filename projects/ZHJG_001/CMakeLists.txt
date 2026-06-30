@@ -6,7 +6,7 @@ project(ZHJG_001 C ASM)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/project_template.cmake)
 
-set(MVP_PROJECT_APP_VERSION 3)
+set(MVP_PROJECT_APP_VERSION 2)
 set(MVP_APP_VERSION "" CACHE STRING "ZHJG_001 application version override (empty uses project default 3)")
 set_property(CACHE MVP_APP_VERSION PROPERTY STRINGS "" 1 2 3)
 mvp_resolve_app_version(DEFAULT ${MVP_PROJECT_APP_VERSION} MIN 1 MAX 3)

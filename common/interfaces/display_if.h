@@ -10,6 +10,9 @@
 #ifndef DISPLAY_IF_H
 #define DISPLAY_IF_H
 
+#include <stdint.h>
+#include "display_font.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,6 +28,13 @@ typedef enum display_font_size {
     DISPLAY_FONT_SMALL = 0U,  ///< 小号字体。
     DISPLAY_FONT_LARGE = 1U   ///< 大号字体。
 } display_font_size_t;
+
+typedef struct display_area {
+    uint16_t x;
+    uint16_t y;
+    uint16_t width;
+    uint16_t height;
+} display_area_t;
 
 /** @brief 显示驱动（OLED、LCD 等）的虚函数表。 */
 typedef struct display_driver {
@@ -44,6 +54,12 @@ typedef struct display_driver {
     #else
     void (*print)(unsigned char x, unsigned char y, display_font_size_t size, const char *fmt, ...);
     #endif
+    uint16_t (*width)(void);
+    uint16_t (*height)(void);
+    void (*set_font)(const display_font_t *font);
+    void (*draw_pixel)(uint16_t x, uint16_t y, uint16_t color);
+    void (*fill_rect)(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color);
+    void (*draw_text)(uint16_t x, uint16_t y, display_font_size_t size, uint16_t color, const char *text);
 } display_driver_t;
 
 #define DISPLAY_SMALL_MAX_CHARS 21U

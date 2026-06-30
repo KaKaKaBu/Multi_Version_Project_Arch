@@ -234,7 +234,17 @@ esp8266_mqtt_register_rx_callback(app_mqtt_rx_callback);
 
 ## 显示接口
 
-`display_driver_t`（`display_if.h`）提供 `init/clear/update/print(x,y,size,fmt,...)`。OLED 字库在 `drivers/displays/oled_font.c`，可由 `tools/gen_oled_font.py` 重新生成。
+`display_driver_t`（`display_if.h`）基础接口提供 `init/clear/update/print(x,y,size,fmt,...)`；尾部扩展函数可选支持 `width/height/set_font/draw_pixel/fill_rect/draw_text`。旧 OLED 调用路径不需要改，彩屏项目可通过扩展函数使用像素坐标和 RGB565 颜色。
+
+- SSD1306：`drivers/displays/oled_ssd1306.c`，固定 128x64 I2C，使用 `oled_font.c`。
+- ILI9341/ST7789：`drivers/displays/ili9341.c`、`st7789.c` 复用 `lcd_color_spi.c`，通过 `spi_lcd_driver_config_t` 从 `board/board_devices.c` 传入 SPI、CS/DC/RST、屏幕分辨率、偏移、旋转、反色、前景/背景色和可选字体。
+- 自定义中文字库：项目可定义 `display_font_t`，把 `custom_glyphs` 指向项目自己的字模数组，再放入 `spi_lcd_driver_config_t.font`；运行时也可调用 `display->set_font(font)` 切换。字体数据属于板级/项目资源，不放进通用驱动。
+
+OLED ASCII 字库在 `drivers/displays/oled_font.c`，可由 `tools/gen_oled_font.py` 重新生成。
+
+## MPU6050 DMP
+
+`imu_sensor_t` 保留 `read_sample()` 六轴原始值接口，并新增可选 `dmp_ready/read_quaternion/read_euler`。`drivers/sensors/mpu6050.c` 支持通过 `mpu6050_driver_config_t` 启用 DMP；DMP 固件数组由项目通过 `mpu6050_dmp_firmware_t` 传入，未传固件时驱动保持 `dmp_ready()==0`，不会伪造姿态结果。
 
 ## 驱动目录与编译选用
 

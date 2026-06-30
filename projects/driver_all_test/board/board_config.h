@@ -214,6 +214,13 @@ static const hal_pin_t board_rc522_rst_pin = { HAL_PORT_A, HAL_PIN_7, GPIO_HAL_M
 #define BOARD_NRF24_SPI_BUS_ID 1U
 static const hal_pin_t board_nrf24_ce_pin = { HAL_PORT_A, HAL_PIN_0, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_nrf24_csn_pin = { HAL_PORT_B, HAL_PIN_0, GPIO_HAL_MODE_OUT_PP };
+
+#define BOARD_ILI9341_SPI_BUS_ID 0U
+#define BOARD_ST7789_SPI_BUS_ID 1U
+static const hal_pin_t board_lcd_dc_pin = { HAL_PORT_B, HAL_PIN_10, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_lcd_rst_pin = { HAL_PORT_B, HAL_PIN_11, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_ili9341_cs_pin = { HAL_PORT_B, HAL_PIN_12, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_st7789_cs_pin = { HAL_PORT_B, HAL_PIN_13, GPIO_HAL_MODE_OUT_PP };
 #endif
 
 #define BOARD_KEY_COUNT 5U

@@ -1,0 +1,16 @@
+{
+  "_comment": "FJXT_001 upper UI features per firmware version.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "ble", "app"] },
+    "3": { "features": ["common", "wifi", "app"] },
+    "4": { "features": ["common", "wifi", "app", "camera"] },
+    "5": { "features": ["common", "cloud", "app"] },
+    "6": { "features": ["common", "voice"] },
+    "7": { "features": ["common", "ble", "app", "voice"] },
+    "8": { "features": ["common", "wifi", "app", "voice"] },
+    "9": { "features": ["common", "wifi", "app", "camera", "voice"] },
+    "10": { "features": ["common", "cloud", "app", "voice"] }
+  }
+}

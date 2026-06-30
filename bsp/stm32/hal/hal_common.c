@@ -15,6 +15,10 @@
 #define HAL_COREDEBUG_DEMCR (*(volatile uint32_t *)0xE000EDFCU)
 #define HAL_COREDEBUG_TRCENA (1UL << 24U)
 #define HAL_DWT_CYCCNTENA (1UL << 0U)
+#define HAL_DWT_PROBE_LOOPS 64U
+#define HAL_DWT_STALL_GUARD_LOOPS 1000000U
+
+static uint8_t hal_dwt_ready;
 
 /**
  * @brief Returns CPU cycles per microsecond from SystemCoreClock.
@@ -27,6 +31,23 @@ static uint32_t hal_cycles_per_us(void)
     return SystemCoreClock / 1000000U;
 }
 
+static void hal_fallback_delay_us(uint32_t us)
+{
+    uint32_t cycles_per_us = hal_cycles_per_us();
+    volatile uint32_t i;
+
+    if (cycles_per_us == 0U) {
+        cycles_per_us = 1U;
+    }
+
+    while (us > 0U) {
+        for (i = 0U; i < cycles_per_us; ++i) {
+            __asm volatile("nop");
+        }
+        --us;
+    }
+}
+
 /**
  * @brief Enables the DWT cycle counter for timing.
  *
@@ -34,9 +55,20 @@ static uint32_t hal_cycles_per_us(void)
  */
 static void hal_dwt_enable(void)
 {
+    volatile uint32_t i;
+    uint32_t first;
+    uint32_t second;
+
     HAL_COREDEBUG_DEMCR |= HAL_COREDEBUG_TRCENA;
     HAL_DWT_CYCCNT = 0U;
     HAL_DWT_CTRL |= HAL_DWT_CYCCNTENA;
+
+    first = HAL_DWT_CYCCNT;
+    for (i = 0U; i < HAL_DWT_PROBE_LOOPS; ++i) {
+        __asm volatile("nop");
+    }
+    second = HAL_DWT_CYCCNT;
+    hal_dwt_ready = (second != first) ? 1U : 0U;
 }
 
 /**
@@ -62,7 +94,13 @@ void bsp_init(void)
  */
 uint32_t hal_get_us(void)
 {
-    return HAL_DWT_CYCCNT / hal_cycles_per_us();
+    uint32_t cycles_per_us = hal_cycles_per_us();
+
+    if ((hal_dwt_ready == 0U) || (cycles_per_us == 0U)) {
+        return 0U;
+    }
+
+    return HAL_DWT_CYCCNT / cycles_per_us;
 }
 
 uint32_t hal_get_core_clock_hz(void)
@@ -95,9 +133,33 @@ void hal_irq_unlock(uint32_t irq_state)
 void hal_delay_us(uint32_t us)
 {
     uint32_t start = HAL_DWT_CYCCNT;
-    uint32_t cycles = us * hal_cycles_per_us();
+    uint32_t cycles_per_us = hal_cycles_per_us();
+    uint32_t cycles = us * cycles_per_us;
+    uint32_t last = start;
+    uint32_t stalled = 0U;
+
+    if ((us == 0U) || (cycles_per_us == 0U)) {
+        return;
+    }
+
+    if (hal_dwt_ready == 0U) {
+        hal_fallback_delay_us(us);
+        return;
+    }
 
     while ((HAL_DWT_CYCCNT - start) < cycles) {
+        uint32_t now = HAL_DWT_CYCCNT;
+        if (now == last) {
+            ++stalled;
+            if (stalled >= HAL_DWT_STALL_GUARD_LOOPS) {
+                hal_dwt_ready = 0U;
+                hal_fallback_delay_us(us);
+                break;
+            }
+        } else {
+            last = now;
+            stalled = 0U;
+        }
     }
 }
 
@@ -114,15 +176,41 @@ void hal_delay_us(uint32_t us)
 hal_status_t hal_wait_flag_us(hal_poll_fn_t poll, void *ctx, uint32_t timeout_us)
 {
     uint32_t start = HAL_DWT_CYCCNT;
-    uint32_t timeout_cycles = timeout_us * hal_cycles_per_us();
+    uint32_t cycles_per_us = hal_cycles_per_us();
+    uint32_t timeout_cycles = timeout_us * cycles_per_us;
+    uint32_t elapsed_us = 0U;
+    uint32_t last = start;
+    uint32_t stalled = 0U;
 
     if (poll == 0) {
         return HAL_ERR_PARAM;
     }
 
+    if ((hal_dwt_ready == 0U) || (cycles_per_us == 0U)) {
+        while (elapsed_us < timeout_us) {
+            if (poll(ctx) != 0U) {
+                return HAL_OK;
+            }
+            hal_fallback_delay_us(1U);
+            ++elapsed_us;
+        }
+        return HAL_ERR_TIMEOUT;
+    }
+
     while ((HAL_DWT_CYCCNT - start) < timeout_cycles) {
+        uint32_t now = HAL_DWT_CYCCNT;
         if (poll(ctx) != 0U) {
             return HAL_OK;
+        }
+        if (now == last) {
+            ++stalled;
+            if (stalled >= HAL_DWT_STALL_GUARD_LOOPS) {
+                hal_dwt_ready = 0U;
+                break;
+            }
+        } else {
+            last = now;
+            stalled = 0U;
         }
     }
 

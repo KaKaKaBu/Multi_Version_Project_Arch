@@ -76,6 +76,7 @@ function(mvp_add_stm32f1_project target_name)
         "${TEMPLATE_ROOT}/common/utils/soft_uart.c"
         "${TEMPLATE_ROOT}/common/utils/debug_uart.c"
         "${TEMPLATE_ROOT}/common/utils/comm_port.c"
+        "${TEMPLATE_ROOT}/common/interfaces/display_font.c"
     )
 
     if(MVP_ENABLE_APP_FRAMEWORK)
@@ -145,6 +146,7 @@ function(mvp_add_stm32f1_project target_name)
         "${TEMPLATE_ROOT}/common/irq_event"
         "${TEMPLATE_ROOT}/common/utils"
         "${TEMPLATE_ROOT}/drivers/comm"
+        "${TEMPLATE_ROOT}/drivers/displays"
         "${TEMPLATE_ROOT}/drivers/config"
         "${TEMPLATE_ROOT}/bsp/board"
         "${TEMPLATE_ROOT}/hal_wrapper"

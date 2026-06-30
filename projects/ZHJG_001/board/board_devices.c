@@ -12,13 +12,19 @@ static const i2c_device_config_t board_oled_config = {
 };
 REGISTER_BOARD_DEVICE(DISPLAY, "oled", &board_oled_config);
 
-static const i2c_device_config_t board_mpu6050_config = {
-    BOARD_SENSOR_I2C,
-    BOARD_SENSOR_I2C_SPEED,
-    board_sensor_i2c_scl,
-    board_sensor_i2c_sda,
-    BOARD_SENSOR_I2C_REMAP,
-    BOARD_MPU6050_I2C_ADDR
+static const mpu6050_driver_config_t board_mpu6050_config = {
+    {
+        BOARD_SENSOR_I2C,
+        BOARD_SENSOR_I2C_SPEED,
+        board_sensor_i2c_scl,
+        board_sensor_i2c_sda,
+        BOARD_SENSOR_I2C_REMAP,
+        BOARD_MPU6050_I2C_ADDR
+    },
+    0,
+    0U,
+    0x18U,
+    0x18U
 };
 REGISTER_BOARD_DEVICE(IMU_SENSOR, "mpu6050", &board_mpu6050_config);
 

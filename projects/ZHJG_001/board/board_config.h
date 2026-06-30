@@ -89,7 +89,7 @@ static const hal_pin_t board_l76k_rx = { HAL_PORT_A, HAL_PIN_3, GPIO_HAL_MODE_IN
 #endif
 static const hal_pin_t board_a7670c_tx = { HAL_PORT_A, HAL_PIN_9, GPIO_HAL_MODE_AF_PP };
 static const hal_pin_t board_a7670c_rx = { HAL_PORT_A, HAL_PIN_10, GPIO_HAL_MODE_IN_FLOATING };
-#define BOARD_A7670C_ALERT_PHONE "13800138000"
+#define BOARD_A7670C_ALERT_PHONE "15617830769"
 #endif
 
 #if VERSION_FEATURE_WIFI

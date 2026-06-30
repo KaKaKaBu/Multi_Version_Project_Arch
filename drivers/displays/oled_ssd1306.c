@@ -300,13 +300,29 @@ static void oled_update(void)
     }
 }
 
+static uint16_t oled_width(void)
+{
+    return OLED_WIDTH;
+}
+
+static uint16_t oled_height(void)
+{
+    return OLED_HEIGHT;
+}
+
 /** @brief display_if.h driver instance registered as DISPLAY. */
 const display_driver_t oled_drv = {
     "oled",
     oled_init,
     oled_clear,
     oled_update,
-    oled_print
+    oled_print,
+    oled_width,
+    oled_height,
+    0,
+    0,
+    0,
+    0
 };
 
 REGISTER_DRIVER(DISPLAY, oled_drv);

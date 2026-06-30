@@ -49,6 +49,78 @@ static const i2c_device_config_t board_oled_config = {
 };
 REGISTER_BOARD_DEVICE(DISPLAY, "oled", &board_oled_config);
 
+#if HAL_SPI_USE_HW
+static const spi_lcd_driver_config_t board_ili9341_config = {
+    {
+        BOARD_ILI9341_SPI_BUS_ID,
+        BOARD_HW_SPI1_INSTANCE,
+        board_hw_spi1_sck,
+        board_hw_spi1_mosi,
+        board_hw_spi1_miso,
+        BOARD_HW_SPI1_REMAP,
+        BOARD_HW_SPI1_PRESCALER,
+        BOARD_HW_SPI1_CPOL,
+        BOARD_HW_SPI1_CPHA,
+#if HAL_SPI_ENABLE_DMA && defined(BOARD_HW_SPI1_TX_DMA)
+        BOARD_HW_SPI1_TX_DMA,
+        BOARD_HW_SPI1_RX_DMA,
+#else
+        0U,
+        0U,
+#endif
+        board_ili9341_cs_pin,
+        board_lcd_rst_pin
+    },
+    board_lcd_dc_pin,
+    board_lcd_rst_pin,
+    240U,
+    320U,
+    0U,
+    0U,
+    0U,
+    0U,
+    0x0000U,
+    0xFFFFU,
+    0
+};
+REGISTER_BOARD_DEVICE(DISPLAY, "ili9341", &board_ili9341_config);
+
+static const spi_lcd_driver_config_t board_st7789_config = {
+    {
+        BOARD_ST7789_SPI_BUS_ID,
+        BOARD_HW_SPI1_INSTANCE,
+        board_hw_spi1_sck,
+        board_hw_spi1_mosi,
+        board_hw_spi1_miso,
+        BOARD_HW_SPI1_REMAP,
+        BOARD_HW_SPI1_PRESCALER,
+        BOARD_HW_SPI1_CPOL,
+        BOARD_HW_SPI1_CPHA,
+#if HAL_SPI_ENABLE_DMA && defined(BOARD_HW_SPI1_TX_DMA)
+        BOARD_HW_SPI1_TX_DMA,
+        BOARD_HW_SPI1_RX_DMA,
+#else
+        0U,
+        0U,
+#endif
+        board_st7789_cs_pin,
+        board_lcd_rst_pin
+    },
+    board_lcd_dc_pin,
+    board_lcd_rst_pin,
+    240U,
+    240U,
+    0U,
+    80U,
+    0U,
+    1U,
+    0x0000U,
+    0xFFFFU,
+    0
+};
+REGISTER_BOARD_DEVICE(DISPLAY, "st7789", &board_st7789_config);
+#endif
+
 static const one_wire_sensor_config_t board_dht11_config = { board_dht11_pin };
 REGISTER_BOARD_DEVICE(TEMP_HUM_SENSOR, "dht11", &board_dht11_config);
 
@@ -167,13 +239,19 @@ static const bmp180_driver_config_t board_bmp180_config = {
 };
 REGISTER_BOARD_DEVICE(PRESSURE_SENSOR, "bmp180", &board_bmp180_config);
 
-static const i2c_device_config_t board_mpu6050_config = {
-    BOARD_SENSOR_I2C,
-    BOARD_SENSOR_I2C_SPEED,
-    board_sensor_i2c_scl,
-    board_sensor_i2c_sda,
-    BOARD_SENSOR_I2C_REMAP,
-    BOARD_MPU6050_I2C_ADDR
+static const mpu6050_driver_config_t board_mpu6050_config = {
+    {
+        BOARD_SENSOR_I2C,
+        BOARD_SENSOR_I2C_SPEED,
+        board_sensor_i2c_scl,
+        board_sensor_i2c_sda,
+        BOARD_SENSOR_I2C_REMAP,
+        BOARD_MPU6050_I2C_ADDR
+    },
+    0,
+    0U,
+    0x18U,
+    0x18U
 };
 REGISTER_BOARD_DEVICE(IMU_SENSOR, "mpu6050", &board_mpu6050_config);
 
