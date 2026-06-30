@@ -253,7 +253,9 @@ set(DRIVER_SRCS ${DRIVER_CATALOG_ZNCZ_001})   # 或 DRIVER_CATALOG_RTJK_001
 | 机制 | 说明 |
 | --- | --- |
 | `projects/<NAME>/` | 每产品线独立 `app/`、`board/`、`CMakeLists.txt`、`PRODUCT_SPEC.md` |
-| `APP_VERSION` CACHE STRING | 统一数值版本号（禁止 `option()`）；旧项目专属版本宏已移除 |
+| `MVP_PROJECT_APP_VERSION` | 项目内默认编译版本，直接在 `projects/<NAME>/CMakeLists.txt` 调整 |
+| `MVP_APP_VERSION` CACHE STRING | CMake/CLion 临时覆盖版本；留空时使用项目内默认版本 |
+| `APP_VERSION` | 模板解析后的统一 C 编译宏；`-DAPP_VERSION=N` 仍作为兼容覆盖入口，旧项目专属版本宏已移除 |
 | `driver_catalog.cmake` | 按版本 `list(APPEND …)` 选驱动 |
 | `projects/<NAME>/<NAME>_upper_ui_flutter` | Flutter 主上位机目录；通过 `version_features.json` 描述固件版本→Flutter feature→构建参数 |
 | `projects/<NAME>/<NAME>_upper_ui` | 可选 uni-app 小程序/历史兼容目录；通过独立 `version_features.json` 描述小程序版本→feature→路径 glob |

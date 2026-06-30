@@ -30,7 +30,7 @@ ZHJG_001 是基于 STM32F103C8T6 的智能井盖监测产品族。固件通过 `
 | `VERSION_FEATURE_WIFI` | 3 | ESP-01S WiFi |
 | `VERSION_FEATURE_REMOTE` | 3 | MQTT 远程控制/遥测 |
 
-项目不使用 `ZHJG_VERSION` / `ZHJG_HAS_*` 作为主版本规则；版本输入统一为 `APP_VERSION`。
+项目不使用 `ZHJG_VERSION` / `ZHJG_HAS_*` 作为主版本规则；C 编译宏统一为模板解析后的 `APP_VERSION`。
 
 ## 4. 驱动映射
 

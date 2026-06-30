@@ -21,7 +21,10 @@ if(TARGET_PLATFORM STREQUAL "mcs51_sdcc")
         DRIVER_CATALOG_VAR DRIVER_CATALOG_WXCS_001_MCS51
     )
 else()
-    mvp_resolve_app_version(DEFAULT 3 MIN 1 MAX 3)
+    set(MVP_PROJECT_APP_VERSION 3)
+    set(MVP_APP_VERSION "" CACHE STRING "WXCS_001 STM32 application version override (empty uses project default 3)")
+    set_property(CACHE MVP_APP_VERSION PROPERTY STRINGS "" 1 2 3)
+    mvp_resolve_app_version(DEFAULT ${MVP_PROJECT_APP_VERSION} MIN 1 MAX 3)
     set(HAL_ADC_ENABLE ON CACHE BOOL "Enable ADC for MQ135 and MQ-7" FORCE)
     mvp_add_stm32f1_project(${PROJECT_NAME}
         DRIVER_CATALOG_VAR DRIVER_CATALOG_WXCS_001

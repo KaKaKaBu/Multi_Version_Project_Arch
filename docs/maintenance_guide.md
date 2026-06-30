@@ -404,9 +404,11 @@ cmake/*                      ├── board_config.h
 
 **原则**：公共代码不因某一版本特殊需求而分叉；版本差异通过「选哪些驱动编译」和「board 目录中的设备实例/配置」表达。
 
-**统一版本宏强制要求**：
+**统一版本入口强制要求**：
 
-- 全局版本输入宏只能使用 `APP_VERSION`，并且必须由工程 `CMakeLists.txt` 以 `CACHE STRING` 定义。
+- 项目内默认版本只能写在 `projects/<NAME>/CMakeLists.txt` 的 `MVP_PROJECT_APP_VERSION`。
+- CMake/CLion 临时切换版本使用 `MVP_APP_VERSION` 缓存变量；留空时使用 `MVP_PROJECT_APP_VERSION`。
+- `APP_VERSION` 只作为模板解析后的统一 C 编译宏；历史命令行 `-DAPP_VERSION=N` 保留为最高优先级兼容覆盖入口。
 - C 代码里的功能条件输出只能使用 `VERSION_FEATURE_*`，并统一在 `projects/<NAME>/app/version_config.h` 中由 `APP_VERSION` 派生。
 - 应用层、板级配置和回调代码只判断 `VERSION_FEATURE_*`；除 `version_config.h` 和工程 CMake preamble 外，不得直接用 `APP_VERSION` 写业务分支。
 - 旧项目专属版本/功能宏不得保留或新增；历史代码迁移时统一改为 `APP_VERSION` 与 `VERSION_FEATURE_*`。
@@ -751,11 +753,11 @@ project(MY_PROJECT C ASM)
 
 set(TEMPLATE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 
-# ① 版本号、option、与版本相关的 HAL 开关（必须在 hal_options 之前）
-set(APP_VERSION 1 CACHE STRING "Application version (1-5)")
-if(APP_VERSION LESS 1 OR APP_VERSION GREATER 5)
-    message(FATAL_ERROR "APP_VERSION must be 1-5, got '${APP_VERSION}'")
-endif()
+# ① 项目默认版本、可选覆盖、与版本相关的 HAL 开关（必须在 hal_options 之前）
+set(MVP_PROJECT_APP_VERSION 1)
+set(MVP_APP_VERSION "" CACHE STRING "MY_PROJECT application version override (empty uses project default 1)")
+set_property(CACHE MVP_APP_VERSION PROPERTY STRINGS "" 1 2 3 4 5)
+mvp_resolve_app_version(DEFAULT ${MVP_PROJECT_APP_VERSION} MIN 1 MAX 5)
 
 # ② 固定写法，路径勿改——export 靠此截取 preamble
 include(${TEMPLATE_ROOT}/cmake/hal_options.cmake)
@@ -827,9 +829,9 @@ hal_apply_compile_definitions(${PROJECT_NAME}.elf)
 
 | 规则 | 说明 |
 | --- | --- |
-| 版本变量命名 | `set(APP_VERSION N CACHE STRING "Application version (...)")`；`APP_VERSION` 是唯一全局版本输入宏，旧 `<前缀>VERSION` 只作为兼容别名 |
-| 版本类型 | **禁止** `option(APP_VERSION …)`；必须用 `CACHE STRING` |
-| 版本范围 | `message(FATAL_ERROR "APP_VERSION must be 1-10")` 供导出脚本解析批量范围 |
+| 版本变量命名 | `MVP_PROJECT_APP_VERSION` 是项目内默认版本；`MVP_APP_VERSION` 是 CMake/CLion 覆盖变量；`APP_VERSION` 是最终 C 编译宏 |
+| 版本类型 | **禁止** `option(APP_VERSION …)`；`MVP_APP_VERSION` 必须用 `CACHE STRING`，并允许空值回落项目默认版本 |
+| 版本范围 | 使用 `mvp_resolve_app_version(DEFAULT ${MVP_PROJECT_APP_VERSION} MIN 1 MAX N)` 统一校验，供导出脚本解析批量范围 |
 | 版本→驱动 | 在 `driver_catalog.cmake` 的 `DRIVER_CATALOG_<NAME>` 内用归一化后的 APP 版本局部变量 |
 | 版本→HAL | 在 **include(hal_options) 之前** 的 preamble 中 `set(HAL_* … FORCE)` |
 | 版本→C 宏 | `version_config.h` 根据 `APP_VERSION` 输出 `VERSION_FEATURE_*`；`VERSION_FEATURE_*` 是唯一功能条件编译宏；导出时会改写 `APP_VERSION` 默认值 |
@@ -925,7 +927,7 @@ endif()
 1. `python tools/gen_project.py <NAME>` 默认生成 Flutter 主上位机；如需微信小程序，再使用 `python tools/gen_project.py <NAME> --with-mini-program` 生成双栈。
 2. `cmake/driver_catalog.cmake` 增加 `DRIVER_CATALOG_<NAME>`（含版本条件）。
 3. `CMakeLists.txt`：`project(<NAME>)`、`DRIVER_SRCS`、`include(hal_options)` 顺序符合 §12.2。
-4. `app/version_config.h`、`board/board_config.h`、`board/board_devices.c` 就绪；版本输入统一为 `APP_VERSION`，功能输出统一为 `VERSION_FEATURE_*`。
+4. `app/version_config.h`、`board/board_config.h`、`board/board_devices.c` 就绪；项目默认版本统一写 `MVP_PROJECT_APP_VERSION`，功能输出统一为 `VERSION_FEATURE_*`。
 5. 如涉及 MQTT/BLE/串口 JSON 协议，确认字段构建/解析全部使用 cJSON API。
 6. Flutter 上位机：维护 `<NAME>_upper_ui_flutter/version_features.json`，执行 `flutter analyze` / `flutter test`，确认 Debug 才显示通信日志、Release/Profile 不显示也不采集原始 TX/RX 日志。
 7. 上位机通信必须使用真实 MQTT/BLE/平台通道；禁止 mock transport、模拟上报、本地随机遥测、缺少 Broker/remote 时自动回退模拟数据。

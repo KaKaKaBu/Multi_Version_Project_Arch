@@ -6,7 +6,10 @@ project(DCLD_001 C ASM)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/project_template.cmake)
 
-mvp_resolve_app_version(DEFAULT 7 MIN 1 MAX 7)
+set(MVP_PROJECT_APP_VERSION 7)
+set(MVP_APP_VERSION "" CACHE STRING "DCLD_001 application version override (empty uses project default 7)")
+set_property(CACHE MVP_APP_VERSION PROPERTY STRINGS "" 1 2 3 4 5 6 7)
+mvp_resolve_app_version(DEFAULT ${MVP_PROJECT_APP_VERSION} MIN 1 MAX 7)
 
 set(HAL_DEBUG_UART_ENABLE ON CACHE BOOL "Enable GPIO bit-bang debug UART TX on PC13")
 

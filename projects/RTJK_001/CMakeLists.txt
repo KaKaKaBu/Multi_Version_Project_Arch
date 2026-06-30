@@ -6,7 +6,10 @@ project(RTJK_001 C ASM)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/project_template.cmake)
 
-mvp_resolve_app_version(DEFAULT 10 MIN 1 MAX 10)
+set(MVP_PROJECT_APP_VERSION 10)
+set(MVP_APP_VERSION "" CACHE STRING "RTJK_001 application version override (empty uses project default 10)")
+set_property(CACHE MVP_APP_VERSION PROPERTY STRINGS "" 1 2 3 4 5 6 7 8 9 10)
+mvp_resolve_app_version(DEFAULT ${MVP_PROJECT_APP_VERSION} MIN 1 MAX 10)
 
 set(HAL_DEBUG_UART_ENABLE ON CACHE BOOL "Enable GPIO bit-bang debug UART TX on PC13")
 if(APP_VERSION GREATER_EQUAL 8)

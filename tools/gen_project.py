@@ -905,7 +905,10 @@ project({name} C ASM)
 
 include(${{CMAKE_CURRENT_LIST_DIR}}/../../cmake/project_template.cmake)
 
-mvp_resolve_app_version(DEFAULT 1 MIN 1 MAX __VERSION_COUNT__)
+set(MVP_PROJECT_APP_VERSION 1)
+set(MVP_APP_VERSION "" CACHE STRING "{name} application version override (empty uses project default 1)")
+set_property(CACHE MVP_APP_VERSION PROPERTY STRINGS "" __VERSION_STRINGS__)
+mvp_resolve_app_version(DEFAULT ${{MVP_PROJECT_APP_VERSION}} MIN 1 MAX __VERSION_COUNT__)
 
 set(DRIVER_CATALOG_{name}
     # TODO: add driver source list or reference a shared catalog entry.
@@ -996,8 +999,13 @@ def create_project_with_options(root: Path, options: ProjectCreateOptions) -> No
     )
     (board_dir / "board_devices.c").write_text(BOARD_DEVICES_C, encoding="utf-8")
     (project_dir / "readme.txt").write_text(README.format(name=name), encoding="utf-8")
+    version_strings = " ".join(str(item) for item in range(1, options.version_count + 1))
     (project_dir / "CMakeLists.txt").write_text(
-        render_template(CMAKELISTS.format(name=name), version_count=str(options.version_count)),
+        render_template(
+            CMAKELISTS.format(name=name),
+            version_count=str(options.version_count),
+            version_strings=version_strings,
+        ),
         encoding="utf-8",
     )
 

@@ -417,6 +417,29 @@ def parse_cmake_call_args(cmake_text: str, function_name: str) -> List[str]:
     return split_cmake_args(match.group(1))
 
 
+def parse_cmake_call_args_all(cmake_text: str, function_name: str) -> List[List[str]]:
+    return [
+        split_cmake_args(match.group(1))
+        for match in re.finditer(
+            rf"{re.escape(function_name)}\s*\((.*?)\)",
+            cmake_text,
+            re.DOTALL,
+        )
+    ]
+
+
+def preferred_mvp_version_args(cmake_text: str) -> List[str]:
+    calls = parse_cmake_call_args_all(cmake_text, "mvp_resolve_app_version")
+    for args in calls:
+        for idx, item in enumerate(args):
+            if item == "DEFAULT" and idx + 1 < len(args) and "MVP_PROJECT_APP_VERSION" in args[idx + 1]:
+                return args
+    for args in calls:
+        if "FORCE_DEFAULT" not in args:
+            return args
+    return calls[0] if calls else []
+
+
 def uses_mvp_stm32_template(cmake_text: str) -> bool:
     return bool(parse_cmake_call_args(cmake_text, "mvp_add_stm32f1_project"))
 
@@ -451,7 +474,7 @@ def parse_driver_catalog_ref(items: List[str]) -> Optional[str]:
 
 
 def parse_version_var(cmake_text: str) -> Optional[str]:
-    if parse_cmake_call_args(cmake_text, "mvp_resolve_app_version"):
+    if preferred_mvp_version_args(cmake_text):
         return "APP_VERSION"
     app_match = re.search(r"set\s*\(\s*APP_VERSION\s+\"?(\d+)\"?\s+CACHE\s+STRING", cmake_text)
     if app_match:
@@ -470,12 +493,40 @@ def parse_legacy_version_var(cmake_text: str) -> Optional[str]:
     return None
 
 
+def parse_cmake_set_value(cmake_text: str, var_name: str) -> Optional[str]:
+    match = re.search(
+        rf"set\s*\(\s*{re.escape(var_name)}\s+\"?([^\"\s)]+)\"?",
+        cmake_text,
+    )
+    if match:
+        return match.group(1)
+    return None
+
+
+def resolve_cmake_numeric_token(cmake_text: str, token: str) -> Optional[int]:
+    token = token.strip().strip('"')
+    if re.match(r"^\d+$", token):
+        return int(token)
+    var_match = re.match(r"^\$\{([A-Za-z_]\w*)\}$", token)
+    if var_match:
+        value = parse_cmake_set_value(cmake_text, var_match.group(1))
+        if value and re.match(r"^\d+$", value):
+            return int(value)
+    if re.match(r"^[A-Za-z_]\w*$", token):
+        value = parse_cmake_set_value(cmake_text, token)
+        if value and re.match(r"^\d+$", value):
+            return int(value)
+    return None
+
+
 def parse_version_default(cmake_text: str, version_var: str) -> int:
     if version_var == "APP_VERSION":
-        args = parse_cmake_call_args(cmake_text, "mvp_resolve_app_version")
+        args = preferred_mvp_version_args(cmake_text)
         for idx, item in enumerate(args):
             if item == "DEFAULT" and idx + 1 < len(args):
-                return int(args[idx + 1])
+                value = resolve_cmake_numeric_token(cmake_text, args[idx + 1])
+                if value is not None:
+                    return value
     match = re.search(
         rf"set\s*\(\s*{re.escape(version_var)}\s+\"?(\d+)\"?\s+CACHE\s+STRING",
         cmake_text,
@@ -487,7 +538,7 @@ def parse_version_default(cmake_text: str, version_var: str) -> int:
 
 def parse_version_range(cmake_text: str, version_var: str) -> Tuple[int, int]:
     if version_var == "APP_VERSION":
-        args = parse_cmake_call_args(cmake_text, "mvp_resolve_app_version")
+        args = preferred_mvp_version_args(cmake_text)
         min_value: Optional[int] = None
         max_value: Optional[int] = None
         for idx, item in enumerate(args):
