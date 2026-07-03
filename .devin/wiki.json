@@ -1,0 +1,301 @@
+{
+  "repo_notes": [
+    {
+      "content": ""
+    }
+  ],
+  "pages": [
+    {
+      "title": "项目概述",
+      "purpose": "多版本嵌入式项目架构模板的高层次介绍：它是什么、目标、涉及的技术栈（STM32/MCS51 C 固件 + Flutter/uni-app 上层 UI），以及 Wiki 各主要部分之间的关系。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "架构分层与设计原则",
+      "purpose": "详细阐述分层架构（BSP → HAL 封装 → 驱动 → 通用框架 → 应用）、六大核心设计原则（硬件解耦、即插即用驱动、静态分配、板级/逻辑分离、编译期版本管理、统一 HAL 入口），以及从 bsp_init() 到 sched_start() 的启动与控制流序列。",
+      "parent": "项目概述",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "快速入门：创建与构建项目",
+      "purpose": "面向入职工程师的分步指南：使用 gen_project.py 脚手架创建新项目、配置 CMake 预设、选择 HAL 选项、使用 CMake/Ninja 构建，并通过 OpenOCD 烧录。覆盖 STM32 和 MCS51 两种目标平台。",
+      "parent": "项目概述",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "BSP 与 HAL 层",
+      "purpose": "板级支持包和硬件抽象层总览，链接到 STM32、MCS51 和平台无关 HAL 封装的子页面。解释芯片相关代码被限定在 bsp/<platform>/hal/ 和厂商库中的规则。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "STM32F1 HAL 实现",
+      "purpose": "涵盖所有 STM32F103 HAL 模块：GPIO、EXTI、I2C（软/硬件）、SPI（软/硬件/DMA）、USART（IRQ/DMA）、ADC（轮询/DMA）、定时器/PWM、IRQ 处理，以及 hal_options.cmake 功能标志系统。解释 hal_status_t 错误码和 I2C 总线恢复。",
+      "parent": "BSP 与 HAL 层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "STM32F1 厂商库（CMSIS 和 SPL）",
+      "purpose": "记录随附的 STM32F10x 标准外设库（SPL/FWlib）和 CMSIS 核心文件：每个头文件/源文件提供的内容、不同闪存容量变体的启动文件、链接脚本（STM32F103XX_FLASH.ld）及其 .driver_list 和 .board_device_list 段，以及 syscalls/newlib 集成。",
+      "parent": "BSP 与 HAL 层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "MCS51 HAL 实现",
+      "purpose": "覆盖 C51（8051）平台 HAL：GPIO、软件 I2C、USART、定时器，以及 mcs51_hal_types.h / mcs51_memory.h 内存模型。解释有意限制的能力（无调度器、无 MQTT/BLE）和使用的静态驱动注册表路径，而非 GCC 链接器段方式。",
+      "parent": "BSP 与 HAL 层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "HAL 封装（平台无关接口）",
+      "purpose": "记录 hal_wrapper/ 目录：平台无关的头文件（gpio_hal.h、i2c_hal.h、spi_hal.h、usart_hal.h、timer_hal.h、adc_hal.h、hal_common.h、hal_status.h、hal_features.h、hal_platform_types.h），驱动和应用代码应包含这些文件而非芯片特定头文件。解释 hal_features.h 编译期功能标志。",
+      "parent": "BSP 与 HAL 层",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "通用框架",
+      "purpose": "common/ 中平台无关中间件总览：调度器、设备管理器、驱动注册、IRQ 事件桥接、应用 FSM 及工具库。链接到各子系统的子页面。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "协作式调度器与 sched_loop",
+      "purpose": "解释 common/scheduler/ 中的静态协作式调度器：任务状态（RUNNING/READY/BLOCKED/SUSPENDED）、task_block(events)/event_set() API、sched_start() 主循环，以及用于周期性和事件驱动轮询任务的 sched_loop 封装。包括 SCHED_LOOP_DEF 宏和 app_main() 启动序列。",
+      "parent": "通用框架",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "驱动注册与设备管理器",
+      "purpose": "记录 REGISTER_DRIVER() / REGISTER_BOARD_DEVICE() 宏、.driver_list 和 .board_device_list 链接器段、devmgr_init_all() 匹配逻辑，以及全部 21 个 devmgr_get_*() 查询 API。涵盖 GCC 链接器段（driver_registry_gcc.c）和静态注册表（driver_registry_static.c）两种路径。",
+      "parent": "通用框架",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "IRQ 事件桥接与应用 FSM",
+      "purpose": "涵盖 common/irq_event/：irq_event_bind()、irq_event_post_from_isr() 以及 IRQ 源到调度器事件的映射表。同时记录 common/app_framework/app_fsm.c：ZNCZ_001 使用的状态表驱动 UI FSM（5 个状态，30 个转换），以及 app_fsm_dispatch() 如何与调度器集成。",
+      "parent": "通用框架",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "工具库",
+      "purpose": "记录 common/utils/：mem_pool（静态 malloc/free/realloc 替代）、cJSON + cjson_port（裁剪版 JSON，带嵌套限制）、tiny_printf（闪存高效 printf）、comm_port（comm_driver_t 绑定及收发抽象）、soft_uart 和 debug_uart（GPIO 位捕获 TX，用于 printf 重定向）。",
+      "parent": "通用框架",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "驱动库",
+      "purpose": "drivers/ 目录总览：四大类别（传感器、执行器、通信、显示、杂项）、REGISTER_DRIVER 模式，以及 driver_catalog.cmake 如何按项目选择驱动集。链接到每个类别的子页面。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "传感器驱动",
+      "purpose": "记录 drivers/sensors/ 中的所有传感器驱动：DHT11（温湿度）、DS18B20（单总线温度）、BMP180（气压）、MPU6050（IMU + 可选 DMP）、MAX30102（脉搏血氧）、PM2.5、MQ 系列气体传感器（MQ2/MQ4/MQ7/MQ135）、HC-SR04（超声波测距）、HX711（称重）、DS1302（RTC）、RFID RC522、水位、pH、CO2 UART、MSP20 血压（ADC）。涵盖传感器接口类型和 mpu6050_dmp_firmware_t 模式。",
+      "parent": "驱动库",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "通信驱动",
+      "purpose": "记录 drivers/comm/：ESP8266 WiFi（AT 命令、comm_driver_t）、ESP8266 MQTT（连接/轮询/JSON 遥测/下行）、JDY-31 BLE、SU-03T 语音、A7670C SMS、L76K GNSS、NRF24L01 无线。解释 COMM_KIND_STREAM 与 COMM_KIND_PACKET、esp8266_mqtt_poll() 循环和 USART DMA TX 配置。",
+      "parent": "驱动库",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "显示驱动",
+      "purpose": "记录 drivers/displays/：SSD1306 OLED（I2C，128x64，oled_font.c）、ILI9341 和 ST7789 彩色 LCD（SPI，共用 lcd_color_spi.c 后端）、HC595 数码管。涵盖 display_driver_t 接口、spi_lcd_driver_config_t、自定义中文点阵字体支持以及 gen_oled_font.py 工具。",
+      "parent": "驱动库",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "执行器与杂项驱动",
+      "purpose": "记录 drivers/actuators/（SG90 舵机、步进电机、继电器、灯光通道）和 drivers/misc/（LED、蜂鸣器、带消抖/单击/双击/长按的按键中断驱动、key_4ch、key_poll）。解释 key_register_callback() 和基于 EXTI 的中断流程。",
+      "parent": "驱动库",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "标准接口（common/interfaces）",
+      "purpose": "记录 common/interfaces/ 中全部 20 多个接口头文件：sensor_if.h、display_if.h、actuator_if.h、comm_if.h 以及完整列表（analog_probe、bp、distance、gas、gnss、health、imu、input、key_service、misc、pressure、radio、rfid、rtc、segment、stepper、weight）。解释接口作为虚表（vtable）的模式以及 display_font.c 共享字形数据。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "多版本项目系统",
+      "purpose": "概述模板如何同时支持多个产品线和固件版本，链接到项目结构、版本配置和导出工具链的子页面。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "项目结构与板卡配置",
+      "purpose": "解释 projects/<NAME>/ 布局：app/（app_main.c、app_callbacks.c、app_logic.c、version_config.h、stm32f10x_conf.h）、board/（board_config.h 引脚/外设定、board_devices.c REGISTER_BOARD_DEVICE 调用）、CMakeLists.txt、PRODUCT_SPEC.md。涵盖 board_config_template.h 脚手架和驱动不得包含 board_config.h 的规则。",
+      "parent": "多版本项目系统",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "版本配置与 driver_catalog.cmake",
+      "purpose": "记录 version_config.h（APP_VERSION 宏、VERSION_FEATURE_* 标志）、mvp_resolve_app_version() CMake 函数、MVP_PROJECT_APP_VERSION / MVP_APP_VERSION / APP_VERSION 优先级规则，以及 driver_catalog.cmake 如何通过版本条件 list(APPEND) 逻辑构建每个项目的 DRIVER_CATALOG_<NAME> 变量。",
+      "parent": "多版本项目系统",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "项目导出工具链",
+      "purpose": "记录 tools/export_project.py：如何解析 CMakeLists.txt 前导部分、通过 tools/cmake/resolve_export.cmake 解析 HAL 源文件、将各版本嵌入式树复制到 exports/<NAME>/<NAME>_version<N>/、触发 Flutter/uni-app 构建并生成上层 UI 版本目录。涵盖 --batch、--versions、--extras 标志和 DRIVER_FEATURE_MACRO_BY_FILE 映射。",
+      "parent": "多版本项目系统",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "上层 UI（Flutter 与 uni-app）",
+      "purpose": "上层计算机 UI 栈总览：Flutter 作为默认 App/Web 界面，uni-app 作为可选的微信小程序栈。链接到 Flutter 架构和 version_features.json 的子页面。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Flutter 上层 UI 架构",
+      "purpose": "记录 Flutter 上层 UI 目录布局（lib/core/、lib/features/、lib/services/、lib/widgets/）、UPPER_VERSION / UPPER_FEATURES dart-define 注入、version_capabilities.dart 解析、MQTT/BLE 服务层、debug_flags.dart 通信日志控制以及无模拟传输规则。涵盖 Dart 包依赖：flutter_bluetooth_serial、mqtt_client、event_bus。",
+      "parent": "上层 UI（Flutter 与 uni-app）",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "version_features.json 与多版本 UI 导出",
+      "purpose": "解释 version_features.json 的模式（defaultFeatures、featureGlobs、alwaysInclude、versions.<N>.features），export_project.py 如何读取它以选择要导出的 Flutter 版本，以 KQZL3 为例的双栈（Flutter + uni-app）示例，以及 uni-app vite.config.js 中的编译时常量（__UPPER_VERSION__、__UPPER_FEATURES__、__UPPER_FEATURE_FLAGS__、__UPPER_UI_DEBUG__）。",
+      "parent": "上层 UI（Flutter 与 uni-app）",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "参考项目",
+      "purpose": "projects/ 中 11 条产品线及 driver_all_test 测试框架总览，链接到三个主要参考实现的子页面以及所有项目的汇总表。",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "ZNCZ_001 — 智能插座（参考：FSM + MQTT）",
+      "purpose": "深入剖析 ZNCZ_001 智能插座项目：app_fsm 驱动的 UI（手动/定时/WiFi 子界面）、DS1302 RTC 循环、ESP8266 MQTT JSON 命令处理、按键中断消抖流程、继电器控制，以及四任务 sched_loop 结构。作为 app_fsm 用法的主要参考。",
+      "parent": "参考项目",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "RTJK_001 — 健康监测仪（参考：多版本 ADC）",
+      "purpose": "深入剖析 RTJK_001：V1–V10 版本矩阵（心率、血压 ADC、温度、WiFi MQTT、报警）、CMake 前导部分为 V8+ 启用 ADC、msp20_bp 血压驱动、sched_loop 任务集，以及 DRIVER_CATALOG_RTJK_001 如何随版本增长。作为多版本 ADC 和版本条件驱动选择的主要参考。",
+      "parent": "参考项目",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "其他项目（DCLD、KQZL3、FJXT、SMZL、WXCS、ZHJG、ZHJS、ZNLYJ）",
+      "purpose": "其余产品线汇总：DCLD_001（超声波泊车雷达，7 个版本）、KQZL3（空气质量，14 个版本，双 Flutter+uni-app 栈）、FJXT_001、SMZL_001、WXCS_001、ZHJG_001、ZHJS_001（智慧照明）、ZNLYJ_001 以及 driver_all_test。突出每个项目的独特功能并交叉引用其 PRODUCT_SPEC.md 文件。",
+      "parent": "参考项目",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
