@@ -7,7 +7,7 @@ cmake --build build/DCLD_001_v1
 版本范围：APP_VERSION=1..7
 1: 超声波测距 + OLED + 声光报警 + 阈值设置
 2: 版本1 + DS18B20温度补偿
-3: 版本2 + SU03T语音播报
+3: 版本2 + 串口透传TTS语音播报
 4: 版本2 + ESP-01S WiFi MQTT + APP
 5: 版本2 + JDY-31蓝牙 + APP
 6: 版本3 + ESP-01S WiFi MQTT + APP

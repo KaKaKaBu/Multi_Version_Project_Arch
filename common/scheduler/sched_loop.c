@@ -43,14 +43,6 @@ static void sched_loop_task_entry(driver_task_t *task)
     if (loop->period_ms > 0U) {
         uint32_t now = sched_tick_get();
 
-        if ((events & SCHED_EVENT_TICK) == 0U) {
-            should_run = false;
-        }
-
-        if (!sched_loop_wait_condition_met(loop, events)) {
-            should_run = false;
-        }
-
         if (((uint32_t)(now - loop->last_run_tick)) < loop->period_ms) {
             should_run = false;
         } else if (should_run) {

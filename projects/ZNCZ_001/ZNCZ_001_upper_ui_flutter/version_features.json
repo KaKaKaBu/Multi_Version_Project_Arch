@@ -1,0 +1,7 @@
+{
+  "_comment": "ZNCZ_001 upper UI features per firmware version.",
+  "defaultFeatures": ["common", "wifi", "app", "timer", "relay", "rtc"],
+  "versions": {
+    "1": { "features": ["common", "wifi", "app", "timer", "relay", "rtc"] }
+  }
+}

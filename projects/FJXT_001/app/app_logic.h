@@ -38,22 +38,18 @@ typedef enum fjxt_command {
 typedef struct fjxt_context {
     fjxt_window_state_t state;
     fjxt_command_t pending_cmd;
-    uint8_t open_limit;
-    uint8_t close_limit;
     uint8_t pinch_detected;
+    uint8_t key_raw_bits;
     uint8_t alarm_active;
     uint8_t alarm_output_on;
     uint8_t display_dirty;
+    uint8_t nudge_active;
     uint16_t nudge_remaining_deg;
     uint16_t reverse_remaining_deg;
     uint32_t last_alarm_tick;
     uint32_t alarm_stop_tick;
     uint32_t last_telemetry_tick;
     uint8_t telemetry_pending;
-#if VERSION_FEATURE_CAMERA
-    char camera_ip[32];
-    char camera_stream[96];
-#endif
 } fjxt_context_t;
 
 extern fjxt_context_t g_fjxt;

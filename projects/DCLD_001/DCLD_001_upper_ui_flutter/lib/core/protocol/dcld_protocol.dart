@@ -35,12 +35,18 @@ TelemetryState createDefaultTelemetry(VersionCapabilities capabilities) {
     values.putIfAbsent(metric.key, () => null);
   }
 
-  return TelemetryState(values: values, mode: WorkMode.auto, alarm: 0, cameraUrl: '');
+  return TelemetryState(
+    values: values,
+    mode: WorkMode.auto,
+    alarm: 0,
+    cameraUrl: '',
+  );
 }
 
 ThresholdState createDefaultThresholds() {
   return ThresholdState({
-    for (final threshold in getSupportedThresholds()) threshold.key: threshold.defaultValue,
+    for (final threshold in getSupportedThresholds())
+      threshold.key: threshold.defaultValue,
   });
 }
 
@@ -55,8 +61,8 @@ Map<String, dynamic> parseTelemetry(Object? payload) {
   final text = payload is Uint8List
       ? utf8.decode(payload)
       : payload is ByteBuffer
-          ? utf8.decode(payload.asUint8List())
-          : payload.toString();
+      ? utf8.decode(payload.asUint8List())
+      : payload.toString();
   try {
     final parsed = jsonDecode(text);
     if (parsed is Map) {
@@ -81,23 +87,36 @@ NormalizedTelemetry normalizeTelemetry(
 
   for (final metric in getSupportedMetrics(capabilities)) {
     if (raw.containsKey(metric.key)) {
-      nextValues[metric.key] = _toNumber(raw[metric.key], base[metric.key] ?? 0);
+      nextValues[metric.key] = _toNumber(
+        raw[metric.key],
+        base[metric.key] ?? 0,
+      );
     }
   }
 
   if (raw.containsKey('threshold_cm')) {
-    nextValues['threshold_cm'] = _toNumber(raw['threshold_cm'], base['threshold_cm'] ?? 80);
+    nextValues['threshold_cm'] = _toNumber(
+      raw['threshold_cm'],
+      base['threshold_cm'] ?? 80,
+    );
   }
 
-  final nextMode = raw.containsKey('mode') ? WorkMode.fromKey(raw['mode']) : base.mode;
-  final nextCameraUrl = raw.containsKey('camera_url') ? (raw['camera_url']?.toString() ?? '') : base.cameraUrl;
+  final nextMode = raw.containsKey('mode')
+      ? WorkMode.fromKey(raw['mode'])
+      : base.mode;
+  final nextCameraUrl = _extractCameraUrl(raw, base.cameraUrl);
   final next = TelemetryState(
     values: nextValues,
     mode: nextMode,
     alarm: raw.containsKey('alarm')
         ? _toSwitch(raw['alarm'])
         : calculateAlarm(
-            TelemetryState(values: nextValues, mode: nextMode, alarm: base.alarm, cameraUrl: nextCameraUrl),
+            TelemetryState(
+              values: nextValues,
+              mode: nextMode,
+              alarm: base.alarm,
+              cameraUrl: nextCameraUrl,
+            ),
             thresholdBase,
           ),
     cameraUrl: nextCameraUrl,
@@ -106,7 +125,10 @@ NormalizedTelemetry normalizeTelemetry(
   return NormalizedTelemetry(telemetry: next, raw: raw);
 }
 
-ThresholdState normalizeThresholds(Object? payload, {ThresholdState? previous}) {
+ThresholdState normalizeThresholds(
+  Object? payload, {
+  ThresholdState? previous,
+}) {
   final raw = parseTelemetry(payload);
   final source = raw['thresholds'] is Map
       ? Map<String, dynamic>.from(raw['thresholds'] as Map)
@@ -138,6 +160,50 @@ String serializeCommand(Map<String, dynamic> command) => jsonEncode(command);
 String bytesToString(Uint8List bytes) => utf8.decode(bytes);
 
 Uint8List stringToBytes(String text) => Uint8List.fromList(utf8.encode(text));
+
+String _extractCameraUrl(Map<String, dynamic> raw, String fallback) {
+  final data = raw['data'] is Map
+      ? Map<String, dynamic>.from(raw['data'] as Map)
+      : raw;
+  final params = raw['params'] is Map
+      ? Map<String, dynamic>.from(raw['params'] as Map)
+      : const <String, dynamic>{};
+
+  final explicit = _firstText([
+    raw['camera_url'],
+    raw['mjpeg_url'],
+    data['camera_url'],
+    data['camera_stream'],
+    data['mjpeg_url'],
+    params['stream'],
+    params['mjpeg_url'],
+  ]);
+  if (explicit.isNotEmpty) return explicit;
+
+  final ip = _firstText([
+    raw['cam_ip'],
+    raw['camera_ip'],
+    data['cam_ip'],
+    data['camera_ip'],
+    params['ip'],
+    params['cam_ip'],
+  ]);
+  if (ip.isEmpty) return fallback;
+
+  final port = _toNumber(
+    raw['mjpeg_port'] ?? data['mjpeg_port'] ?? params['mjpeg_port'],
+    8080,
+  ).toInt();
+  return 'http://$ip:$port/stream';
+}
+
+String _firstText(List<Object?> values) {
+  for (final value in values) {
+    final text = value?.toString().trim() ?? '';
+    if (text.isNotEmpty) return text;
+  }
+  return '';
+}
 
 num _toNumber(Object? value, num fallback) {
   if (value is num) {

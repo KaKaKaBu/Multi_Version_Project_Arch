@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
+
 import '../../services/wxcs_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -39,7 +41,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Thresholds sent'),
+        content: Text('阈值已下发'),
         duration: Duration(seconds: 1),
       ),
     );
@@ -49,7 +51,7 @@ class _SettingsPageState extends State<SettingsPage> {
     widget.service.setMode(mode);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Mode set to $mode'),
+        content: Text('模式已切换为 ${_modeLabel(mode)}'),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -57,49 +59,62 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return AdaptivePage(
       children: [
-        Text('Mode', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: [
-            ActionChip(
-              label: const Text('AUTO'),
-              onPressed: () => _selectMode('auto'),
-            ),
-            ActionChip(
-              label: const Text('MANUAL'),
-              onPressed: () => _selectMode('manual'),
-            ),
-            ActionChip(
-              label: const Text('THRESHOLD'),
-              onPressed: () => _selectMode('threshold'),
-            ),
-          ],
+        AdaptiveSectionCard(
+          title: '工作模式',
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ActionChip(
+                label: const Text('自动'),
+                onPressed: () => _selectMode('auto'),
+              ),
+              ActionChip(
+                label: const Text('手动'),
+                onPressed: () => _selectMode('manual'),
+              ),
+              ActionChip(
+                label: const Text('阈值设置'),
+                onPressed: () => _selectMode('threshold'),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 24),
-        Text('Thresholds', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        _ThresholdField(
-          label: 'Temperature (°C)',
-          ctrl: tempCtrl,
-          min: 10,
-          max: 60,
+        AdaptiveSectionCard(
+          title: '阈值设置',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ThresholdField(
+                label: '温度 (°C)',
+                ctrl: tempCtrl,
+                min: 10,
+                max: 60,
+              ),
+              _ThresholdField(
+                label: '空气质量 (ppm)',
+                ctrl: aqCtrl,
+                min: 100,
+                max: 2000,
+              ),
+              _ThresholdField(label: 'CO (ppm)', ctrl: coCtrl, min: 10, max: 500),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _save, child: const Text('保存阈值')),
+            ],
+          ),
         ),
-        _ThresholdField(
-          label: 'Air Quality (ppm)',
-          ctrl: aqCtrl,
-          min: 100,
-          max: 2000,
-        ),
-        _ThresholdField(label: 'CO (ppm)', ctrl: coCtrl, min: 10, max: 500),
-        const SizedBox(height: 16),
-        ElevatedButton(onPressed: _save, child: const Text('Save Thresholds')),
       ],
     );
   }
+
+  String _modeLabel(String mode) => switch (mode) {
+        'auto' => '自动',
+        'manual' => '手动',
+        'threshold' => '阈值设置',
+        _ => mode,
+      };
 }
 
 class _ThresholdField extends StatelessWidget {
@@ -117,23 +132,14 @@ class _ThresholdField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            SizedBox(width: 140, child: Text(label)),
-            Expanded(
-              child: TextField(
-                controller: ctrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  isDense: true,
-                  suffix: Text('$min-$max'),
-                ),
-              ),
-            ),
-          ],
+    return AdaptiveFieldRow(
+      label: label,
+      child: TextField(
+        controller: ctrl,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          isDense: true,
+          suffix: Text('$min-$max'),
         ),
       ),
     );

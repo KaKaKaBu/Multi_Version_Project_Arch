@@ -9,9 +9,16 @@
 #include "timer_hal.h"
 #include "usart_hal.h"
 
+#define GPIO_OUTPUT_TRIGGER_LOW 0U
+#define GPIO_OUTPUT_TRIGGER_HIGH 1U
+
+#ifndef BOARD_BUZZER_TRIGGER_LEVEL
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
+#endif
+
 typedef struct gpio_output_driver_config {
     hal_pin_t pin;
-    uint8_t active_high;
+    uint8_t active_high; /* GPIO_OUTPUT_TRIGGER_HIGH or GPIO_OUTPUT_TRIGGER_LOW */
 } gpio_output_driver_config_t;
 
 typedef struct gpio_input_driver_config {

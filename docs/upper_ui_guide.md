@@ -1,8 +1,8 @@
-# 上位机代码编写规范
+﻿# 上位机代码编写规范
 
 本文档面向 `projects/<NAME>/<NAME>_upper_ui_flutter/` Flutter 主上位机，以及仅在项目需要微信小程序时生成的 `projects/<NAME>/<NAME>_upper_ui/` Vue3 + uni-app + Capacitor 小程序栈。嵌入式侧约定见 [maintenance_guide.md](./maintenance_guide.md)，导出约定见其 §12。
 
-`tools/gen_project.py` 默认生成 Flutter 上位机；只有传入 `--with-mini-program` 或产品需求明确包含微信小程序时，才额外生成 uni-app 栈。KQZL3 采用双栈：Flutter 覆盖 v3/v4/v6/v7/v8/v10/v12/v13/v14 的 App/Web 上位机，uni-app 保留用于 v9 微信小程序。
+`tools/gen_project.py` 默认生成 Flutter 上位机；只有传入 `--with-mini-program` 或产品需求明确包含微信小程序时，才额外生成 uni-app 栈。KQZL2 采用双栈：Flutter 覆盖 v3/v4/v6/v7/v8/v10/v12/v13/v14 的 App/Web 上位机，uni-app 保留用于 v9 微信小程序。
 
 ---
 
@@ -211,7 +211,7 @@ export function setupFeatures(app) {
 - JSON key 使用 **snake_case**，与固件侧 `esp8266_mqtt.c` / `jdy31_ble.c` 解析保持一致。
 - 上行（App → 设备）：`{ "cmd": "<command>", "params": { ... } }`
 - 下行（设备 → App）：`{ "type": "telemetry", "data": { ... } }`
-- KQZL3 的 WiFi/网页/小程序/App 版本必须默认使用 `projects/KQZL3/board/board_config.h` 中的 MQTT 参数：Broker `121.40.131.194:1883`，Client ID `KQZL3`，用户名 `yskj`，密码 `yskj@123`，上位机发布命令 Topic `KQZL3`，订阅遥测 Topic `KQZL3/web`。Flutter 的 `lib/core/config/mqtt_config.dart` 与 uni-app 的 `src/config/mqtt.js` 必须保持同步。
+- KQZL2 的 WiFi/网页/小程序/App 版本必须默认使用 `projects/KQZL2/board/board_config.h` 中的 MQTT 参数：Broker `121.40.131.194:1883`，Client ID `KQZL2`，用户名 `yskj`，密码 `yskj@123`，上位机发布命令 Topic `KQZL2`，订阅遥测 Topic `KQZL2/web`。Flutter 的 `lib/core/config/mqtt_config.dart` 与 uni-app 的 `src/config/mqtt.js` 必须保持同步。
 
 ---
 
@@ -259,7 +259,7 @@ cd projects/<NAME>/<NAME>_upper_ui_flutter
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --debug --dart-define=UPPER_VERSION=1 --dart-define=UPPER_FEATURES=common
+flutter build apk --release --dart-define=UPPER_VERSION=1 --dart-define=UPPER_FEATURES=common
 flutter build web --dart-define=UPPER_VERSION=1 --dart-define=UPPER_FEATURES=common,web
 ```
 
@@ -287,3 +287,4 @@ Flutter 侧使用 `String.fromEnvironment('UPPER_VERSION')` 与 `String.fromEnvi
 ---
 
 *最后更新：初版，与 gen_project.py scaffold 模板、export_project.py 版本化导出流程同步（2026-06）。*
+

@@ -77,6 +77,7 @@ static const hal_pin_t board_stepmotor_d_pin = { HAL_PORT_A, HAL_PIN_7, GPIO_HAL
 /* 蜂鸣器：PB8。                                                                 */
 /* -------------------------------------------------------------------------- */
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
 
 /* -------------------------------------------------------------------------- */
 /* HX711 重量传感器：v2+ 使用 PA11 SCK / PA12 DT。                              */

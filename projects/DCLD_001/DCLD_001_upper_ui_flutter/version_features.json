@@ -1,4 +1,4 @@
-{
+﻿{
   "_comment": "DCLD_001 Flutter upper UI features by firmware version. The legacy uni-app stack is retained only as historical fallback/reference.",
   "defaultFeatures": ["common"],
   "alwaysInclude": [
@@ -8,6 +8,7 @@
     "lib/**",
     "android/**",
     "web/**",
+    "windows/**",
     "test/**"
   ],
   "featureGlobs": {
@@ -31,3 +32,4 @@
     "7": { "features": ["common", "temp", "voice", "remote", "wifi", "app", "camera"] }
   }
 }
+

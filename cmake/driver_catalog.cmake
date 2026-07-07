@@ -1,4 +1,4 @@
-# Catalog of all migrated device drivers under drivers/
+﻿# Catalog of all migrated device drivers under drivers/
 # Include this file after setting TEMPLATE_ROOT, then use DRIVER_CATALOG_ALL or pick subsets.
 
 function(driver_catalog_resolve_app_version out_var legacy_var default_version)
@@ -47,6 +47,7 @@ set(DRIVER_CATALOG_COMM
     ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
     ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c
     ${TEMPLATE_ROOT}/drivers/comm/su03t_voice.c
+    ${TEMPLATE_ROOT}/drivers/comm/tts_uart.c
     ${TEMPLATE_ROOT}/drivers/comm/a7670c_sms.c
     ${TEMPLATE_ROOT}/drivers/comm/l76k_gnss.c
     ${TEMPLATE_ROOT}/drivers/comm/nrf24l01.c
@@ -134,11 +135,11 @@ if(DRIVER_CATALOG_VERSION_RTJK_001 GREATER_EQUAL 8)
     list(APPEND DRIVER_CATALOG_RTJK_001 ${TEMPLATE_ROOT}/drivers/sensors/msp20_bp.c)
 endif()
 
-# KQZL3 — 空气质量检测系统（APP_VERSION 1-14 条件编译）
-driver_catalog_resolve_app_version(DRIVER_CATALOG_VERSION_KQZL3 _MVP_UNUSED_VERSION_ALIAS 14)
+# KQZL2 — 空气质量检测系统（APP_VERSION 1-14 条件编译）
+driver_catalog_resolve_app_version(DRIVER_CATALOG_VERSION_KQZL2 _MVP_UNUSED_VERSION_ALIAS 14)
 
-# Base drivers for all KQZL3 versions: OLED + relay + buzzer + led + key + pm25
-set(DRIVER_CATALOG_KQZL3
+# Base drivers for all KQZL2 versions: OLED + relay + buzzer + led + key + pm25
+set(DRIVER_CATALOG_KQZL2
     ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
     ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306.c
     ${TEMPLATE_ROOT}/drivers/actuators/relay.c
@@ -149,31 +150,31 @@ set(DRIVER_CATALOG_KQZL3
 )
 
 # Version 2+: DHT11 temperature/humidity
-if(DRIVER_CATALOG_VERSION_KQZL3 GREATER_EQUAL 2)
-    list(APPEND DRIVER_CATALOG_KQZL3 ${TEMPLATE_ROOT}/drivers/sensors/dht11.c)
+if(DRIVER_CATALOG_VERSION_KQZL2 GREATER_EQUAL 2)
+    list(APPEND DRIVER_CATALOG_KQZL2 ${TEMPLATE_ROOT}/drivers/sensors/dht11.c)
 endif()
 
 # Versions 3,6,8,9,10,12,14: ESP8266 WiFi + MQTT
-if(DRIVER_CATALOG_VERSION_KQZL3 EQUAL 3 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 6 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 8 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 9 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 10 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 12 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 14)
-    list(APPEND DRIVER_CATALOG_KQZL3
+if(DRIVER_CATALOG_VERSION_KQZL2 EQUAL 3 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 6 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 8 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 9 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 10 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 12 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 14)
+    list(APPEND DRIVER_CATALOG_KQZL2
         ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi.c
         ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt.c
     )
 endif()
 
 # Versions 4,7,13: JDY-31 Bluetooth
-if(DRIVER_CATALOG_VERSION_KQZL3 EQUAL 4 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 7 OR DRIVER_CATALOG_VERSION_KQZL3 EQUAL 13)
-    list(APPEND DRIVER_CATALOG_KQZL3 ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c)
+if(DRIVER_CATALOG_VERSION_KQZL2 EQUAL 4 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 7 OR DRIVER_CATALOG_VERSION_KQZL2 EQUAL 13)
+    list(APPEND DRIVER_CATALOG_KQZL2 ${TEMPLATE_ROOT}/drivers/comm/jdy31_ble.c)
 endif()
 
 # Version 5+: MQ-2 smoke sensor
-if(DRIVER_CATALOG_VERSION_KQZL3 GREATER_EQUAL 5)
-    list(APPEND DRIVER_CATALOG_KQZL3 ${TEMPLATE_ROOT}/drivers/sensors/mq2_smoke.c)
+if(DRIVER_CATALOG_VERSION_KQZL2 GREATER_EQUAL 5)
+    list(APPEND DRIVER_CATALOG_KQZL2 ${TEMPLATE_ROOT}/drivers/sensors/mq2_smoke.c)
 endif()
 
 # Version 11+: MQ-7 CO sensor
-if(DRIVER_CATALOG_VERSION_KQZL3 GREATER_EQUAL 11)
-    list(APPEND DRIVER_CATALOG_KQZL3 ${TEMPLATE_ROOT}/drivers/sensors/mq7_co.c)
+if(DRIVER_CATALOG_VERSION_KQZL2 GREATER_EQUAL 11)
+    list(APPEND DRIVER_CATALOG_KQZL2 ${TEMPLATE_ROOT}/drivers/sensors/mq7_co.c)
 endif()
 
 # DCLD_001 — 倒车雷达（APP_VERSION 1-7 条件编译）
@@ -193,7 +194,7 @@ if(DRIVER_CATALOG_VERSION_DCLD_001 GREATER_EQUAL 2)
 endif()
 
 if(DRIVER_CATALOG_VERSION_DCLD_001 EQUAL 3 OR DRIVER_CATALOG_VERSION_DCLD_001 EQUAL 6 OR DRIVER_CATALOG_VERSION_DCLD_001 EQUAL 7)
-    list(APPEND DRIVER_CATALOG_DCLD_001 ${TEMPLATE_ROOT}/drivers/comm/su03t_voice.c)
+    list(APPEND DRIVER_CATALOG_DCLD_001 ${TEMPLATE_ROOT}/drivers/comm/tts_uart.c)
 endif()
 
 if(DRIVER_CATALOG_VERSION_DCLD_001 EQUAL 4 OR DRIVER_CATALOG_VERSION_DCLD_001 EQUAL 6 OR DRIVER_CATALOG_VERSION_DCLD_001 EQUAL 7)
@@ -274,6 +275,35 @@ set(DRIVER_CATALOG_WXCS_001_MCS51
     ${TEMPLATE_ROOT}/drivers/misc/led.c
     ${TEMPLATE_ROOT}/drivers/misc/key_poll.c
 )
+
+# SGTZ_001 C51 polling build: electronic scale / BMI local control subset.
+driver_catalog_resolve_app_version(DRIVER_CATALOG_SGTZ_001_MCS51_VERSION _SGTZ_001_UNUSED_LEGACY_VERSION 7)
+
+set(DRIVER_CATALOG_SGTZ_001_MCS51
+    ${TEMPLATE_ROOT}/drivers/displays/oled_font.c
+    ${TEMPLATE_ROOT}/drivers/displays/oled_ssd1306_mcs51.c
+    ${TEMPLATE_ROOT}/drivers/sensors/hx711.c
+    ${TEMPLATE_ROOT}/drivers/misc/key_poll.c
+)
+
+if(DRIVER_CATALOG_SGTZ_001_MCS51_VERSION GREATER_EQUAL 3)
+    list(APPEND DRIVER_CATALOG_SGTZ_001_MCS51 ${TEMPLATE_ROOT}/drivers/sensors/hcsr04.c)
+endif()
+
+if(DRIVER_CATALOG_SGTZ_001_MCS51_VERSION EQUAL 1)
+    list(APPEND DRIVER_CATALOG_SGTZ_001_MCS51 ${TEMPLATE_ROOT}/drivers/actuators/relay.c)
+endif()
+
+if(DRIVER_CATALOG_SGTZ_001_MCS51_VERSION EQUAL 2 OR DRIVER_CATALOG_SGTZ_001_MCS51_VERSION EQUAL 7)
+    list(APPEND DRIVER_CATALOG_SGTZ_001_MCS51 ${TEMPLATE_ROOT}/drivers/misc/buzzer.c)
+endif()
+
+if(DRIVER_CATALOG_SGTZ_001_MCS51_VERSION EQUAL 5 OR DRIVER_CATALOG_SGTZ_001_MCS51_VERSION EQUAL 6)
+    list(APPEND DRIVER_CATALOG_SGTZ_001_MCS51
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_wifi_mcs51.c
+        ${TEMPLATE_ROOT}/drivers/comm/esp8266_mqtt_mcs51.c
+    )
+endif()
 
 # SMZL_001 — Sleep monitor for elderly (APP_VERSION 1-3)
 driver_catalog_resolve_app_version(DRIVER_CATALOG_SMZL_001_VERSION _SMZL_001_UNUSED_LEGACY_VERSION 3)
@@ -358,5 +388,6 @@ if(DRIVER_CATALOG_FJXT_001_VERSION EQUAL 3 OR DRIVER_CATALOG_FJXT_001_VERSION EQ
 endif()
 
 if(DRIVER_CATALOG_FJXT_001_VERSION GREATER_EQUAL 6)
-    list(APPEND DRIVER_CATALOG_FJXT_001 ${TEMPLATE_ROOT}/drivers/comm/su03t_voice.c)
+    list(APPEND DRIVER_CATALOG_FJXT_001 ${TEMPLATE_ROOT}/drivers/comm/tts_uart.c)
 endif()
+

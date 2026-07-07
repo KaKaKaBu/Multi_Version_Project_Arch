@@ -19,19 +19,44 @@ void app_comm_rx_callback(const unsigned char *data, unsigned short len);
 void app_mqtt_rx_callback(const char *topic,
                           const unsigned char *payload,
                           unsigned short len);
+static uint8_t app_mqtt_connecting;
+static uint32_t app_mqtt_next_connect_tick;
 #endif
 
 #if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
 static const esp8266_mqtt_config_t app_mqtt_cfg = {
-    BOARD_ESP8266_WIFI_SSID,
-    BOARD_ESP8266_WIFI_PASS,
-    BOARD_ESP8266_MQTT_BROKER,
-    BOARD_ESP8266_MQTT_PORT,
-    BOARD_ESP8266_MQTT_CLIENT_ID,
-    BOARD_ESP8266_MQTT_USER,
-    BOARD_ESP8266_MQTT_PASS,
-    BOARD_ESP8266_MQTT_SUB_TOPIC,
-    BOARD_ESP8266_MQTT_PUB_TOPIC
+#if VERSION_FEATURE_CLOUD
+    .wifi_ssid = BOARD_ESP8266_WIFI_SSID,
+    .wifi_password = BOARD_ESP8266_WIFI_PASS,
+    .broker = BOARD_ESP8266_HUAWEI_BROKER,
+    .port = BOARD_ESP8266_HUAWEI_PORT,
+    .client_id = BOARD_ESP8266_HUAWEI_CLIENT_ID,
+    .mqtt_user = BOARD_ESP8266_HUAWEI_USER,
+    .mqtt_password = BOARD_ESP8266_HUAWEI_PASS,
+    .sub_topic = BOARD_ESP8266_HUAWEI_PROPERTY_SET_TOPIC,
+    .pub_topic = BOARD_ESP8266_HUAWEI_PROPERTY_REPORT_TOPIC,
+    .backend = ESP8266_MQTT_BACKEND_HUAWEI_IOTDA,
+    .scheme = ESP8266_MQTT_SCHEME_TCP,
+    .huawei_device_id = BOARD_ESP8266_HUAWEI_DEVICE_ID,
+    .huawei_device_secret = BOARD_ESP8266_HUAWEI_DEVICE_SECRET,
+    .huawei_service_id = BOARD_ESP8266_HUAWEI_SERVICE_ID,
+    .huawei_property_report_topic = BOARD_ESP8266_HUAWEI_PROPERTY_REPORT_TOPIC,
+    .huawei_property_set_topic = BOARD_ESP8266_HUAWEI_PROPERTY_SET_TOPIC,
+    .huawei_custom_pub_topic = BOARD_ESP8266_HUAWEI_CUSTOM_PUB_TOPIC,
+    .huawei_custom_sub_topic = BOARD_ESP8266_HUAWEI_CUSTOM_SUB_TOPIC
+#else
+    .wifi_ssid = BOARD_ESP8266_WIFI_SSID,
+    .wifi_password = BOARD_ESP8266_WIFI_PASS,
+    .broker = BOARD_ESP8266_MQTT_BROKER,
+    .port = BOARD_ESP8266_MQTT_PORT,
+    .client_id = BOARD_ESP8266_MQTT_CLIENT_ID,
+    .mqtt_user = BOARD_ESP8266_MQTT_USER,
+    .mqtt_password = BOARD_ESP8266_MQTT_PASS,
+    .sub_topic = BOARD_ESP8266_MQTT_SUB_TOPIC,
+    .pub_topic = BOARD_ESP8266_MQTT_PUB_TOPIC,
+    .backend = ESP8266_MQTT_BACKEND_GENERIC,
+    .scheme = ESP8266_MQTT_SCHEME_TCP
+#endif
 };
 #endif
 
@@ -45,7 +70,7 @@ static sched_loop_t alarm_loop = SCHED_LOOP_DEF(
     "alarm", alarm_loop_run, 2U, 80U, APP_EVENT_ALARM | APP_EVENT_SENSOR, 0U);
 
 static sched_loop_t display_loop = SCHED_LOOP_DEF(
-    "display", display_loop_run, 1U, 200U, APP_EVENT_SENSOR | APP_EVENT_KEY | APP_EVENT_MOTOR | APP_EVENT_ALARM | APP_EVENT_COMM_RX, 0U);
+    "display", display_loop_run, 5U, 200U, APP_EVENT_SENSOR | APP_EVENT_KEY | APP_EVENT_MOTOR | APP_EVENT_ALARM | APP_EVENT_COMM_RX, 0U);
 
 #if VERSION_FEATURE_REMOTE
 static sched_loop_t comm_loop = SCHED_LOOP_DEF(
@@ -71,7 +96,6 @@ static void app_comm_setup(void)
 #if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
     if ((comm_port_driver() != 0) &&
         (strcmp(comm_port_driver()->name, "esp8266") == 0)) {
-        (void)esp8266_mqtt_connect(&app_mqtt_cfg);
         esp8266_mqtt_register_rx_callback(app_mqtt_rx_callback);
     } else
 #endif
@@ -81,11 +105,54 @@ static void app_comm_setup(void)
 #endif
 }
 
+void app_comm_poll(sched_event_t events)
+{
+#if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
+    uint32_t now;
+
+    if ((comm_port_driver() == 0) ||
+        (strcmp(comm_port_driver()->name, "esp8266") != 0)) {
+        (void)events;
+        return;
+    }
+
+    now = sched_tick_get();
+    if (esp8266_mqtt_is_ready() != 0) {
+        if ((events & (APP_EVENT_COMM_RX | SCHED_EVENT_TICK)) != 0U) {
+            esp8266_mqtt_poll();
+        }
+        return;
+    }
+
+    if ((events & SCHED_EVENT_TICK) == 0U) {
+        return;
+    }
+    if (app_mqtt_connecting != 0U) {
+        return;
+    }
+    if ((int32_t)(now - app_mqtt_next_connect_tick) < 0) {
+        return;
+    }
+
+    app_mqtt_connecting = 1U;
+    if (esp8266_mqtt_connect(&app_mqtt_cfg) == 0) {
+        esp8266_mqtt_register_rx_callback(app_mqtt_rx_callback);
+        app_logic_request_telemetry();
+    } else {
+        app_mqtt_next_connect_tick = now + 10000U;
+    }
+    app_mqtt_connecting = 0U;
+#else
+    (void)events;
+#endif
+}
+
 void app_main(void)
 {
     bsp_init();
     sched_init();
     irq_event_init();
+    gpio_hal_apply_remap(GPIO_HAL_REMAP_SWJ_JTAG_DISABLE);
     devmgr_init_all();
     key_register_callback(app_key_event_handler, 0);
     app_comm_setup();

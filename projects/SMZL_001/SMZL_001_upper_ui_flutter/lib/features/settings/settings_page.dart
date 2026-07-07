@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
+
 import '../../services/smzl_service.dart';
 
 class SmzlSettings extends StatefulWidget {
@@ -46,7 +48,7 @@ class _SmzlSettingsState extends State<SmzlSettings> {
     );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Thresholds sent'),
+        content: Text('阈值已下发'),
         duration: Duration(seconds: 1),
       ),
     );
@@ -54,22 +56,23 @@ class _SmzlSettingsState extends State<SmzlSettings> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return AdaptivePage(
       children: [
-        Text(
-          'Threshold Settings',
-          style: Theme.of(context).textTheme.titleMedium,
+        AdaptiveSectionCard(
+          title: '阈值设置',
+          child: Column(
+            children: [
+              _Field(label: '心率上限 (bpm)', ctrl: hrU),
+              _Field(label: '心率下限 (bpm)', ctrl: hrL),
+              _Field(label: '血氧上限 (%)', ctrl: sU),
+              _Field(label: '血氧下限 (%)', ctrl: sL),
+              _Field(label: '体温上限 (°C)', ctrl: tU),
+              _Field(label: '体温下限 (°C)', ctrl: tL),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _save, child: const Text('保存阈值')),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
-        _Field(label: 'HR Upper (bpm)', ctrl: hrU),
-        _Field(label: 'HR Lower (bpm)', ctrl: hrL),
-        _Field(label: 'SpO2 Upper (%)', ctrl: sU),
-        _Field(label: 'SpO2 Lower (%)', ctrl: sL),
-        _Field(label: 'Temp Upper (°C)', ctrl: tU),
-        _Field(label: 'Temp Lower (°C)', ctrl: tL),
-        const SizedBox(height: 16),
-        ElevatedButton(onPressed: _save, child: const Text('Save Thresholds')),
       ],
     );
   }
@@ -81,21 +84,12 @@ class _Field extends StatelessWidget {
   const _Field({required this.label, required this.ctrl});
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            SizedBox(width: 150, child: Text(label)),
-            Expanded(
-              child: TextField(
-                controller: ctrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(isDense: true),
-              ),
-            ),
-          ],
-        ),
+    return AdaptiveFieldRow(
+      label: label,
+      child: TextField(
+        controller: ctrl,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(isDense: true),
       ),
     );
   }

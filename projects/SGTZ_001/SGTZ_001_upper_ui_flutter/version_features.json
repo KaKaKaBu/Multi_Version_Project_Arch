@@ -1,0 +1,13 @@
+{
+  "_comment": "SGTZ_001 Flutter upper UI features per firmware version.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common", "fan", "pressure"] },
+    "2": { "features": ["common", "weight", "threshold", "alarm"] },
+    "3": { "features": ["common", "weight", "height", "bmi"] },
+    "4": { "features": ["common", "weight", "height", "bmi", "ble", "app"] },
+    "5": { "features": ["common", "weight", "height", "bmi", "wifi", "app"] },
+    "6": { "features": ["common", "weight", "height", "bmi", "wifi", "app", "camera"] },
+    "7": { "features": ["common", "weight", "height", "bmi", "voice"] }
+  }
+}

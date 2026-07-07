@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
+
 import '../../services/znlyj_service.dart';
 
 class ZnlyjDashboard extends StatefulWidget {
@@ -24,50 +26,49 @@ class _ZnlyjDashboardState extends State<ZnlyjDashboard> {
         final d = snapshot.data ?? widget.service.latestData;
         final hasLight = widget.service.hasLight;
         final hasWeight = widget.service.hasWeight;
-        return ListView(
-          padding: const EdgeInsets.all(16),
+        return AdaptivePage(
           children: [
             _StatusChip(
-              label: 'Rack',
+              label: '晾衣架',
               active: d.rackOpen == 1,
               color: d.rackOpen == 1 ? Colors.green : Colors.grey,
             ),
             const SizedBox(height: 8),
             _Card(
               icon: Icons.thermostat,
-              label: 'Temperature',
+              label: '温度',
               value: '${d.temperature.toStringAsFixed(1)} °C',
               color: Colors.orange,
             ),
             _Card(
               icon: Icons.water_drop,
-              label: 'Humidity',
+              label: '湿度',
               value: '${d.humidity.toStringAsFixed(1)} %',
               color: Colors.blue,
             ),
             if (hasLight)
               _Card(
                 icon: Icons.light_mode,
-                label: 'Light',
+                label: '光照',
                 value: '${d.light.toStringAsFixed(1)} %',
                 color: Colors.amber,
               ),
             _Card(
               icon: Icons.person,
-              label: 'Human',
-              value: d.humanPresent == 1 ? 'YES' : 'NO',
+              label: '人体感应',
+              value: d.humanPresent == 1 ? '有人' : '无人',
               color: d.humanPresent == 1 ? Colors.green : Colors.grey,
             ),
             _Card(
               icon: Icons.checkroom,
-              label: 'Clothes',
-              value: d.clothesPresent == 1 ? 'YES' : 'NO',
+              label: '衣物检测',
+              value: d.clothesPresent == 1 ? '有衣物' : '无衣物',
               color: d.clothesPresent == 1 ? Colors.blue : Colors.grey,
             ),
             if (hasWeight)
               _Card(
                 icon: Icons.monitor_weight,
-                label: 'Weight',
+                label: '重量',
                 value: '${d.weightKg.toStringAsFixed(1)} kg',
                 color: d.weightOverload == 1 ? Colors.red : Colors.green,
               ),
@@ -82,14 +83,14 @@ class _ZnlyjDashboardState extends State<ZnlyjDashboard> {
                           ? Icons.arrow_upward
                           : Icons.arrow_downward,
                     ),
-                    label: Text(d.rackOpen == 1 ? 'Close Rack' : 'Open Rack'),
+                    label: Text(d.rackOpen == 1 ? '收回晾衣架' : '伸出晾衣架'),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             _StatusChip(
-              label: 'Alarm',
+              label: '报警',
               active: d.alarm == 1,
               color: d.alarm == 1 ? Colors.red : Colors.grey,
             ),
@@ -145,7 +146,7 @@ class _StatusChip extends StatelessWidget {
       backgroundColor: color.withAlpha(40),
       side: BorderSide(color: color),
       label: Text(
-        '$label: ${active ? "ON" : "OFF"}',
+        '$label：${active ? "开启" : "关闭"}',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
     );

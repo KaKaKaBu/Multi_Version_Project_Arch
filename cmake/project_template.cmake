@@ -73,6 +73,7 @@ function(mvp_add_stm32f1_project target_name)
         "${TEMPLATE_ROOT}/common/utils/mem_pool.c"
         "${TEMPLATE_ROOT}/common/utils/cJSON.c"
         "${TEMPLATE_ROOT}/common/utils/cjson_port.c"
+        "${TEMPLATE_ROOT}/common/utils/hmac_sha256.c"
         "${TEMPLATE_ROOT}/common/utils/soft_uart.c"
         "${TEMPLATE_ROOT}/common/utils/debug_uart.c"
         "${TEMPLATE_ROOT}/common/utils/comm_port.c"
@@ -197,8 +198,9 @@ function(mvp_add_stm32f1_project target_name)
 endfunction()
 
 function(mvp_add_mcs51_polling_project target_name)
+    set(options ENABLE_USART)
     set(one_value_args DRIVER_CATALOG_VAR)
-    cmake_parse_arguments(MVP "" "${one_value_args}" "" ${ARGN})
+    cmake_parse_arguments(MVP "${options}" "${one_value_args}" "" ${ARGN})
 
     if(NOT DEFINED MVP_DRIVER_CATALOG_VAR)
         message(FATAL_ERROR "mvp_add_mcs51_polling_project requires DRIVER_CATALOG_VAR")
@@ -211,6 +213,13 @@ function(mvp_add_mcs51_polling_project target_name)
         message(FATAL_ERROR "Driver catalog variable '${MVP_DRIVER_CATALOG_VAR}' is not defined")
     endif()
 
+    set(_mvp_mcs51_usart_enable 0)
+    set(_mvp_mcs51_usart_src "")
+    if(MVP_ENABLE_USART)
+        set(_mvp_mcs51_usart_enable 1)
+        set(_mvp_mcs51_usart_src "${TEMPLATE_ROOT}/bsp/mcs51/hal/usart_hal.c")
+    endif()
+
     add_executable(${target_name}
         app/app_main_mcs51.c
         app/app_logic.c
@@ -219,6 +228,7 @@ function(mvp_add_mcs51_polling_project target_name)
         "${TEMPLATE_ROOT}/bsp/mcs51/hal/hal_common.c"
         "${TEMPLATE_ROOT}/bsp/mcs51/hal/gpio_hal.c"
         "${TEMPLATE_ROOT}/bsp/mcs51/hal/i2c_hal_soft.c"
+        ${_mvp_mcs51_usart_src}
         ${${MVP_DRIVER_CATALOG_VAR}}
     )
 
@@ -240,6 +250,7 @@ function(mvp_add_mcs51_polling_project target_name)
         "${TEMPLATE_ROOT}/drivers/sensors"
         "${TEMPLATE_ROOT}/drivers/actuators"
         "${TEMPLATE_ROOT}/drivers/misc"
+        "${TEMPLATE_ROOT}/drivers/comm"
         "${TEMPLATE_ROOT}/drivers/config"
         "${TEMPLATE_ROOT}/hal_wrapper"
         "${TEMPLATE_ROOT}/bsp/mcs51/hal"
@@ -247,11 +258,13 @@ function(mvp_add_mcs51_polling_project target_name)
 
     target_compile_definitions(${target_name} PRIVATE
         PLATFORM_MCS51=1
+        MCS51_CHIP_${MCS51_CHIP}=1
+        MCS51_FOSC_HZ=${MCS51_FOSC_HZ}
         DRIVER_REGISTRY_STATIC=1
         APP_VERSION=${APP_VERSION}
         HAL_I2C_USE_SOFT=1
         HAL_DEBUG_UART_ENABLE=0
-        HAL_USART_ENABLE=0
+        HAL_USART_ENABLE=${_mvp_mcs51_usart_enable}
         HAL_ADC_ENABLE=0
         HAL_ADC_ENABLE_DMA=0
         HAL_USART_ENABLE_DMA=0

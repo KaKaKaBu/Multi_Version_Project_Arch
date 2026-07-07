@@ -304,9 +304,32 @@ static void key_process_exti(void)
     }
 }
 
+static void key_poll_buttons(void)
+{
+    uint32_t now = sched_tick_get();
+    uint8_t i;
+
+    for (i = 0U; i < key_button_active_count; ++i) {
+        key_button_state_t *btn = &key_buttons[i];
+        uint8_t is_pressed;
+
+        if (btn->pin == 0) {
+            continue;
+        }
+
+        is_pressed = (gpio_hal_read(btn->pin->port, btn->pin->pin) == 0U) ? 1U : 0U;
+        if ((is_pressed != 0U) && (btn->pressed == 0U)) {
+            key_handle_press(btn, now);
+        } else if ((is_pressed == 0U) && (btn->pressed != 0U)) {
+            key_handle_release(btn, now);
+        }
+    }
+}
+
 static void key_service_task_entry(driver_task_t *task)
 {
     (void)task_events_get(task);
+    key_poll_buttons();
     key_collect_and_dispatch_events();
     task_block(KEY_DRIVER_EVENT_WAIT_MASK);
 }

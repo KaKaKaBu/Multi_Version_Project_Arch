@@ -83,7 +83,7 @@ static unsigned short hcsr04_read_distance_cm(void)
     return hcsr04_distance_cache;
 }
 
-static const distance_sensor_t hcsr04_drv = {
+const distance_sensor_t hcsr04_drv = {
     "hcsr04",
     hcsr04_init,
     hcsr04_read_distance_cm

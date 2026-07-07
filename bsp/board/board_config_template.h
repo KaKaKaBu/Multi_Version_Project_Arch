@@ -111,6 +111,8 @@ static const hal_pin_t board_relay_pin = { HAL_PORT_B, HAL_PIN_0, GPIO_HAL_MODE_
 static const hal_pin_t board_led_pin = { HAL_PORT_C, HAL_PIN_13, GPIO_HAL_MODE_OUT_PP };
 /** @brief Buzzer drive pin (PB8, push-pull). */
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
+/** @brief Buzzer trigger level: 1 = active high, 0 = active low. */
+#define BOARD_BUZZER_TRIGGER_LEVEL 1U
 
 /** @name SG90 servo PWM (HAL_TIMER_ID_2 CH1). */
 /** @brief SG90 PWM output pin (PA0, AF push-pull). */

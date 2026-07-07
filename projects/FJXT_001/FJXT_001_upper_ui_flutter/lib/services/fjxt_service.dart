@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../core/config/debug_flags.dart';
-import '../core/transport/transport_service.dart';
-import '../core/version/version_capabilities.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
 import 'telemetry_model.dart';
 
 class FjxtService {
@@ -22,8 +20,9 @@ class FjxtService {
   void _onMessage(String raw) {
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
-      if (json['type'] == 'telemetry') {
-        _latest = WindowTelemetry.fromJson(json);
+      if (json['type'] == 'telemetry' ||
+          WindowTelemetry.hasCameraPayload(json)) {
+        _latest = WindowTelemetry.fromJson(json, previous: _latest);
         _dataController.add(_latest);
       }
     } catch (error) {

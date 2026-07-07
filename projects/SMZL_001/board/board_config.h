@@ -53,6 +53,7 @@ static const hal_pin_t board_ds18b20_pin = { HAL_PORT_B, HAL_PIN_12, GPIO_HAL_MO
 /* 蜂鸣器报警：PB8。                                                            */
 /* -------------------------------------------------------------------------- */
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
 
 /* -------------------------------------------------------------------------- */
 /* 状态 LED：PC13。                                                             */

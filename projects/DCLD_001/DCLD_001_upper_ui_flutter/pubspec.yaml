@@ -9,7 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  mqtt_client: ^10.11.1
+  mvp_flutter_common:
+    path: ../../../common/flutter
 
 dev_dependencies:
   flutter_test:

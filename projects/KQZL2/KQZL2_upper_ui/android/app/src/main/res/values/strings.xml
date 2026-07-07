@@ -1,0 +1,9 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">KQZL2</string>
+    <string name="title_activity_main">KQZL2</string>
+    <string name="package_name">com.jbltech.kqzl2</string>
+    <string name="custom_url_scheme">com.jbltech.kqzl2</string>
+</resources>
+
+

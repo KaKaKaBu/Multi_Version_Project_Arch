@@ -26,6 +26,7 @@
 #define DCLD_THRESHOLD_STEP_CM 5U
 #define DCLD_TEMP_SAMPLE_MS 5000U
 #define DCLD_VOICE_INTERVAL_MS 5000U
+#define DCLD_TELEMETRY_PERIOD_MS 2000U
 #define DCLD_TELEMETRY_BUFFER_SIZE 384U
 
 static const distance_sensor_t *distance_sensor;
@@ -111,9 +112,44 @@ static uint8_t dcld_voice_level_for_distance(uint16_t distance_cm)
     return 1U;
 }
 
+static const unsigned char dcld_voice_level1_gb2312[] = {
+    0xBAU, 0xF3U, 0xB7U, 0xBDU, 0xBEU, 0xE0U, 0xC0U, 0xEBU,
+    0xBDU, 0xCFU, 0xD4U, 0xB6U
+};
+static const unsigned char dcld_voice_level2_gb2312[] = {
+    0xC7U, 0xEBU, 0xD7U, 0xA2U, 0xD2U, 0xE2U, 0xBAU, 0xF3U,
+    0xB7U, 0xBDU
+};
+static const unsigned char dcld_voice_level3_gb2312[] = {
+    0xBEU, 0xE0U, 0xC0U, 0xEBU, 0xBDU, 0xCFU, 0xBDU, 0xFCU
+};
+static const unsigned char dcld_voice_level4_gb2312[] = {
+    0xCEU, 0xA3U, 0xCFU, 0xD5U, 0xC7U, 0xEBU, 0xCDU, 0xA3U,
+    0xB3U, 0xB5U
+};
+
+static const unsigned char *dcld_voice_text_for_level(uint8_t level, unsigned short *len)
+{
+    switch (level) {
+    case 4U:
+        *len = (unsigned short)sizeof(dcld_voice_level4_gb2312);
+        return dcld_voice_level4_gb2312;
+    case 3U:
+        *len = (unsigned short)sizeof(dcld_voice_level3_gb2312);
+        return dcld_voice_level3_gb2312;
+    case 2U:
+        *len = (unsigned short)sizeof(dcld_voice_level2_gb2312);
+        return dcld_voice_level2_gb2312;
+    default:
+        *len = (unsigned short)sizeof(dcld_voice_level1_gb2312);
+        return dcld_voice_level1_gb2312;
+    }
+}
+
 static void dcld_voice_maybe_announce(uint32_t now)
 {
-    unsigned char cmd[2];
+    const unsigned char *text;
+    unsigned short text_len;
     uint8_t level;
 
     if ((voice_drv == 0) || (g_dcld.alarm_active == 0U)) {
@@ -125,9 +161,8 @@ static void dcld_voice_maybe_announce(uint32_t now)
         return;
     }
 
-    cmd[0] = 0x10U;
-    cmd[1] = level;
-    (void)voice_drv->send(cmd, (unsigned short)sizeof(cmd));
+    text = dcld_voice_text_for_level(level, &text_len);
+    (void)voice_drv->send(text, text_len);
     g_dcld.voice_level = level;
     g_dcld.last_voice_tick = now;
 }
@@ -150,7 +185,7 @@ static void dcld_refresh_display(void)
     } else {
         DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Reverse Radar");
         (void)tiny_snprintf(line, sizeof(line), "%ucm", (unsigned int)g_dcld.distance_cm);
-        display->print(0U, 2U, DISPLAY_FONT_LARGE, "%s", line);
+        display->print(0U, 1U, DISPLAY_FONT_LARGE, "%s", line);
         display->print(0U, 5U, DISPLAY_FONT_SMALL, "Th:%ucm", (unsigned int)g_dcld.threshold_cm);
 #if VERSION_FEATURE_TEMP_COMP
         display->print(10U, 5U, DISPLAY_FONT_SMALL, "T:%dC", (int)g_dcld.temperature_c);
@@ -183,10 +218,6 @@ static void dcld_publish_telemetry(void)
 #if VERSION_FEATURE_TEMP_COMP
     cJSON_AddNumberToObject(root, "temperature_c", g_dcld.temperature_c);
 #endif
-#if VERSION_FEATURE_CAMERA
-    cJSON_AddStringToObject(root, "camera_url", BOARD_ESP32_CAM_STREAM_URL);
-#endif
-
     thresholds = cJSON_CreateObject();
     if (thresholds != 0) {
         cJSON_AddNumberToObject(thresholds, "distance", g_dcld.threshold_cm);
@@ -222,7 +253,9 @@ void app_logic_init(void)
     g_dcld.alarm_output_on = 0U;
     g_dcld.display_dirty = 1U;
     g_dcld.telemetry_pending = 1U;
+    g_dcld.telemetry_force = 1U;
     g_dcld.voice_level = 0U;
+    g_dcld.last_telemetry_tick = 0U;
     g_dcld.last_alarm_toggle_tick = sched_tick_get();
     g_dcld.alarm_period_ms = dcld_alarm_period_for_distance(DCLD_DEFAULT_THRESHOLD_CM);
     g_dcld.last_temp_sample_tick = 0U;
@@ -236,7 +269,7 @@ void app_logic_init(void)
     led_drv = devmgr_get_misc("led");
     buzzer_drv = devmgr_get_misc("buzzer");
 #if VERSION_FEATURE_VOICE
-    voice_drv = devmgr_get_comm("su03t");
+    voice_drv = devmgr_get_comm("tts_uart");
 #endif
 #if VERSION_FEATURE_REMOTE
     cjson_port_init();
@@ -272,7 +305,9 @@ void sensor_loop_run(sched_event_t events, void *ctx)
     g_dcld.alarm_active = ((g_dcld.distance_cm > 0U) && (g_dcld.distance_cm < g_dcld.threshold_cm)) ? 1U : 0U;
     g_dcld.alarm_period_ms = dcld_alarm_period_for_distance(g_dcld.distance_cm);
     g_dcld.display_dirty = 1U;
-    app_logic_request_telemetry();
+#if VERSION_FEATURE_REMOTE
+    g_dcld.telemetry_pending = 1U;
+#endif
 }
 
 void alarm_loop_run(sched_event_t events, void *ctx)
@@ -346,12 +381,14 @@ void app_logic_request_telemetry(void)
 {
 #if VERSION_FEATURE_REMOTE
     g_dcld.telemetry_pending = 1U;
+    g_dcld.telemetry_force = 1U;
     event_set(APP_EVENT_COMM_TX);
 #endif
 }
 
 void comm_loop_run(sched_event_t events, void *ctx)
 {
+    uint32_t now;
 #if VERSION_FEATURE_BLE
     unsigned char rx;
 #endif
@@ -374,8 +411,14 @@ void comm_loop_run(sched_event_t events, void *ctx)
 #if VERSION_FEATURE_REMOTE
     if (((events & (APP_EVENT_COMM_TX | APP_EVENT_TICK | APP_EVENT_SENSOR)) != 0U) &&
         (g_dcld.telemetry_pending != 0U)) {
-        g_dcld.telemetry_pending = 0U;
-        dcld_publish_telemetry();
+        now = sched_tick_get();
+        if ((g_dcld.telemetry_force != 0U) ||
+            ((now - g_dcld.last_telemetry_tick) >= DCLD_TELEMETRY_PERIOD_MS)) {
+            g_dcld.telemetry_pending = 0U;
+            g_dcld.telemetry_force = 0U;
+            g_dcld.last_telemetry_tick = now;
+            dcld_publish_telemetry();
+        }
     }
 #else
     (void)events;

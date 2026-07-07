@@ -78,6 +78,9 @@ node_modules/
 **/.packages
 **/android/local.properties
 **/*.iml
+.dart-local/
+.dart-roaming/
+.gradle-local/
 
 # ==================== OS ====================
 .DS_Store

@@ -474,7 +474,7 @@ exports/
 
 `export_project.py` 在导出每个版本时，会：
 
-1. Flutter 主上位机：解析 `<NAME>_upper_ui_flutter/version_features.json` → 获取 `features` → 以 `--dart-define=UPPER_VERSION=<N>` / `--dart-define=UPPER_FEATURES=<list>` 执行 `flutter build apk --debug`，包含 `web` feature 时同时执行 `flutter build web`，再将 Flutter 工程源码与 `build_outputs/` 拷贝到 `versions/<label>/`。
+1. Flutter 主上位机：解析 `<NAME>_upper_ui_flutter/version_features.json` → 获取 `features` → 以 `--dart-define=UPPER_VERSION=<N>` / `--dart-define=UPPER_FEATURES=<list>` 执行 `flutter build apk --release`，包含 `web` feature 时同时执行 `flutter build web`，再将 Flutter 工程源码与 `build_outputs/` 拷贝到 `versions/<label>/`。
 2. uni-app 小程序/历史栈：解析 `<NAME>_upper_ui/version_features.json` → 获取 `features` → 计算需要复制的源码路径（支持 glob / `!` 排除），仅对包含 `mpWeixin` 的版本运行 `npm run build:mp-weixin` 并导出到 `versions/<label>/`。
 3. 双栈项目使用两套独立版本矩阵；Flutter 只导出 Flutter 矩阵显式覆盖的主上位机版本，uni-app 只导出小程序版本。
 

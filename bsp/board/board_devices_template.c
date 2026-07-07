@@ -214,7 +214,10 @@ REGISTER_BOARD_DEVICE(RELAY, "relay", &board_relay_config);
 #endif
 
 #if defined(BOARD_HAS_BUZZER)
-static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, 1U };
+static const gpio_output_driver_config_t board_buzzer_config = {
+    board_buzzer_pin,
+    BOARD_BUZZER_TRIGGER_LEVEL
+};
 REGISTER_BOARD_DEVICE(MISC, "buzzer", &board_buzzer_config);
 #endif
 

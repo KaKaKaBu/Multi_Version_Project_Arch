@@ -57,6 +57,7 @@ static const hal_pin_t board_key5_pin = { HAL_PORT_B, HAL_PIN_14, GPIO_HAL_MODE_
 /* Buzzer PB8 / LED PC13                                                        */
 /* -------------------------------------------------------------------------- */
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
 static const hal_pin_t board_led_pin = { HAL_PORT_C, HAL_PIN_13, GPIO_HAL_MODE_OUT_PP };
 
 /* -------------------------------------------------------------------------- */

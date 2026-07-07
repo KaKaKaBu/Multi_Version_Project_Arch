@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
+
 import '../../services/wxcs_service.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -22,20 +24,19 @@ class _DashboardPageState extends State<DashboardPage> {
       stream: widget.service.onData,
       builder: (context, snapshot) {
         final data = snapshot.data ?? widget.service.latestData;
-        return ListView(
-          padding: const EdgeInsets.all(16),
+        return AdaptivePage(
           children: [
             _ModeChip(mode: data.mode),
             const SizedBox(height: 12),
             _SensorCard(
               icon: Icons.thermostat,
-              label: 'Temperature',
+              label: '温度',
               value: '${data.temperature.toStringAsFixed(1)} °C',
               color: _tempColor(data.temperature, data.tempThreshold),
             ),
             _SensorCard(
               icon: Icons.air,
-              label: 'Air Quality',
+              label: '空气质量',
               value: '${data.airQualityPpm} ppm',
               color: _aqColor(data.airQualityPpm, data.aqThreshold),
             ),
@@ -50,7 +51,7 @@ class _DashboardPageState extends State<DashboardPage> {
               children: [
                 Expanded(
                   child: _StatusChip(
-                    label: 'Fan',
+                    label: '风扇',
                     active: data.fan == 1,
                     color: data.fan == 1 ? Colors.green : Colors.grey,
                   ),
@@ -58,7 +59,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _StatusChip(
-                    label: 'Alarm',
+                    label: '报警',
                     active: data.alarm == 1,
                     color: data.alarm == 1 ? Colors.red : Colors.grey,
                   ),
@@ -73,7 +74,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     onPressed: () =>
                         widget.service.setControl(fan: data.fan == 1 ? 0 : 1),
                     icon: Icon(data.fan == 1 ? Icons.stop : Icons.play_arrow),
-                    label: Text(data.fan == 1 ? 'Stop Fan' : 'Start Fan'),
+                    label: Text(data.fan == 1 ? '关闭风扇' : '启动风扇'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -87,7 +88,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           ? Icons.notifications_off
                           : Icons.notifications_active,
                     ),
-                    label: Text(data.alarm == 1 ? 'Silence' : 'Alarm On'),
+                    label: Text(data.alarm == 1 ? '关闭报警' : '启动报警'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: data.alarm == 1
                           ? Colors.red
@@ -122,7 +123,15 @@ class _ModeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Chip(
       avatar: const Icon(Icons.settings, size: 18),
-      label: Text(mode, style: const TextStyle(fontWeight: FontWeight.bold)),
+      label: Text(
+        switch (mode.toLowerCase()) {
+          'auto' => '自动模式',
+          'manual' => '手动模式',
+          'threshold' => '阈值设置',
+          _ => mode,
+        },
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
     );
   }
 }
@@ -175,7 +184,7 @@ class _StatusChip extends StatelessWidget {
     return Chip(
       backgroundColor: color.withAlpha(40),
       side: BorderSide(color: color),
-      label: Text('$label: ${active ? "ON" : "OFF"}'),
+      label: Text('$label：${active ? "开启" : "关闭"}'),
     );
   }
 }

@@ -133,7 +133,7 @@ REGISTER_BOARD_DEVICE(RELAY, "relay", &board_relay_config);
 static const gpio_output_driver_config_t board_led_config = { board_led_pin, 0U };
 REGISTER_BOARD_DEVICE(MISC, "led", &board_led_config);
 
-static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, 1U };
+static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, BOARD_BUZZER_TRIGGER_LEVEL };
 REGISTER_BOARD_DEVICE(MISC, "buzzer", &board_buzzer_config);
 
 static const servo_driver_config_t board_sg90_config = {

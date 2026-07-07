@@ -55,6 +55,7 @@ static const hal_pin_t board_ds18b20_pin = { HAL_PORT_B, HAL_PIN_13, GPIO_HAL_MO
 static const hal_pin_t board_relay_pin = { HAL_PORT_B, HAL_PIN_0, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_led_pin = { HAL_PORT_C, HAL_PIN_13, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
 
 static const hal_pin_t board_sg90_pwm_pin = { HAL_PORT_A, HAL_PIN_0, GPIO_HAL_MODE_AF_PP };
 

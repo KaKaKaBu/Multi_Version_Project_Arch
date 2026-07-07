@@ -12,7 +12,7 @@ DCLD_001 是基于 STM32F103C8T6 的超声波测距倒车雷达产品族。固�
 | --- | --- | --- |
 | 1 | DCLD-001 | HC-SR04 超声波测距、OLED 当前距离、声光报警、报警频率随距离变化、按键阈值设置 |
 | 2 | DCLD-002 | 版本 1 + DS18B20 温度补偿 |
-| 3 | DCLD-003 | 版本 2 + SU03T 语音播报 |
+| 3 | DCLD-003 | 版本 2 + 串口透传 TTS 语音播报 |
 | 4 | DCLD-004 | 版本 2 + ESP-01S WiFi MQTT + Android APP 显示/阈值设置/异常提醒 |
 | 5 | DCLD-005 | 版本 2 + JDY-31 蓝牙 APP 显示/阈值设置/异常提醒 |
 | 6 | DCLD-006 | 版本 3 + ESP-01S WiFi MQTT + Android APP |
@@ -41,7 +41,7 @@ DCLD_001 是基于 STM32F103C8T6 的超声波测距倒车雷达产品族。固�
 | 按键 | `key` | `input_driver_t` + `key_service` |
 | WiFi | `esp8266` | `comm_driver_t` + `esp8266_mqtt` |
 | 蓝牙 | `jdy31` | `comm_driver_t` |
-| 语音 | `su03t` | `comm_driver_t` |
+| 语音 | `tts_uart` | 串口透传 TTS，`comm_driver_t` |
 
 ## 5. 按键交互
 
@@ -72,7 +72,6 @@ DS18B20 采样周期为 5 秒，距离采样周期为 250 ms，避免温度转�
   "threshold_cm": 80,
   "temperature_c": 25.5,
   "alarm": 1,
-  "camera_url": "http://192.168.4.1:81/stream",
   "thresholds": { "distance": 80 }
 }
 ```
@@ -90,7 +89,7 @@ DS18B20 采样周期为 5 秒，距离采样周期为 250 ms，避免温度转�
 
 ## 8. ESP32-CAM 说明
 
-DCLD-007 不在 STM32 固件中实现摄像头驱动。ESP32-CAM 作为独立视频节点提供 HTTP/MJPEG stream，固件通过 `BOARD_ESP32_CAM_STREAM_URL` 在遥测 JSON 中发布 URL，APP 端负责展示视频流。
+DCLD-007 不在 STM32 固件中实现摄像头驱动，也不由 STM32 下位机遥测发布 `camera_url`。ESP32-CAM 作为独立视频节点提供 HTTP/MJPEG stream，并按摄像头 MQTT 协议自行上报视频流地址，APP 端负责展示视频流。
 
 ## 9. 引脚定义
 
@@ -100,15 +99,14 @@ DCLD-007 不在 STM32 固件中实现摄像头驱动。ESP32-CAM 作为独立视
 | --- | --- | --- |
 | OLED I2C SCL/SDA | PB6 / PB7 | I2C1，地址 `0x78` |
 | HC-SR04 TRIG/ECHO | PA0 / PA1 | 超声波测距 |
-| LED | PA8 | 声光报警输出 |
-| 蜂鸣器 | PB0 | 声光报警输出 |
-| Key1/Key2/Key3 | PB12 / PB13 / PB14 | 模式、阈值加、阈值减 |
+| LED | PA6 | 声光报警输出 |
+| 蜂鸣器 | PB12 | 低电平触发，声光报警输出 |
+| Key1/Key2/Key3 | PB3 / PB4 / PB5 | 上拉输入，模式、阈值加、阈值减；启动时关闭 JTAG、保留 SWD |
 | DS18B20 | PA5 | v2-v7 温度补偿 |
 | ESP8266 TX/RX | PB10 / PB11 | v4、v6、v7，USART3 |
-| ESP8266 CH_PD/RST | PB1 / PA11 | v4、v6、v7 |
+| ESP8266 CH_PD/RST | PB1 / PB0 | v4、v6、v7 |
 | JDY-31 TX/RX | PA2 / PA3 | v5，USART2 |
-| SU03T TX/RX | PA9 / PA10 | v6-v7，WiFi 版本使用 USART1 |
-| SU03T TX/RX | PA2 / PA3 | v3，非 WiFi 版本使用 USART2 |
+| 串口透传 TTS TX/RX | PA9 / PA10 | v3、v6、v7 固定 USART1，9600 8N1，仅发送 GB2312 文本 |
 | 调试输出 | PC13 | `HAL_DEBUG_UART_ENABLE` 时启用 |
 
 ## 10. 构建

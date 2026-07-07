@@ -39,13 +39,14 @@ static const hal_pin_t board_hcsr04_trig_pin = { HAL_PORT_A, HAL_PIN_0, GPIO_HAL
 static const hal_pin_t board_hcsr04_echo_pin = { HAL_PORT_A, HAL_PIN_1, GPIO_HAL_MODE_IN_FLOATING };
 
 /** @name Alarm outputs. */
-static const hal_pin_t board_led_pin = { HAL_PORT_A, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
-static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_0, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_led_pin = { HAL_PORT_A, HAL_PIN_6, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_12, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_LOW
 
 /** @name Front panel keys: key1 mode, key2 increment, key3 decrement. */
-static const hal_pin_t board_key1_pin = { HAL_PORT_B, HAL_PIN_12, GPIO_HAL_MODE_IN_PULLUP };
-static const hal_pin_t board_key2_pin = { HAL_PORT_B, HAL_PIN_13, GPIO_HAL_MODE_IN_PULLUP };
-static const hal_pin_t board_key3_pin = { HAL_PORT_B, HAL_PIN_14, GPIO_HAL_MODE_IN_PULLUP };
+static const hal_pin_t board_key1_pin = { HAL_PORT_B, HAL_PIN_3, GPIO_HAL_MODE_IN_PULLUP };
+static const hal_pin_t board_key2_pin = { HAL_PORT_B, HAL_PIN_4, GPIO_HAL_MODE_IN_PULLUP };
+static const hal_pin_t board_key3_pin = { HAL_PORT_B, HAL_PIN_5, GPIO_HAL_MODE_IN_PULLUP };
 static const hal_pin_t *const board_dcld_key_pins[] = {
     &board_key1_pin,
     &board_key2_pin,
@@ -53,6 +54,7 @@ static const hal_pin_t *const board_dcld_key_pins[] = {
 };
 #define KEY_DRIVER_PIN_TABLE board_dcld_key_pins
 #define KEY_DRIVER_BUTTON_COUNT ((uint8_t)(sizeof(board_dcld_key_pins) / sizeof(board_dcld_key_pins[0])))
+#define BOARD_KEY_SWJ_REMAP GPIO_HAL_REMAP_SWJ_JTAG_DISABLE
 
 #if VERSION_FEATURE_TEMP_COMP
 static const hal_pin_t board_ds18b20_pin = { HAL_PORT_A, HAL_PIN_5, GPIO_HAL_MODE_OUT_OD };
@@ -71,7 +73,7 @@ static const hal_pin_t board_ds18b20_pin = { HAL_PORT_A, HAL_PIN_5, GPIO_HAL_MOD
 static const hal_pin_t board_esp8266_tx = { HAL_PORT_B, HAL_PIN_10, GPIO_HAL_MODE_AF_PP };
 static const hal_pin_t board_esp8266_rx = { HAL_PORT_B, HAL_PIN_11, GPIO_HAL_MODE_IN_FLOATING };
 static const hal_pin_t board_esp8266_ch_pd_pin = { HAL_PORT_B, HAL_PIN_1, GPIO_HAL_MODE_OUT_PP };
-static const hal_pin_t board_esp8266_rst_pin = { HAL_PORT_A, HAL_PIN_11, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_esp8266_rst_pin = { HAL_PORT_B, HAL_PIN_0, GPIO_HAL_MODE_OUT_PP };
 
 #define BOARD_ESP8266_WIFI_SSID "demo"
 #define BOARD_ESP8266_WIFI_PASS "12345678"
@@ -98,31 +100,19 @@ static const hal_pin_t board_jdy31_rx = { HAL_PORT_A, HAL_PIN_3, GPIO_HAL_MODE_I
 #endif
 
 #if VERSION_FEATURE_VOICE
-/** @name SU03T voice announcement module. */
-#if VERSION_FEATURE_WIFI
-#define BOARD_SU03T_USART HAL_USART_ID_1
-#define BOARD_SU03T_BAUDRATE BOARD_USART1_BAUDRATE
-#define BOARD_SU03T_USART_REMAP GPIO_HAL_REMAP_NONE
-static const hal_pin_t board_su03t_tx = { HAL_PORT_A, HAL_PIN_9, GPIO_HAL_MODE_AF_PP };
-static const hal_pin_t board_su03t_rx = { HAL_PORT_A, HAL_PIN_10, GPIO_HAL_MODE_IN_FLOATING };
-#else
-#define BOARD_SU03T_USART HAL_USART_ID_2
-#define BOARD_SU03T_BAUDRATE BOARD_USART2_BAUDRATE
-#define BOARD_SU03T_USART_REMAP GPIO_HAL_REMAP_NONE
-static const hal_pin_t board_su03t_tx = { HAL_PORT_A, HAL_PIN_2, GPIO_HAL_MODE_AF_PP };
-static const hal_pin_t board_su03t_rx = { HAL_PORT_A, HAL_PIN_3, GPIO_HAL_MODE_IN_FLOATING };
-#endif
-#define BOARD_SU03T_USART_TX_MODE USART_HAL_TX_MODE_IRQ
+/** @name Serial transparent TTS voice module (USART1 PA9/PA10, 9600 8N1, GB2312 text). */
+#define BOARD_TTS_UART_USART HAL_USART_ID_1
+#define BOARD_TTS_UART_BAUDRATE BOARD_USART1_BAUDRATE
+#define BOARD_TTS_UART_USART_REMAP GPIO_HAL_REMAP_NONE
+static const hal_pin_t board_tts_uart_tx = { HAL_PORT_A, HAL_PIN_9, GPIO_HAL_MODE_AF_PP };
+static const hal_pin_t board_tts_uart_rx = { HAL_PORT_A, HAL_PIN_10, GPIO_HAL_MODE_IN_FLOATING };
+#define BOARD_TTS_UART_USART_TX_MODE USART_HAL_TX_MODE_IRQ
 #endif
 
 #if VERSION_FEATURE_BLE
 #define BOARD_COMM_DEVICE "jdy31"
 #else
 #define BOARD_COMM_DEVICE "esp8266"
-#endif
-
-#if VERSION_FEATURE_CAMERA
-#define BOARD_ESP32_CAM_STREAM_URL "http://192.168.4.1:81/stream"
 #endif
 
 #define BOARD_HAS_HCSR04 1

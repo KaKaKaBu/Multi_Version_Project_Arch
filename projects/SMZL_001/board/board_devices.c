@@ -41,7 +41,7 @@ REGISTER_BOARD_DEVICE(PULSE_OXIMETER, "max30102", &board_max30102_config);
 static const one_wire_sensor_config_t board_ds18b20_config = { board_ds18b20_pin };
 REGISTER_BOARD_DEVICE(TEMP_HUM_SENSOR, "ds18b20", &board_ds18b20_config);
 
-static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, 1U };
+static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, BOARD_BUZZER_TRIGGER_LEVEL };
 REGISTER_BOARD_DEVICE(MISC, "buzzer", &board_buzzer_config);
 
 static const gpio_output_driver_config_t board_led_config = { board_led_pin, 0U };

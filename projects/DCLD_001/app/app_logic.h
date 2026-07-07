@@ -21,7 +21,9 @@ typedef struct dcld_context {
     uint8_t alarm_output_on;
     uint8_t display_dirty;
     uint8_t telemetry_pending;
+    uint8_t telemetry_force;
     uint8_t voice_level;
+    uint32_t last_telemetry_tick;
     uint32_t last_alarm_toggle_tick;
     uint32_t alarm_period_ms;
     uint32_t last_temp_sample_tick;

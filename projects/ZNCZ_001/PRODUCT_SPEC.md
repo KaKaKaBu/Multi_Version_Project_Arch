@@ -83,7 +83,7 @@
 
 ## 6. WiFi / APP 协议（MQTT JSON）
 
-Topic 与凭据见 `board/board_config.h` 中 `BOARD_ESP8266_MQTT_*`（默认订阅 `ZNCZ_001/cmd`，发布 `ZNCZ_001/telemetry`）。
+Topic 与凭据见 `board/board_config.h` 中 `BOARD_ESP8266_MQTT_*`（设备默认订阅 `ZNCZ_001/web`，发布 `ZNCZ_001`）。
 
 ### 6.1 APP → 设备（下行）
 
@@ -156,7 +156,7 @@ Topic 与凭据见 `board/board_config.h` 中 `BOARD_ESP8266_MQTT_*`（默认订
 
 ### APP JSON 示例
 
-**下行（`ZNCZ_001/cmd`）**
+**下行（上位机发布到 `ZNCZ_001/web`）**
 
 ```json
 {"cmd":"set_time","hour":12,"minute":30,"second":0,"year":2026,"month":5,"day":25}
@@ -166,7 +166,7 @@ Topic 与凭据见 `board/board_config.h` 中 `BOARD_ESP8266_MQTT_*`（默认订
 {"cmd":"get_status"}
 ```
 
-**上行（`ZNCZ_001/telemetry`）**
+**上行（设备发布到 `ZNCZ_001`）**
 
 ```json
 {"relay":1,"mode":"manual","time":"12:30:45","on_time":"08:00:00","off_time":"22:00:00","wifi":"connected"}
@@ -174,28 +174,30 @@ Topic 与凭据见 `board/board_config.h` 中 `BOARD_ESP8266_MQTT_*`（默认订
 
 ---
 
-## 9. 上位机（uni-app + Vite + Capacitor）
+## 9. 上位机（Flutter）
 
-- 目录：`projects/ZNCZ_001/ZNCZ_001_upper_ui/`
-- 技术栈：Vue3 + uni-app + Vite，内置 `src/features/`（`common` / `wifi` / `ble` 示例）与 `version_features.json`，可根据固件版本裁剪功能。
+- 主上位机目录：`projects/ZNCZ_001/ZNCZ_001_upper_ui_flutter/`
+- 技术栈：Flutter + Material 3 + `mqtt_client`，通过 `version_features.json` 与 `UPPER_VERSION` / `UPPER_FEATURES` 管理版本能力。
+- 旧目录：`projects/ZNCZ_001/ZNCZ_001_upper_ui/` 为历史 uni-app/Capacitor 实现，主 App/Web 上位机改由 Flutter 承担。
 - 目标平台：
-  1. **H5/Web**：`npm run dev:h5` / `npm run build:h5`
-  2. **微信小程序**：`npm run dev:mp-weixin` / `npm run build:mp-weixin`
-  3. **Android（Capacitor）**：`npx cap sync android`，可通过 `npx cap open android` 打开 Android Studio。
+  1. **Android**：`flutter run -d <device> --dart-define=UPPER_VERSION=1 --dart-define=UPPER_FEATURES=common,wifi,app,timer,relay,rtc`
+  2. **Windows**：`flutter run -d windows --dart-define=UPPER_VERSION=1 --dart-define=UPPER_FEATURES=common,wifi,app,timer,relay,rtc`
+  3. **Web**：当前 MQTT 实现使用原生 TCP 客户端；Web 平台需后续接入 WebSocket MQTT transport 后再启用。
 
 ### 9.1 功能模块
 
 | 模块 | 功能 | 数据来源 |
 | --- | --- | --- |
-| 实时状态卡片 | 显示 `relay/mode/time/on_time/off_time/wifi`，支持一键刷新 | MQTT `ZNCZ_001/telemetry` |
+| 实时状态卡片 | 显示 `relay/mode/time/on_time/off_time/wifi`，支持一键刷新 | MQTT `ZNCZ_001` |
 | 手动控制面板 | 继电器开/关、模式显示、即时状态 | `relay`, `get_status` |
 | 定时配置向导 | 编辑开/关时间（时/分/秒）并提交 | `set_on_time`, `set_off_time` |
 | 校时工具 | 选择日期时间并发送 `set_time` | `set_time` |
-| WiFi/云连接页 | 展示 SSID/密码/连接状态、重试按钮 | `wifi` 字段 + `get_status` |
+| MQTT 连接栏 | 展示 Broker、命令 Topic、遥测 Topic 和连接状态 | `board/board_config.h` 同步参数 |
+| Debug 通信日志 | Debug 构建显示最近 TX/RX JSON，Release 隐藏 | `upperUiShowCommunicationLog` |
 
 ### 9.2 交互流程
 
-1. **连接设置**：启动 H5/Android，填写 MQTT Broker 地址/Topic（默认读取 `src/config/mqtt.ts`）。
+1. **连接设置**：启动 Android/Windows，点击连接 MQTT（默认读取 `lib/core/config/mqtt_config.dart`）。
 2. **数据刷新**：应用启动即发送 `get_status`，所有控制操作完成后再次请求状态，保持 UI 与固件同步。
 3. **命令映射**：UI 下发 JSON 与 §6 命令一致，服务端/固件无需额外转换。
 4. **版本裁剪**：修改 `version_features.json`，配合 `export_project.py` 仅导出对应 feature 的源码与构建产物。
@@ -203,18 +205,13 @@ Topic 与凭据见 `board/board_config.h` 中 `BOARD_ESP8266_MQTT_*`（默认订
 ### 9.3 构建与同步
 
 ```
-# H5 / 小程序
-npm run build:h5
-npm run build:mp-weixin
-
-# Android 同步
-npx cap sync android
-
-# 打开 Android Studio
-npx cap open android
+cd projects/ZNCZ_001/ZNCZ_001_upper_ui_flutter
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d windows --dart-define=UPPER_VERSION=1 --dart-define=UPPER_FEATURES=common,wifi,app,timer,relay,rtc
+flutter run -d <android-device> --dart-define=UPPER_VERSION=1 --dart-define=UPPER_FEATURES=common,wifi,app,timer,relay,rtc
 ```
-
-H5 产物位于 `dist/build/h5`，微信小程序位于 `dist/build/mp-weixin`，Android 资产目录由 Capacitor 自动指向 `dist/build/h5`。
 
 ---
 

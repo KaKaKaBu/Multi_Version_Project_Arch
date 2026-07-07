@@ -50,7 +50,7 @@ static const stepmotor_driver_config_t board_stepmotor_config = {
 };
 REGISTER_BOARD_DEVICE(STEPPER, "stepmotor", &board_stepmotor_config);
 
-static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, 1U };
+static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, BOARD_BUZZER_TRIGGER_LEVEL };
 REGISTER_BOARD_DEVICE(MISC, "buzzer", &board_buzzer_config);
 
 #if VERSION_FEATURE_WEIGHT

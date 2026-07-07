@@ -15,8 +15,20 @@
 #define BOARD_USART3_BAUDRATE 115200U
 
 #if HAL_DEBUG_UART_ENABLE
-#define BOARD_DEBUG_UART_BAUDRATE 9600U
-#define BOARD_DEBUG_UART_PASSTHROUGH_USART3 0
+#define BOARD_DEBUG_UART_BAUDRATE 38400U
+#define BOARD_DEBUG_UART_PASSTHROUGH_USART3 1
+#define DEBUG_LOG_ENABLE 0
+#define DEBUG_LOG_APP_ENABLE 0
+#define DEBUG_LOG_APP_CB_ENABLE 0
+#define DEBUG_LOG_ESP8266_ENABLE 1
+#define DEBUG_LOG_ESP8266_DRAIN_ENABLE 1
+#define DEBUG_LOG_MQTT_ENABLE 1
+#define DEBUG_LOG_MQTT_AT_ENABLE 1
+#define DEBUG_LOG_MQTT_POLL_ENABLE 0
+#define DEBUG_LOG_IRQ_EVENT_ENABLE 0
+#define DEBUG_LOG_USART_ENABLE 1
+#define DEBUG_LOG_RTC_ENABLE 0
+#define DEBUG_LOG_SCHED_ENABLE 0
 static const hal_pin_t board_debug_uart_tx = { HAL_PORT_C, HAL_PIN_13, GPIO_HAL_MODE_OUT_PP };
 #endif
 
@@ -53,7 +65,8 @@ static const hal_pin_t board_water_level_adc_pin = { HAL_PORT_A, HAL_PIN_1, GPIO
 
 /** @name Alarm outputs. */
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
-static const hal_pin_t board_led_pin = { HAL_PORT_B, HAL_PIN_9, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
+static const hal_pin_t board_led_pin = { HAL_PORT_A, HAL_PIN_6, GPIO_HAL_MODE_OUT_PP };
 
 /** @name Front-panel keys: mode, threshold select, increment, decrement. */
 static const hal_pin_t board_key1_pin = { HAL_PORT_B, HAL_PIN_4, GPIO_HAL_MODE_IN_PULLUP };
@@ -104,8 +117,8 @@ static const hal_pin_t board_a7670c_rx = { HAL_PORT_A, HAL_PIN_10, GPIO_HAL_MODE
 #endif
 static const hal_pin_t board_esp8266_tx = { HAL_PORT_B, HAL_PIN_10, GPIO_HAL_MODE_AF_PP };
 static const hal_pin_t board_esp8266_rx = { HAL_PORT_B, HAL_PIN_11, GPIO_HAL_MODE_IN_FLOATING };
-static const hal_pin_t board_esp8266_ch_pd_pin = { HAL_PORT_A, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
-static const hal_pin_t board_esp8266_rst_pin = { HAL_PORT_A, HAL_PIN_11, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_esp8266_ch_pd_pin = { HAL_PORT_B, HAL_PIN_0, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_esp8266_rst_pin = { HAL_PORT_B, HAL_PIN_1, GPIO_HAL_MODE_OUT_PP };
 
 #define BOARD_ESP8266_WIFI_SSID "demo"
 #define BOARD_ESP8266_WIFI_PASS "12345678"
@@ -116,6 +129,7 @@ static const hal_pin_t board_esp8266_rst_pin = { HAL_PORT_A, HAL_PIN_11, GPIO_HA
 #define BOARD_ESP8266_MQTT_PASS "yskj@123"
 #define BOARD_ESP8266_MQTT_SUB_TOPIC "ZHJG_001"
 #define BOARD_ESP8266_MQTT_PUB_TOPIC "ZHJG_001/web"
+#define BOARD_ESP8266_DEBUG_TRACE_ENABLE 1U
 #define BOARD_COMM_DEVICE "esp8266"
 #endif
 

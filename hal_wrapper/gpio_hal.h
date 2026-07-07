@@ -31,7 +31,8 @@ typedef enum gpio_hal_remap {
     GPIO_HAL_REMAP_TIM2_PARTIAL1,
     GPIO_HAL_REMAP_TIM2_PARTIAL2,
     GPIO_HAL_REMAP_TIM2_FULL,
-    GPIO_HAL_REMAP_SPI1
+    GPIO_HAL_REMAP_SPI1,
+    GPIO_HAL_REMAP_SWJ_JTAG_DISABLE
 } gpio_hal_remap_t;
 
 void gpio_hal_clock_enable(hal_gpio_port_t port);

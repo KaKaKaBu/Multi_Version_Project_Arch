@@ -1,0 +1,17 @@
+﻿{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "KQZL2 空气质量控制台"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "KQZL2 空气质量控制台",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#EEF4F7"
+  }
+}
+

@@ -1,0 +1,21 @@
+name: kqzl2_upper_ui
+description: KQZL2 空气质量检测系统上位机 built with Flutter.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  mvp_flutter_common:
+    path: ../../../common/flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

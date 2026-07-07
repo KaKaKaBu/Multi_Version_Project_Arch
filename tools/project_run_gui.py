@@ -39,6 +39,9 @@ TEMPLATE_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OPENOCD_CFG = str(TEMPLATE_ROOT / "stm32f103c8_blue_pill.cfg")
 DEFAULT_ADB_TARGET = "127.0.0.1:5555"
 DEFAULT_WINDOW_SIZE = "1120x820"
+LOCAL_PUB_CACHE = TEMPLATE_ROOT / ".dart-local" / "Pub" / "Cache"
+LOCAL_GRADLE_USER_HOME = TEMPLATE_ROOT / ".gradle-local"
+LOCAL_DART_ROAMING = TEMPLATE_ROOT / ".dart-roaming"
 CommandArgs = Union[Sequence[str], Callable[[], Sequence[str]]]
 CommandSpec = Tuple[CommandArgs, Path, Optional[Dict[str, str]]]
 
@@ -308,7 +311,8 @@ class ProjectRunGui:
         target_frame = ttk.Frame(main)
         target_frame.grid(row=11, column=1, sticky="w", pady=4)
         ttk.Radiobutton(target_frame, text="Flutter Android/ADB", variable=self.flutter_target_var, value="android").grid(row=0, column=0, padx=(0, 12))
-        ttk.Radiobutton(target_frame, text="Flutter Web/Chrome", variable=self.flutter_target_var, value="web").grid(row=0, column=1)
+        ttk.Radiobutton(target_frame, text="Flutter Windows", variable=self.flutter_target_var, value="windows").grid(row=0, column=1, padx=(0, 12))
+        ttk.Radiobutton(target_frame, text="Flutter Web/Chrome", variable=self.flutter_target_var, value="web").grid(row=0, column=2)
 
         buttons = ttk.Frame(main)
         buttons.grid(row=12, column=0, columnspan=3, sticky="ew", pady=(8, 4))
@@ -582,13 +586,30 @@ class ProjectRunGui:
         target = self.flutter_target_var.get()
         if target == "web":
             args = [flutter_exe, "run", "-d", "chrome", *dart_defines]
+        elif target == "windows":
+            args = [flutter_exe, "run", "-d", "windows", *dart_defines]
         else:
             device = self.device_var.get().strip()
             if not device:
                 messagebox.showerror("校验失败", "请先点击「flutter devices」获取设备列表，再选择设备")
                 return
             args = [flutter_exe, "run", "-d", device, *dart_defines]
-        self._start_commands("Flutter 运行", [([flutter_exe, "pub", "get"], flutter_dir, None), (args, flutter_dir, None)])
+        env = self._flutter_env()
+        self._start_commands("Flutter 运行", [([flutter_exe, "pub", "get"], flutter_dir, env), (args, flutter_dir, env)])
+
+    def _flutter_env(self) -> Dict[str, str]:
+        LOCAL_PUB_CACHE.mkdir(parents=True, exist_ok=True)
+        LOCAL_GRADLE_USER_HOME.mkdir(parents=True, exist_ok=True)
+        LOCAL_DART_ROAMING.mkdir(parents=True, exist_ok=True)
+        return {
+            "PUB_CACHE": str(LOCAL_PUB_CACHE),
+            "GRADLE_USER_HOME": str(LOCAL_GRADLE_USER_HOME),
+            "APPDATA": str(LOCAL_DART_ROAMING) if os.name == "nt" else os.environ.get("APPDATA", ""),
+            "PUB_HOSTED_URL": os.environ.get("PUB_HOSTED_URL", "https://pub.flutter-io.cn"),
+            "FLUTTER_STORAGE_BASE_URL": os.environ.get("FLUTTER_STORAGE_BASE_URL", "https://storage.flutter-io.cn"),
+            "FLUTTER_SUPPRESS_ANALYTICS": os.environ.get("FLUTTER_SUPPRESS_ANALYTICS", "true"),
+            "DART_SUPPRESS_ANALYTICS": os.environ.get("DART_SUPPRESS_ANALYTICS", "true"),
+        }
 
     def _stop_task(self) -> None:
         if not self.worker.running():
@@ -658,3 +679,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

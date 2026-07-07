@@ -6,6 +6,7 @@
 #include "gpio_hal.h"
 #include "stm32f1_hal_map.h"
 #include "stm32f10x_rcc.h"
+#include "stm32f10x_gpio.h"
 
 /**
  * @brief Enables the RCC clock for the given GPIO port.
@@ -58,6 +59,9 @@ void gpio_hal_apply_remap(gpio_hal_remap_t remap)
         break;
     case GPIO_HAL_REMAP_SPI1:
         GPIO_PinRemapConfig(GPIO_Remap_SPI1, ENABLE);
+        break;
+    case GPIO_HAL_REMAP_SWJ_JTAG_DISABLE:
+        GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE);
         break;
     default:
         break;

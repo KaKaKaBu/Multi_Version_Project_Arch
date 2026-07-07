@@ -46,7 +46,7 @@ static const adc_channel_driver_config_t board_water_level_config = {
 REGISTER_BOARD_DEVICE(ANALOG_PROBE, "water_level", &board_water_level_config);
 #endif
 
-static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, 1U };
+static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, BOARD_BUZZER_TRIGGER_LEVEL };
 REGISTER_BOARD_DEVICE(MISC, "buzzer", &board_buzzer_config);
 
 static const gpio_output_driver_config_t board_led_config = { board_led_pin, 0U };
@@ -110,7 +110,11 @@ static const esp8266_driver_config_t board_esp8266_config = {
     },
     board_esp8266_ch_pd_pin,
     board_esp8266_rst_pin,
+#if defined(BOARD_ESP8266_DEBUG_TRACE_ENABLE)
+    BOARD_ESP8266_DEBUG_TRACE_ENABLE
+#else
     0U
+#endif
 };
 REGISTER_BOARD_DEVICE(COMM, "esp8266", &board_esp8266_config);
 #endif

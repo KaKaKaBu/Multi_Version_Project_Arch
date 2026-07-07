@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
@@ -144,6 +145,60 @@ def patch_flutter_android_identity(ui_dir: Path, app_package_name: str, app_titl
         text = re.sub(r'<meta name="apple-mobile-web-app-title" content="[^"]*">', f'<meta name="apple-mobile-web-app-title" content="{app_title}">', text)
         text = re.sub(r"<title>.*?</title>", f"<title>{app_title}</title>", text, flags=re.DOTALL)
         index_path.write_text(text, encoding="utf-8")
+
+
+def patch_flutter_windows_bluetooth_bridge(ui_dir: Path) -> None:
+    cmake_path = ui_dir / "windows" / "runner" / "CMakeLists.txt"
+    if cmake_path.exists():
+        text = cmake_path.read_text(encoding="utf-8")
+        bridge_source = '  "${CMAKE_SOURCE_DIR}/../../../../common/flutter/windows/bluetooth_spp_channel.cpp"\n'
+        if "bluetooth_spp_channel.cpp" not in text:
+            text = text.replace(
+                '  "win32_window.cpp"\n',
+                '  "win32_window.cpp"\n' + bridge_source,
+            )
+        text = text.replace("common/flutter_windows", "common/flutter/windows")
+        if "setupapi.lib" not in text:
+            text = text.replace(
+                'target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")\n',
+                'target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")\n'
+                'target_link_libraries(${BINARY_NAME} PRIVATE "setupapi.lib")\n',
+            )
+        include_block = (
+            'target_include_directories(${BINARY_NAME} PRIVATE\n'
+            '  "${CMAKE_SOURCE_DIR}"\n'
+            '  "${CMAKE_SOURCE_DIR}/../../../../common/flutter/windows"\n'
+            ')\n'
+        )
+        if "common/flutter/windows" not in text:
+            text = text.replace(
+                "# Run the Flutter tool portions of the build. This must not be removed.\n",
+                include_block + "\n# Run the Flutter tool portions of the build. This must not be removed.\n",
+            )
+        if 'target_compile_options(${BINARY_NAME} PRIVATE /utf-8)' not in text:
+            text = text.replace(
+                'target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")\n',
+                'target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")\n'
+                'target_compile_options(${BINARY_NAME} PRIVATE /utf-8)\n',
+            )
+        cmake_path.write_text(text, encoding="utf-8")
+
+    window_path = ui_dir / "windows" / "runner" / "flutter_window.cpp"
+    if window_path.exists():
+        text = window_path.read_text(encoding="utf-8")
+        if '#include "bluetooth_spp_channel.h"' not in text:
+            text = text.replace(
+                '#include "flutter/generated_plugin_registrant.h"\n',
+                '#include "bluetooth_spp_channel.h"\n'
+                '#include "flutter/generated_plugin_registrant.h"\n',
+            )
+        if "RegisterBluetoothSppChannels" not in text:
+            text = text.replace(
+                "  RegisterPlugins(flutter_controller_->engine());\n",
+                "  RegisterPlugins(flutter_controller_->engine());\n"
+                "  RegisterBluetoothSppChannels(flutter_controller_->engine());\n",
+            )
+        window_path.write_text(text, encoding="utf-8")
 
 
 def patch_uniapp_identity(upper_dir: Path, app_package_name: str, app_title: str) -> None:
@@ -678,6 +733,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  mvp_flutter_common:
+    path: ../../../common/flutter
 
 dev_dependencies:
   flutter_test:
@@ -705,8 +762,7 @@ void main() {
 '''
 
 FLUTTER_APP_DART = '''import 'package:flutter/material.dart';
-
-import 'core/version/version_capabilities.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
 
 class __CLASS_NAME__App extends StatelessWidget {
   const __CLASS_NAME__App({super.key});
@@ -716,10 +772,7 @@ class __CLASS_NAME__App extends StatelessWidget {
     return MaterialApp(
       title: '__APP_TITLE__',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0f8f70)),
-        useMaterial3: true,
-      ),
+      theme: MvpAppTheme.light(),
       home: const _HomePage(),
     );
   }
@@ -730,7 +783,10 @@ class _HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final capabilities = resolveUpperFeatures();
+    final capabilities = resolveUpperFeaturesWithDefaults(
+      defaultVersion: '1',
+      defaultFeatures: 'common',
+    );
     final features = capabilities.features.isEmpty
         ? 'common'
         : capabilities.features.join(', ');
@@ -758,40 +814,6 @@ class _HomePage extends StatelessWidget {
       ),
     );
   }
-}
-'''
-
-FLUTTER_DEBUG_FLAGS_DART = '''import 'package:flutter/foundation.dart';
-
-const bool upperUiShowCommunicationLog = kDebugMode;
-'''
-
-FLUTTER_VERSION_CAPABILITIES_DART = '''const upperVersionDefine = String.fromEnvironment('UPPER_VERSION', defaultValue: '1');
-const upperFeaturesDefine = String.fromEnvironment('UPPER_FEATURES', defaultValue: 'common');
-
-class VersionCapabilities {
-  const VersionCapabilities({required this.version, required this.features});
-
-  final int version;
-  final List<String> features;
-
-  bool has(String feature) => features.contains(feature);
-}
-
-VersionCapabilities resolveUpperFeatures({
-  String versionDefine = upperVersionDefine,
-  String featureDefine = upperFeaturesDefine,
-}) {
-  final version = int.tryParse(versionDefine) ?? 1;
-  final features = featureDefine
-      .split(',')
-      .map((item) => item.trim())
-      .where((item) => item.isNotEmpty)
-      .toList(growable: false);
-  return VersionCapabilities(
-    version: version,
-    features: features.isEmpty ? const ['common'] : features,
-  );
 }
 '''
 
@@ -843,7 +865,7 @@ def create_flutter_upper_ui(
             package_name,
             "--org",
             derive_flutter_org(app_package_name),
-            "--platforms=android,web",
+            "--platforms=android,web,windows",
             flutter_dir.name,
         ),
         cwd=project_dir,
@@ -857,10 +879,6 @@ def create_flutter_upper_ui(
     (flutter_dir / "analysis_options.yaml").write_text(FLUTTER_ANALYSIS_OPTIONS, encoding="utf-8")
 
     lib_dir = flutter_dir / "lib"
-    config_dir = lib_dir / "core" / "config"
-    version_dir = lib_dir / "core" / "version"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    version_dir.mkdir(parents=True, exist_ok=True)
     (lib_dir / "main.dart").write_text(
         render_template(FLUTTER_MAIN_DART, class_name=class_name),
         encoding="utf-8",
@@ -869,18 +887,11 @@ def create_flutter_upper_ui(
         render_template(FLUTTER_APP_DART, name=name, class_name=class_name, app_title=app_title),
         encoding="utf-8",
     )
-    (config_dir / "debug_flags.dart").write_text(
-        FLUTTER_DEBUG_FLAGS_DART,
-        encoding="utf-8",
-    )
-    (version_dir / "version_capabilities.dart").write_text(
-        FLUTTER_VERSION_CAPABILITIES_DART,
-        encoding="utf-8",
-    )
     (flutter_dir / "version_features.json").write_text(
         build_upper_version_features_json(version_count),
         encoding="utf-8",
     )
+    patch_flutter_windows_bluetooth_bridge(flutter_dir)
 
     test_dir = flutter_dir / "test"
     test_dir.mkdir(exist_ok=True)

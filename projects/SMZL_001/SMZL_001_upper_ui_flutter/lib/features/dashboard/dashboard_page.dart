@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
+
 import '../../services/smzl_service.dart';
 
 class SmzlDashboard extends StatefulWidget {
@@ -30,22 +32,21 @@ class _SmzlDashboardState extends State<SmzlDashboard> {
       stream: widget.service.onData,
       builder: (context, snapshot) {
         final d = snapshot.data ?? widget.service.latestData;
-        return ListView(
-          padding: const EdgeInsets.all(16),
+        return AdaptivePage(
           children: [
             _Card(
               icon: Icons.flip,
-              label: 'Turnover',
+              label: '翻身次数',
               value: '${d.turnoverCount}次',
               color: Colors.purple,
               trailing: TextButton(
                 onPressed: () => widget.service.clearTurnover(),
-                child: const Text('Clear'),
+                child: const Text('清零'),
               ),
             ),
             _Card(
               icon: Icons.favorite,
-              label: 'Heart Rate',
+              label: '心率',
               value: '${d.heartRate} bpm',
               color: _hrColor(d.heartRate, d.hrUpper, d.hrLower),
             ),
@@ -57,13 +58,13 @@ class _SmzlDashboardState extends State<SmzlDashboard> {
             ),
             _Card(
               icon: Icons.thermostat,
-              label: 'Temperature',
+              label: '体温',
               value: '${d.temperature.toStringAsFixed(1)} °C',
               color: _tempColor(d.temperature, d.tempUpper, d.tempLower),
             ),
             const SizedBox(height: 12),
             _StatusChip(
-              label: 'Alarm',
+              label: '报警',
               active: d.alarm == 1,
               color: d.alarm == 1 ? Colors.red : Colors.grey,
             ),
@@ -122,7 +123,7 @@ class _StatusChip extends StatelessWidget {
     return Chip(
       backgroundColor: color.withAlpha(40),
       side: BorderSide(color: color),
-      label: Text('$label: ${active ? "ON" : "OFF"}'),
+      label: Text('$label：${active ? "开启" : "关闭"}'),
     );
   }
 }

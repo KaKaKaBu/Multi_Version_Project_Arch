@@ -10,6 +10,15 @@
 extern "C" {
 #endif
 
+#define ESP8266_MQTT_BACKEND_GENERIC      0U
+#define ESP8266_MQTT_BACKEND_HUAWEI_IOTDA 1U
+
+#define ESP8266_MQTT_SCHEME_TCP 1U
+
+#ifndef ESP8266_MQTT_ENABLE_HUAWEI
+#define ESP8266_MQTT_ENABLE_HUAWEI 1
+#endif
+
 /**
  * @brief Wi-Fi and MQTT connection parameters for esp8266_mqtt_connect().
  */
@@ -23,6 +32,15 @@ typedef struct esp8266_mqtt_config {
     const char *mqtt_password;  /**< MQTT password, or empty string. */
     const char *sub_topic;      /**< Topic to subscribe after connect, or null. */
     const char *pub_topic;      /**< Default publish topic for telemetry helpers. */
+    unsigned char backend;      /**< ESP8266_MQTT_BACKEND_*; default 0 is generic MQTT. */
+    unsigned char scheme;       /**< AT+MQTTUSERCFG scheme; default 0 maps to TCP scheme 1. */
+    const char *huawei_device_id;             /**< Huawei IoTDA device_id; defaults to mqtt_user. */
+    const char *huawei_device_secret;         /**< Huawei IoTDA device secret for dynamic HMAC auth. */
+    const char *huawei_service_id;            /**< Huawei IoTDA service_id for property reports. */
+    const char *huawei_property_report_topic; /**< Optional explicit property report topic. */
+    const char *huawei_property_set_topic;    /**< Optional explicit property set subscribe topic. */
+    const char *huawei_custom_pub_topic;      /**< Optional extra uplink topic for M2M custom messages. */
+    const char *huawei_custom_sub_topic;      /**< Optional extra downlink topic. */
 } esp8266_mqtt_config_t;
 
 /**
@@ -78,6 +96,27 @@ int esp8266_mqtt_publish_raw(const char *topic,
  * @return Number of bytes published on success, -1 on error.
  */
 int esp8266_mqtt_publish_json(const char *topic, const char *json_text);
+
+/**
+ * @brief Publishes a Huawei IoTDA property report.
+ *
+ * @param properties_json JSON object used as the "properties" object. If it is
+ *        already a full {"services":[...]} payload, it is sent unchanged.
+ * @return Number of bytes published on success, -1 on error.
+ */
+int esp8266_mqtt_publish_huawei_properties(const char *properties_json);
+
+/**
+ * @brief Acknowledges a Huawei IoTDA property-set request.
+ *
+ * @param request_id Request id extracted from the property-set topic or payload.
+ * @param result_code Huawei result_code, normally 0.
+ * @param result_desc Text result description, normally "success".
+ * @return Number of bytes published on success, -1 on error.
+ */
+int esp8266_mqtt_send_huawei_property_set_response(const char *request_id,
+                                                   int result_code,
+                                                   const char *result_desc);
 
 /**
  * @brief Builds and publishes a standard temperature/humidity telemetry JSON message.

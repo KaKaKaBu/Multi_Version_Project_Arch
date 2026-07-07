@@ -7,6 +7,11 @@
 
 static const gpio_output_driver_config_t *buzzer_config;
 
+static uint8_t buzzer_active_level(void)
+{
+    return (buzzer_config->active_high != 0U) ? GPIO_OUTPUT_TRIGGER_HIGH : GPIO_OUTPUT_TRIGGER_LOW;
+}
+
 static void buzzer_init(const void *config)
 {
     buzzer_config = (const gpio_output_driver_config_t *)config;
@@ -14,7 +19,9 @@ static void buzzer_init(const void *config)
         return;
     }
     gpio_hal_config_pin(&buzzer_config->pin);
-    gpio_hal_write(buzzer_config->pin.port, buzzer_config->pin.pin, buzzer_config->active_high ? 0U : 1U);
+    gpio_hal_write(buzzer_config->pin.port,
+                   buzzer_config->pin.pin,
+                   (uint8_t)(buzzer_active_level() ^ 1U));
 }
 
 static void buzzer_set_state(unsigned char on)
@@ -25,7 +32,7 @@ static void buzzer_set_state(unsigned char on)
         return;
     }
 
-    level = (on != 0U) ? buzzer_config->active_high : (uint8_t)!buzzer_config->active_high;
+    level = (on != 0U) ? buzzer_active_level() : (uint8_t)(buzzer_active_level() ^ 1U);
     gpio_hal_write(buzzer_config->pin.port, buzzer_config->pin.pin, level);
 }
 

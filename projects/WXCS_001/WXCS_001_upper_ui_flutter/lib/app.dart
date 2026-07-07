@@ -1,13 +1,11 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'core/config/mqtt_config.dart';
-import 'core/transport/bluetooth_spp_transport.dart';
-import 'core/transport/mqtt_transport.dart';
-import 'core/transport/transport_service.dart';
-import 'core/version/version_capabilities.dart';
-import 'services/wxcs_service.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
+
+import 'config/mqtt_config.dart';
+import 'config/version_capabilities.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/settings/settings_page.dart';
+import 'services/wxcs_service.dart';
 
 class Wxcs001App extends StatelessWidget {
   const Wxcs001App({super.key});
@@ -17,11 +15,7 @@ class Wxcs001App extends StatelessWidget {
     return MaterialApp(
       title: 'WXCS_001 上位机',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF0F8F70),
-        useMaterial3: true,
-        brightness: Brightness.light,
-      ),
+      theme: MvpAppTheme.light(),
       home: const HomePage(),
     );
   }
@@ -35,241 +29,49 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final capabilities = resolveUpperFeatures();
-  final transport = ActiveTransportService();
-  final _bleAddressController = TextEditingController();
+  final capabilities = resolveProjectUpperFeatures();
+  late final CommunicationController communication;
   late final WxcsService service;
-  StreamSubscription? _connSub;
-  bool _connected = false;
-  bool _busy = false;
-  String _transportLabel = '未连接';
-  String? _error;
 
   @override
   void initState() {
     super.initState();
-    service = WxcsService(transport: transport, capabilities: capabilities);
-    _connSub = transport.onConnectionChanged.listen((c) {
-      if (mounted) setState(() => _connected = c);
-    });
+    communication = CommunicationController(
+      capabilities: capabilities,
+      mqttConfig: defaultMqttConfig,
+    );
+    service = WxcsService(
+      transport: communication.transport,
+      capabilities: capabilities,
+    );
   }
 
   @override
   void dispose() {
-    _connSub?.cancel();
-    _bleAddressController.dispose();
     service.dispose();
-    transport.dispose();
+    communication.dispose();
     super.dispose();
   }
 
-  Future<void> _connectMqtt() async {
-    await _connect('MQTT', MqttTransport(defaultMqttConfig), const {});
-  }
-
-  Future<void> _connectBle() async {
-    await _connect(
-      'BLE',
-      BluetoothSppTransport(address: _bleAddressController.text.trim()),
-      const {},
-    );
-  }
-
-  Future<void> _connect(
-    String label,
-    TransportService nextTransport,
-    Map<String, String> config,
-  ) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final ok = await transport.connectWith(nextTransport, config);
-      if (mounted) {
-        setState(() {
-          _transportLabel = ok ? label : '未连接';
-          _error = ok ? null : '$label 连接失败';
-        });
-      }
-      if (ok) service.requestStatus();
-    } catch (error) {
-      await transport.disconnect();
-      if (mounted) {
-        setState(() {
-          _transportLabel = '未连接';
-          _error = error.toString();
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _disconnect() async {
-    await transport.disconnect();
-    if (mounted) setState(() => _transportLabel = '未连接');
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('WXCS_001'),
-        actions: [
-          IconButton(
-            icon: Icon(_connected ? Icons.link : Icons.link_off),
-            onPressed: _connected ? _disconnect : null,
-            tooltip: _connected ? '断开连接' : '未连接',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'V${capabilities.version} ',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Text(
-                  'Features: ${capabilities.features.join(", ")}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          _ConnectionPanel(
-            connected: _connected,
-            busy: _busy,
-            label: _transportLabel,
-            error: _error,
-            mqttEnabled: capabilities.has('wifi'),
-            bleEnabled: capabilities.has('ble'),
-            bleAddressController: _bleAddressController,
-            onConnectMqtt: _connectMqtt,
-            onConnectBle: _connectBle,
-            onDisconnect: _disconnect,
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: [
-                DashboardPage(service: service),
-                SettingsPage(service: service),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(icon: Icon(Icons.tune), label: 'Settings'),
-        ],
-      ),
-    );
-  }
-
-  int _selectedIndex = 0;
-}
-
-class _ConnectionPanel extends StatelessWidget {
-  const _ConnectionPanel({
-    required this.connected,
-    required this.busy,
-    required this.label,
-    required this.error,
-    required this.mqttEnabled,
-    required this.bleEnabled,
-    required this.bleAddressController,
-    required this.onConnectMqtt,
-    required this.onConnectBle,
-    required this.onDisconnect,
-  });
-
-  final bool connected;
-  final bool busy;
-  final String label;
-  final String? error;
-  final bool mqttEnabled;
-  final bool bleEnabled;
-  final TextEditingController bleAddressController;
-  final VoidCallback onConnectMqtt;
-  final VoidCallback onConnectBle;
-  final VoidCallback onDisconnect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Chip(
-                  avatar: Icon(
-                    connected
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                    size: 18,
-                  ),
-                  label: Text(label),
-                ),
-                FilledButton.icon(
-                  onPressed: !busy && mqttEnabled ? onConnectMqtt : null,
-                  icon: const Icon(Icons.cloud),
-                  label: const Text('MQTT'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: !busy && bleEnabled ? onConnectBle : null,
-                  icon: const Icon(Icons.bluetooth),
-                  label: const Text('BLE'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: connected && !busy ? onDisconnect : null,
-                  icon: const Icon(Icons.link_off),
-                  label: const Text('断开'),
-                ),
-              ],
-            ),
-            if (bleEnabled) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: bleAddressController,
-                decoration: const InputDecoration(
-                  labelText: 'BLE MAC 地址（可选）',
-                  hintText: '留空时自动连接已配对的 JDY 设备',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-            if (error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-          ],
+    return CommonHomeShell(
+      title: 'WXCS_001 危险气体监测',
+      capabilities: capabilities,
+      controller: communication,
+      onConnected: service.requestStatus,
+      pages: [
+        UpperPageSpec(
+          icon: Icons.sensors,
+          label: '监测',
+          child: DashboardPage(service: service),
         ),
-      ),
+        UpperPageSpec(
+          icon: Icons.tune,
+          label: '控制',
+          child: SettingsPage(service: service),
+        ),
+      ],
     );
   }
 }

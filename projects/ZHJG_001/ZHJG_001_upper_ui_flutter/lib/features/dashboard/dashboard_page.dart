@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../core/version/version_capabilities.dart';
+import 'package:flutter/services.dart';
 import '../../services/telemetry_model.dart';
 import '../../services/zhjg_service.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
 
 class DashboardPage extends StatefulWidget {
   final ZhjgService service;
@@ -62,6 +63,10 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(height: 12),
               _GpsPanel(gps: data.gps),
             ],
+            if (widget.capabilities.has('camera') || data.camera.available) ...[
+              const SizedBox(height: 12),
+              _CameraPanel(camera: data.camera),
+            ],
           ],
         );
       },
@@ -85,11 +90,7 @@ class _AlarmBanner extends StatelessWidget {
           color: color,
         ),
         title: Text(data.alarm ? '异常告警' : '状态正常'),
-        subtitle: Text(
-          data.alarm
-              ? '存在沼气、水位或倾斜异常'
-              : '沼气、水位和井盖姿态均在阈值内',
-        ),
+        subtitle: Text(data.alarm ? '存在沼气、水位或倾斜异常' : '沼气、水位和井盖姿态均在阈值内'),
       ),
     );
   }
@@ -147,6 +148,59 @@ class _ModeRow extends StatelessWidget {
           label: Text(mode == 'threshold' ? '阈值设置模式' : '自动模式'),
         ),
       ],
+    );
+  }
+}
+
+class _CameraPanel extends StatelessWidget {
+  final CameraFeed camera;
+
+  const _CameraPanel({required this.camera});
+
+  @override
+  Widget build(BuildContext context) {
+    final stream = camera.streamUrl;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                stream.isEmpty ? Icons.videocam_off : Icons.videocam,
+                color: stream.isEmpty ? Colors.grey : Colors.blue,
+              ),
+              title: const Text('视频监控'),
+              subtitle: Text(
+                stream.isEmpty
+                    ? '等待摄像头通过 ZHJG_001/web 上报 cam_ip / mjpeg_url'
+                    : '${camera.deviceId.isEmpty ? "ESP32 OV3660" : camera.deviceId}\n${camera.ip}',
+              ),
+            ),
+            Text(
+              stream.isEmpty ? '同一局域网内收到 MJPEG 地址后自动加载画面' : stream,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+            const SizedBox(height: 12),
+            MjpegStreamView(url: stream),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: stream.isEmpty
+                  ? null
+                  : () {
+                      Clipboard.setData(ClipboardData(text: stream));
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('摄像头地址已复制')));
+                    },
+              icon: const Icon(Icons.copy),
+              label: const Text('复制地址'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

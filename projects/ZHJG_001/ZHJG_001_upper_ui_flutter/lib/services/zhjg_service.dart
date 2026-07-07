@@ -1,9 +1,7 @@
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../core/config/debug_flags.dart';
-import '../core/transport/transport_service.dart';
-import '../core/version/version_capabilities.dart';
 import 'telemetry_model.dart';
 
 class ZhjgService {
@@ -23,7 +21,13 @@ class ZhjgService {
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       if (json['type'] == 'telemetry') {
-        _latest = ManholeTelemetry.fromJson(json);
+        final next = ManholeTelemetry.fromJson(json);
+        _latest = next.copyWith(
+          camera: next.camera.available ? next.camera : _latest.camera,
+        );
+        _dataController.add(_latest);
+      } else if (ManholeTelemetry.hasCameraPayload(json)) {
+        _latest = _latest.copyWith(camera: CameraFeed.fromJson(json));
         _dataController.add(_latest);
       }
     } catch (error) {
@@ -47,7 +51,11 @@ class ZhjgService {
     }
   }
 
-  void setThreshold({int? methanePpm, double? waterPercent, double? tiltDegree}) {
+  void setThreshold({
+    int? methanePpm,
+    double? waterPercent,
+    double? tiltDegree,
+  }) {
     final params = <String, dynamic>{};
     if (methanePpm != null) params['methane_ppm'] = methanePpm;
     if (waterPercent != null) params['water_level_percent'] = waterPercent;

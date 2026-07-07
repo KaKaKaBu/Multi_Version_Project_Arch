@@ -83,7 +83,7 @@ static float hx711_read_grams(void)
     return hx711_weight_cache;
 }
 
-static const weight_sensor_t hx711_drv = {
+const weight_sensor_t hx711_drv = {
     "hx711",
     hx711_init,
     hx711_read_grams

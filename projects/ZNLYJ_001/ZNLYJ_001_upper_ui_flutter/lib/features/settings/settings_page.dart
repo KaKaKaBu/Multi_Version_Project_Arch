@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
+
 import '../../services/znlyj_service.dart';
 
 class ZnlyjSettings extends StatefulWidget {
@@ -42,7 +44,7 @@ class _ZnlyjSettingsState extends State<ZnlyjSettings> {
     );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Thresholds sent'),
+        content: Text('阈值已下发'),
         duration: Duration(seconds: 1),
       ),
     );
@@ -52,7 +54,7 @@ class _ZnlyjSettingsState extends State<ZnlyjSettings> {
     widget.service.setMode(mode);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Mode: $mode'),
+        content: Text('模式已切换为 ${_modeLabel(mode)}'),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -62,40 +64,53 @@ class _ZnlyjSettingsState extends State<ZnlyjSettings> {
   Widget build(BuildContext context) {
     final hasLight = widget.service.hasLight;
     final hasWeight = widget.service.hasWeight;
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return AdaptivePage(
       children: [
-        Text('Mode', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: [
-            ActionChip(
-              label: const Text('AUTO'),
-              onPressed: () => _selectMode('auto'),
-            ),
-            ActionChip(
-              label: const Text('MANUAL'),
-              onPressed: () => _selectMode('manual'),
-            ),
-            ActionChip(
-              label: const Text('THRESHOLD'),
-              onPressed: () => _selectMode('threshold'),
-            ),
-          ],
+        AdaptiveSectionCard(
+          title: '工作模式',
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ActionChip(
+                label: const Text('自动'),
+                onPressed: () => _selectMode('auto'),
+              ),
+              ActionChip(
+                label: const Text('手动'),
+                onPressed: () => _selectMode('manual'),
+              ),
+              ActionChip(
+                label: const Text('阈值设置'),
+                onPressed: () => _selectMode('threshold'),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
-        Text('Thresholds', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        _Item(label: 'Temperature (°C)', ctrl: temp),
-        _Item(label: 'Humidity (%)', ctrl: humidity),
-        if (hasLight) _Item(label: 'Light (%)', ctrl: light),
-        if (hasWeight) _Item(label: 'Weight (kg)', ctrl: weight),
-        const SizedBox(height: 16),
-        ElevatedButton(onPressed: _save, child: const Text('Save Thresholds')),
+        AdaptiveSectionCard(
+          title: '阈值设置',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Item(label: '温度 (°C)', ctrl: temp),
+              _Item(label: '湿度 (%)', ctrl: humidity),
+              if (hasLight) _Item(label: '光照 (%)', ctrl: light),
+              if (hasWeight) _Item(label: '重量 (kg)', ctrl: weight),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _save, child: const Text('保存阈值')),
+            ],
+          ),
+        ),
       ],
     );
   }
+
+  String _modeLabel(String mode) => switch (mode) {
+        'auto' => '自动',
+        'manual' => '手动',
+        'threshold' => '阈值设置',
+        _ => mode,
+      };
 }
 
 class _Item extends StatelessWidget {
@@ -104,21 +119,12 @@ class _Item extends StatelessWidget {
   const _Item({required this.label, required this.ctrl});
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            SizedBox(width: 150, child: Text(label)),
-            Expanded(
-              child: TextField(
-                controller: ctrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(isDense: true),
-              ),
-            ),
-          ],
-        ),
+    return AdaptiveFieldRow(
+      label: label,
+      child: TextField(
+        controller: ctrl,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(isDense: true),
       ),
     );
   }

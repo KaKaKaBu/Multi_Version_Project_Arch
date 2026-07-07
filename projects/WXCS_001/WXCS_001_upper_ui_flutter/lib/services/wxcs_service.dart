@@ -1,7 +1,5 @@
+import 'package:mvp_flutter_common/mvp_flutter_common.dart';
 import 'dart:async';
-import '../core/transport/transport_service.dart';
-import '../core/config/debug_flags.dart';
-import '../core/version/version_capabilities.dart';
 import 'telemetry_model.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';

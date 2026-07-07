@@ -37,7 +37,7 @@ static const gpio_input_driver_config_t board_key_config = {
 };
 REGISTER_BOARD_DEVICE(INPUT, "key", &board_key_config);
 
-static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, 1U };
+static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, BOARD_BUZZER_TRIGGER_LEVEL };
 REGISTER_BOARD_DEVICE(MISC, "buzzer", &board_buzzer_config);
 
 static const gpio_output_driver_config_t board_led_config = { board_led_pin, 0U };

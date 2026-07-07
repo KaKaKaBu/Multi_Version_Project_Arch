@@ -1,0 +1,19 @@
+{
+  "_comment": "KQZL2 Flutter upper UI features per firmware version. v9 is kept by uni-app for mpWeixin only.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common", "pm25"] },
+    "2": { "features": ["common", "pm25", "dht11"] },
+    "3": { "features": ["common", "pm25", "dht11", "remote", "wifi", "app"] },
+    "4": { "features": ["common", "pm25", "dht11", "remote", "ble", "app"] },
+    "5": { "features": ["common", "pm25", "dht11", "mq2"] },
+    "6": { "features": ["common", "pm25", "dht11", "mq2", "remote", "wifi", "app"] },
+    "7": { "features": ["common", "pm25", "dht11", "mq2", "remote", "ble", "app"] },
+    "8": { "features": ["common", "pm25", "dht11", "mq2", "remote", "wifi", "cloud", "app"] },
+    "10": { "features": ["common", "pm25", "dht11", "mq2", "remote", "wifi", "web"] },
+    "11": { "features": ["common", "pm25", "dht11", "mq2", "mq7"] },
+    "12": { "features": ["common", "pm25", "dht11", "mq2", "mq7", "remote", "wifi", "app"] },
+    "13": { "features": ["common", "pm25", "dht11", "mq2", "mq7", "remote", "ble", "app"] },
+    "14": { "features": ["common", "pm25", "dht11", "mq2", "mq7", "remote", "wifi", "cloud", "app"] }
+  }
+}

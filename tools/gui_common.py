@@ -94,9 +94,19 @@ def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
 
+def _flutter_bin_name() -> str:
+    return "flutter.bat" if os.name == "nt" else "flutter"
+
+
 _FLUTTER_CANDIDATES = [
     os.path.expanduser("~/development/flutter/bin/flutter"),
+    os.path.expanduser("~/development/flutter/bin/flutter.bat"),
     os.path.expanduser("~/flutter/bin/flutter"),
+    os.path.expanduser("~/flutter/bin/flutter.bat"),
+    "C:/Tools/flutter/bin/flutter.bat",
+    "C:/Tools/flutter/bin/flutter",
+    "D:/Tools/flutter/bin/flutter.bat",
+    "D:/Tools/flutter/bin/flutter",
     "/usr/local/flutter/bin/flutter",
     "/opt/flutter/bin/flutter",
 ]
@@ -116,7 +126,7 @@ def find_flutter() -> Optional[str]:
     ]
     for env_path in env_paths:
         if env_path:
-            candidate = os.path.join(env_path, "bin", "flutter")
+            candidate = os.path.join(env_path, "bin", _flutter_bin_name())
             if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
                 return candidate
     return None

@@ -27,15 +27,22 @@ void app_mqtt_rx_callback(const char *topic,
 
 #if VERSION_FEATURE_WIFI
 static const esp8266_mqtt_config_t app_mqtt_cfg = {
-    BOARD_ESP8266_WIFI_SSID,
-    BOARD_ESP8266_WIFI_PASS,
-    BOARD_ESP8266_MQTT_BROKER,
-    BOARD_ESP8266_MQTT_PORT,
-    BOARD_ESP8266_MQTT_CLIENT_ID,
-    BOARD_ESP8266_MQTT_USER,
-    BOARD_ESP8266_MQTT_PASS,
-    BOARD_ESP8266_MQTT_SUB_TOPIC,
-    BOARD_ESP8266_MQTT_PUB_TOPIC
+    .wifi_ssid = BOARD_ESP8266_WIFI_SSID,
+    .wifi_password = BOARD_ESP8266_WIFI_PASS,
+    .broker = BOARD_ESP8266_MQTT_BROKER,
+    .port = BOARD_ESP8266_MQTT_PORT,
+    .client_id = BOARD_ESP8266_MQTT_CLIENT_ID,
+    .mqtt_user = BOARD_ESP8266_MQTT_USER,
+    .mqtt_password = BOARD_ESP8266_MQTT_PASS,
+    .sub_topic = BOARD_ESP8266_MQTT_SUB_TOPIC,
+    .pub_topic = BOARD_ESP8266_MQTT_PUB_TOPIC,
+    .backend = ESP8266_MQTT_BACKEND_GENERIC,
+    .scheme = ESP8266_MQTT_SCHEME_TCP,
+    .huawei_device_id = "",
+    .huawei_service_id = "",
+    .huawei_property_report_topic = "",
+    .huawei_property_set_topic = "",
+    .huawei_custom_sub_topic = ""
 };
 #endif
 
@@ -103,6 +110,7 @@ static void app_comm_setup(void)
 void app_main(void)
 {
     bsp_init();
+    gpio_hal_apply_remap(BOARD_KEY_SWJ_REMAP);
     sched_init();
     irq_event_init();
     devmgr_init_all();

@@ -79,6 +79,7 @@ DRIVER_FEATURE_MACRO_BY_FILE = {
     "sg90.c": "VERSION_FEATURE_DRIVER_SG90",
     "stepmotor.c": "VERSION_FEATURE_DRIVER_STEPMOTOR",
     "su03t_voice.c": "VERSION_FEATURE_DRIVER_SU03T_VOICE",
+    "tts_uart.c": "VERSION_FEATURE_DRIVER_TTS_UART",
     "water_level.c": "VERSION_FEATURE_DRIVER_WATER_LEVEL",
 }
 
@@ -353,7 +354,89 @@ def find_cmake_executable() -> str:
     candidate = shutil.which("cmake")
     if candidate:
         return candidate
-    raise FileNotFoundError("未找到 cmake，请安装 CMake 或将其加入 PATH")
+
+    env_candidates = [
+        os.environ.get("CMAKE_EXE", ""),
+        os.environ.get("CMAKE_EXECUTABLE", ""),
+    ]
+    for env_root in (
+        os.environ.get("CMAKE_ROOT", ""),
+        os.environ.get("CMAKE_HOME", ""),
+        os.environ.get("CLION_HOME", ""),
+    ):
+        if env_root:
+            env_candidates.append(str(Path(env_root) / "bin" / "cmake.exe"))
+            env_candidates.append(str(Path(env_root) / "bin" / "cmake" / "win" / "x64" / "bin" / "cmake.exe"))
+
+    fixed_candidates = [
+        r"C:\Program Files\CMake\bin\cmake.exe",
+        r"C:\Program Files (x86)\CMake\bin\cmake.exe",
+        r"C:\Tools\cmake\bin\cmake.exe",
+        r"D:\Tools\cmake\bin\cmake.exe",
+    ]
+    clion_roots = [
+        Path(r"C:\Program Files"),
+        Path(r"D:\Program Files"),
+        Path.home() / "AppData" / "Local" / "Programs",
+    ]
+    clion_candidates: List[str] = []
+    for root in clion_roots:
+        if root.exists():
+            clion_candidates.extend(
+                str(path)
+                for path in root.glob(r"CLion*\bin\cmake\win\x64\bin\cmake.exe")
+            )
+
+    for item in [*env_candidates, *fixed_candidates, *clion_candidates]:
+        if not item:
+            continue
+        path = Path(item)
+        if path.is_file():
+            return str(path)
+
+    raise FileNotFoundError(
+        "未找到 cmake。请安装 CMake、将 cmake 加入 PATH，或设置 CMAKE_EXE/CLION_HOME。"
+    )
+
+
+def find_ninja_executable() -> Optional[str]:
+    candidate = shutil.which("ninja")
+    if candidate:
+        return candidate
+
+    env_candidates = [
+        os.environ.get("NINJA_EXE", ""),
+        os.environ.get("NINJA_EXECUTABLE", ""),
+    ]
+    for env_root in (os.environ.get("NINJA_HOME", ""), os.environ.get("CLION_HOME", "")):
+        if env_root:
+            env_candidates.append(str(Path(env_root) / "ninja.exe"))
+            env_candidates.append(str(Path(env_root) / "bin" / "ninja" / "win" / "x64" / "ninja.exe"))
+
+    fixed_candidates = [
+        r"C:\Tools\ninja\ninja.exe",
+        r"D:\Tools\ninja\ninja.exe",
+    ]
+    clion_roots = [
+        Path(r"C:\Program Files"),
+        Path(r"D:\Program Files"),
+        Path.home() / "AppData" / "Local" / "Programs",
+    ]
+    clion_candidates: List[str] = []
+    for root in clion_roots:
+        if root.exists():
+            clion_candidates.extend(
+                str(path)
+                for path in root.glob(r"CLion*\bin\ninja\win\x64\ninja.exe")
+            )
+
+    for item in [*env_candidates, *fixed_candidates, *clion_candidates]:
+        if not item:
+            continue
+        path = Path(item)
+        if path.is_file():
+            return str(path)
+    return None
 
 
 def parse_project_name(cmake_text: str) -> str:
@@ -854,6 +937,7 @@ def resolve_mvp_stm32_source_lists(
         template_root / "common" / "utils" / "mem_pool.c",
         template_root / "common" / "utils" / "cJSON.c",
         template_root / "common" / "utils" / "cjson_port.c",
+        template_root / "common" / "utils" / "hmac_sha256.c",
         template_root / "common" / "utils" / "soft_uart.c",
         template_root / "common" / "utils" / "debug_uart.c",
         template_root / "common" / "utils" / "comm_port.c",
@@ -1648,7 +1732,7 @@ def load_upper_version_config(upper_src: Path) -> Optional[Dict]:
     config_path = upper_src / "version_features.json"
     if not config_path.exists():
         return None
-    return json.loads(config_path.read_text(encoding="utf-8"))
+    return json.loads(config_path.read_text(encoding="utf-8-sig"))
 
 
 def resolve_version_feature_list(config: Dict, version: Optional[int]) -> List[str]:
@@ -1743,6 +1827,34 @@ def flutter_command(*args: str) -> List[str]:
     return ["flutter", *args]
 
 
+def flutter_export_env() -> Dict[str, str]:
+    template_root = Path(__file__).resolve().parents[1]
+    local_pub_cache = template_root / ".dart-local" / "Pub" / "Cache"
+    local_gradle_home = template_root / ".gradle-local"
+    local_dart_roaming = template_root / ".dart-roaming"
+    local_pub_cache.mkdir(parents=True, exist_ok=True)
+    local_gradle_home.mkdir(parents=True, exist_ok=True)
+    local_dart_roaming.mkdir(parents=True, exist_ok=True)
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PUB_CACHE": str(local_pub_cache),
+            "GRADLE_USER_HOME": str(local_gradle_home),
+            "PUB_HOSTED_URL": os.environ.get("PUB_HOSTED_URL", "https://pub.flutter-io.cn"),
+            "FLUTTER_STORAGE_BASE_URL": os.environ.get(
+                "FLUTTER_STORAGE_BASE_URL",
+                "https://storage.flutter-io.cn",
+            ),
+            "FLUTTER_SUPPRESS_ANALYTICS": os.environ.get("FLUTTER_SUPPRESS_ANALYTICS", "true"),
+            "DART_SUPPRESS_ANALYTICS": os.environ.get("DART_SUPPRESS_ANALYTICS", "true"),
+        }
+    )
+    if os.name == "nt":
+        env["APPDATA"] = str(local_dart_roaming)
+    return env
+
+
 def cmake_build_command(*args: str) -> List[str]:
     return [find_cmake_executable(), *args]
 
@@ -1790,11 +1902,13 @@ def prepare_flutter_upper_export(
     version: Optional[int],
     features: List[str],
 ) -> List[Path]:
-    subprocess.run(flutter_command("pub", "get"), cwd=flutter_dir, check=True)
+    env = flutter_export_env()
+    subprocess.run(flutter_command("pub", "get"), cwd=flutter_dir, check=True, env=env)
     subprocess.run(
-        flutter_command("build", "apk", "--debug", *dart_defines_for_upper(version, features)),
+        flutter_command("build", "apk", "--release", *dart_defines_for_upper(version, features)),
         cwd=flutter_dir,
         check=True,
+        env=env,
     )
     copied = copy_flutter_apks(flutter_dir, flutter_dir / "apk")
     remove_flutter_intermediates(flutter_dir)
@@ -1811,6 +1925,7 @@ def build_exported_firmware_bin(
 
     with tempfile.TemporaryDirectory(prefix=f"mvp_{project_name}_build_") as tmp:
         build_dir = Path(tmp) / "build"
+        ninja_bin = find_ninja_executable()
         configure_cmd = cmake_build_command(
             "-S",
             str(firmware_dir),
@@ -1818,8 +1933,9 @@ def build_exported_firmware_bin(
             str(build_dir),
             "-DCMAKE_BUILD_TYPE=Release",
         )
-        if shutil.which("ninja"):
+        if ninja_bin:
             configure_cmd.extend(["-G", "Ninja"])
+            configure_cmd.append(f"-DCMAKE_MAKE_PROGRAM={ninja_bin}")
         if toolchain_bin:
             configure_cmd.append(f"-DSTM32_TOOLCHAIN_BIN={toolchain_bin}")
 
@@ -1878,10 +1994,11 @@ def run_flutter_upper_builds(flutter_src: Path, version: Optional[int], features
         shutil.rmtree(build_dir)
 
     dart_defines = dart_defines_for_upper(version, features)
-    subprocess.run(flutter_command("pub", "get"), cwd=flutter_src, check=True)
-    subprocess.run(flutter_command("build", "apk", "--debug", *dart_defines), cwd=flutter_src, check=True)
+    env = flutter_export_env()
+    subprocess.run(flutter_command("pub", "get"), cwd=flutter_src, check=True, env=env)
+    subprocess.run(flutter_command("build", "apk", "--release", *dart_defines), cwd=flutter_src, check=True, env=env)
     if features and "web" in features:
-        subprocess.run(flutter_command("build", "web", *dart_defines), cwd=flutter_src, check=True)
+        subprocess.run(flutter_command("build", "web", *dart_defines), cwd=flutter_src, check=True, env=env)
 
 
 def copy_upper_build_outputs(upper_src: Path, version_dir: Path) -> None:

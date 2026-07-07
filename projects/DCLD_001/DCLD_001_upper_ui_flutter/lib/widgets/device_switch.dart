@@ -23,7 +23,7 @@ class DeviceSwitch extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xff102a43)))),
-          Text(value ? 'ON' : 'OFF', style: TextStyle(color: value ? const Color(0xff0f8f70) : const Color(0xff697586), fontWeight: FontWeight.w800)),
+          Text(value ? '开启' : '关闭', style: TextStyle(color: value ? const Color(0xff0f8f70) : const Color(0xff697586), fontWeight: FontWeight.w800)),
           const SizedBox(width: 10),
           Switch(value: value, onChanged: disabled ? null : onChanged, activeThumbColor: const Color(0xff0f8f70)),
         ],

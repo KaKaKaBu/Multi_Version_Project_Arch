@@ -19,11 +19,15 @@
 
 #if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
 #include "esp8266_mqtt.h"
+void app_comm_poll(sched_event_t events);
 #endif
 
 #define FJXT_ALARM_BLINK_MS 200U
 #define FJXT_ALARM_HOLD_MS 1200U
-#define FJXT_TELEMETRY_INTERVAL_MS 1000U
+#define FJXT_TELEMETRY_INTERVAL_MS 60000U
+#define FJXT_VOICE_OPEN_DONE 1U
+#define FJXT_VOICE_CLOSE_DONE 2U
+#define FJXT_VOICE_PINCH 3U
 
 static const display_driver_t *display;
 static const stepper_driver_t *stepper;
@@ -47,6 +51,22 @@ static uint8_t fjxt_read_active_pin(const hal_pin_t *pin, uint8_t active_low)
     return active_low ? (uint8_t)(level == 0U) : (uint8_t)(level != 0U);
 }
 
+static uint8_t fjxt_read_key_raw_bits(void)
+{
+    uint8_t bits = 0U;
+    uint8_t i;
+
+    for (i = 0U; i < KEY_DRIVER_BUTTON_COUNT; ++i) {
+        const hal_pin_t *pin = board_fjxt_key_pins[i];
+
+        if ((pin != 0) && (gpio_hal_read(pin->port, pin->pin) == 0U)) {
+            bits |= (uint8_t)(1U << i);
+        }
+    }
+
+    return bits;
+}
+
 static const char *fjxt_state_text(fjxt_window_state_t state)
 {
     switch (state) {
@@ -65,27 +85,6 @@ static const char *fjxt_state_text(fjxt_window_state_t state)
     }
 }
 
-#if VERSION_FEATURE_CAMERA
-static void fjxt_copy_text(char *dst, uint16_t dst_size, const char *src)
-{
-    uint16_t i;
-
-    if ((dst == 0) || (dst_size == 0U)) {
-        return;
-    }
-
-    if (src == 0) {
-        dst[0] = '\0';
-        return;
-    }
-
-    for (i = 0U; (i < (uint16_t)(dst_size - 1U)) && (src[i] != '\0'); ++i) {
-        dst[i] = src[i];
-    }
-    dst[i] = '\0';
-}
-#endif
-
 static void fjxt_set_alarm_output(uint8_t on)
 {
     g_fjxt.alarm_output_on = (on != 0U) ? 1U : 0U;
@@ -101,15 +100,37 @@ static void fjxt_set_alarm_output(uint8_t on)
 #if VERSION_FEATURE_VOICE
 static void fjxt_voice_play(uint8_t cmd_id)
 {
-    unsigned char payload[2];
+    static const unsigned char open_done_text[] = {
+        0xB3U, 0xB5U, 0xB4U, 0xB0U, 0xD2U, 0xD1U, 0xB4U, 0xF2U, 0xBFU, 0xAAU
+    };
+    static const unsigned char close_done_text[] = {
+        0xB3U, 0xB5U, 0xB4U, 0xB0U, 0xD2U, 0xD1U, 0xB9U, 0xD8U, 0xB1U, 0xD5U
+    };
+    static const unsigned char pinch_text[] = {
+        0xB7U, 0xC0U, 0xBCU, 0xD0U, 0xB4U, 0xA5U, 0xB7U, 0xA2U
+    };
+    const unsigned char *text;
+    unsigned short len;
 
     if (voice_drv == 0) {
         return;
     }
 
-    payload[0] = 0x01U;
-    payload[1] = cmd_id;
-    (void)voice_drv->send(payload, 2U);
+    switch (cmd_id) {
+    case FJXT_VOICE_OPEN_DONE:
+        text = open_done_text;
+        len = (unsigned short)sizeof(open_done_text);
+        break;
+    case FJXT_VOICE_CLOSE_DONE:
+        text = close_done_text;
+        len = (unsigned short)sizeof(close_done_text);
+        break;
+    default:
+        text = pinch_text;
+        len = (unsigned short)sizeof(pinch_text);
+        break;
+    }
+    (void)voice_drv->send(text, len);
 }
 #else
 static void fjxt_voice_play(uint8_t cmd_id)
@@ -151,29 +172,27 @@ static void fjxt_set_state(fjxt_window_state_t state)
 static void fjxt_complete_open(void)
 {
     fjxt_stop_motor();
+    g_fjxt.nudge_active = 0U;
     g_fjxt.nudge_remaining_deg = 0U;
     g_fjxt.reverse_remaining_deg = 0U;
     fjxt_set_state(FJXT_STATE_OPEN_DONE);
-    fjxt_start_alarm(BOARD_VOICE_CMD_OPEN_DONE);
+    fjxt_start_alarm(FJXT_VOICE_OPEN_DONE);
 }
 
 static void fjxt_complete_close(void)
 {
     fjxt_stop_motor();
+    g_fjxt.nudge_active = 0U;
     g_fjxt.nudge_remaining_deg = 0U;
     g_fjxt.reverse_remaining_deg = 0U;
     fjxt_set_state(FJXT_STATE_CLOSE_DONE);
-    fjxt_start_alarm(BOARD_VOICE_CMD_CLOSE_DONE);
+    fjxt_start_alarm(FJXT_VOICE_CLOSE_DONE);
 }
 
 static void fjxt_start_open(uint8_t nudge)
 {
-    if (g_fjxt.open_limit != 0U) {
-        fjxt_complete_open();
-        return;
-    }
-
-    g_fjxt.nudge_remaining_deg = nudge ? BOARD_STEPMOTOR_NUDGE_DEGREE : 0U;
+    g_fjxt.nudge_remaining_deg = nudge ? BOARD_STEPMOTOR_NUDGE_DEGREE : BOARD_STEPMOTOR_FULL_TRAVEL_DEGREE;
+    g_fjxt.nudge_active = nudge;
     g_fjxt.reverse_remaining_deg = 0U;
     fjxt_set_state(FJXT_STATE_OPENING);
     event_set(APP_EVENT_MOTOR);
@@ -181,12 +200,8 @@ static void fjxt_start_open(uint8_t nudge)
 
 static void fjxt_start_close(uint8_t nudge)
 {
-    if (g_fjxt.close_limit != 0U) {
-        fjxt_complete_close();
-        return;
-    }
-
-    g_fjxt.nudge_remaining_deg = nudge ? BOARD_STEPMOTOR_NUDGE_DEGREE : 0U;
+    g_fjxt.nudge_remaining_deg = nudge ? BOARD_STEPMOTOR_NUDGE_DEGREE : BOARD_STEPMOTOR_FULL_TRAVEL_DEGREE;
+    g_fjxt.nudge_active = nudge;
     g_fjxt.reverse_remaining_deg = 0U;
     fjxt_set_state(FJXT_STATE_CLOSING);
     event_set(APP_EVENT_MOTOR);
@@ -195,9 +210,10 @@ static void fjxt_start_close(uint8_t nudge)
 static void fjxt_start_pinch_reverse(void)
 {
     g_fjxt.nudge_remaining_deg = 0U;
+    g_fjxt.nudge_active = 0U;
     g_fjxt.reverse_remaining_deg = BOARD_STEPMOTOR_REVERSE_DEGREE;
     fjxt_set_state(FJXT_STATE_PINCH_REVERSING);
-    fjxt_start_alarm(BOARD_VOICE_CMD_PINCH);
+    fjxt_start_alarm(FJXT_VOICE_PINCH);
     event_set(APP_EVENT_MOTOR);
 }
 
@@ -220,6 +236,9 @@ static void fjxt_apply_command(fjxt_command_t cmd)
         break;
     case FJXT_CMD_STOP:
         fjxt_stop_motor();
+        g_fjxt.nudge_active = 0U;
+        g_fjxt.nudge_remaining_deg = 0U;
+        g_fjxt.reverse_remaining_deg = 0U;
         fjxt_set_state(FJXT_STATE_STOPPED);
         break;
     default:
@@ -246,24 +265,105 @@ static void fjxt_refresh_display(void)
     DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "FJXT Window");
     display->print(0U, 2U, DISPLAY_FONT_SMALL, "State:%s", fjxt_state_text(g_fjxt.state));
     display->print(0U, 4U, DISPLAY_FONT_SMALL, "Obj:%s", g_fjxt.pinch_detected ? "YES" : "NO");
-    display->print(0U, 5U, DISPLAY_FONT_SMALL, "Open:%s Close:%s",
-                   g_fjxt.open_limit ? "Y" : "N",
-                   g_fjxt.close_limit ? "Y" : "N");
+    display->print(0U, 5U, DISPLAY_FONT_SMALL, "IR:%s K:%02X",
+                   g_fjxt.pinch_detected ? "BLOCK" : "CLEAR",
+                   (unsigned int)g_fjxt.key_raw_bits);
     display->print(0U, 7U, DISPLAY_FONT_SMALL, g_fjxt.alarm_active ? "ALARM" : "READY");
     display->update();
     g_fjxt.display_dirty = 0U;
 }
 
 #if VERSION_FEATURE_REMOTE
+static const cJSON *fjxt_json_object_child(const cJSON *parent, const char *name)
+{
+    const cJSON *child;
+
+    if ((parent == 0) || (name == 0)) {
+        return 0;
+    }
+
+    child = cJSON_GetObjectItem(parent, name);
+    if ((child != 0) && ((child->type & cJSON_Object) != 0)) {
+        return child;
+    }
+    return 0;
+}
+
+static const cJSON *fjxt_json_services_properties(const cJSON *root)
+{
+    const cJSON *services;
+    const cJSON *service;
+    const cJSON *properties;
+
+    if (root == 0) {
+        return 0;
+    }
+
+    services = cJSON_GetObjectItem(root, "services");
+    if ((services == 0) || ((services->type & cJSON_Array) == 0)) {
+        return 0;
+    }
+
+    service = services->child;
+    while (service != 0) {
+        properties = fjxt_json_object_child(service, "properties");
+        if (properties != 0) {
+            return properties;
+        }
+        service = service->next;
+    }
+    return 0;
+}
+
 static const cJSON *fjxt_json_params(const cJSON *root)
 {
-    const cJSON *params = cJSON_GetObjectItem(root, "params");
+    const cJSON *params = fjxt_json_object_child(root, "params");
 
-    if ((params != 0) && ((params->type & cJSON_Object) != 0)) {
+    if (params != 0) {
+        return params;
+    }
+
+    params = fjxt_json_object_child(root, "message");
+    if (params != 0) {
+        return params;
+    }
+
+    params = fjxt_json_object_child(root, "properties");
+    if (params != 0) {
+        return params;
+    }
+
+    params = fjxt_json_services_properties(root);
+    if (params != 0) {
         return params;
     }
 
     return root;
+}
+
+static const cJSON *fjxt_json_cmd_item(const cJSON *root)
+{
+    const cJSON *container;
+    const cJSON *cmd_item;
+
+    if (root == 0) {
+        return 0;
+    }
+
+    cmd_item = cJSON_GetObjectItem(root, "cmd");
+    if ((cmd_item != 0) && cJSON_IsString(cmd_item)) {
+        return cmd_item;
+    }
+
+    container = fjxt_json_params(root);
+    if (container != root) {
+        cmd_item = cJSON_GetObjectItem(container, "cmd");
+        if ((cmd_item != 0) && cJSON_IsString(cmd_item)) {
+            return cmd_item;
+        }
+    }
+
+    return 0;
 }
 
 static fjxt_command_t fjxt_command_from_text(const char *cmd)
@@ -289,11 +389,23 @@ static fjxt_command_t fjxt_command_from_text(const char *cmd)
     return FJXT_CMD_NONE;
 }
 
+#if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
+static int fjxt_can_send_raw_remote(void)
+{
+    const comm_driver_t *driver = comm_port_driver();
+    if ((driver != 0) && (strcmp(driver->name, "esp8266") == 0)) {
+        return 0;
+    }
+    return 1;
+}
+#endif
+
 static void fjxt_publish_telemetry(void)
 {
     cJSON *root;
     cJSON *data;
     char *json_text;
+    char *data_json = 0;
 
     root = cJSON_CreateObject();
     if (root == 0) {
@@ -307,25 +419,33 @@ static void fjxt_publish_telemetry(void)
     data = cJSON_CreateObject();
     if (data != 0) {
         cJSON_AddStringToObject(data, "state", fjxt_state_text(g_fjxt.state));
-        cJSON_AddNumberToObject(data, "open_limit", g_fjxt.open_limit);
-        cJSON_AddNumberToObject(data, "close_limit", g_fjxt.close_limit);
         cJSON_AddNumberToObject(data, "pinch", g_fjxt.pinch_detected);
+        cJSON_AddNumberToObject(data, "key_raw", g_fjxt.key_raw_bits);
         cJSON_AddNumberToObject(data, "alarm", g_fjxt.alarm_active);
-        cJSON_AddNumberToObject(data, "camera", VERSION_FEATURE_CAMERA);
         cJSON_AddNumberToObject(data, "cloud", VERSION_FEATURE_CLOUD);
-#if VERSION_FEATURE_CAMERA
-        cJSON_AddStringToObject(data, "camera_ip", g_fjxt.camera_ip);
-        cJSON_AddStringToObject(data, "camera_stream", g_fjxt.camera_stream);
-#endif
         cJSON_AddItemToObject(root, "data", data);
+        data_json = cJSON_PrintUnformatted(data);
     }
 
     json_text = cJSON_PrintUnformatted(root);
     if (json_text != 0) {
 #if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
         if (esp8266_mqtt_is_ready() != 0) {
+#if VERSION_FEATURE_CLOUD
+            const esp8266_mqtt_config_t *mqtt_cfg;
+            if (data_json != 0) {
+                (void)esp8266_mqtt_publish_huawei_properties(data_json);
+            }
+            mqtt_cfg = esp8266_mqtt_active_config();
+            if ((mqtt_cfg != 0) &&
+                (mqtt_cfg->huawei_custom_pub_topic != 0) &&
+                (mqtt_cfg->huawei_custom_pub_topic[0] != '\0')) {
+                (void)esp8266_mqtt_publish_json(mqtt_cfg->huawei_custom_pub_topic, json_text);
+            }
+#else
             (void)esp8266_mqtt_publish_json(BOARD_ESP8266_MQTT_PUB_TOPIC, json_text);
-        } else
+#endif
+        } else if (fjxt_can_send_raw_remote() != 0)
 #endif
         {
             (void)comm_port_send((const unsigned char *)json_text, (unsigned short)strlen(json_text));
@@ -333,15 +453,36 @@ static void fjxt_publish_telemetry(void)
         }
         cjson_release_string(json_text);
     }
+    if (data_json != 0) {
+        cjson_release_string(data_json);
+    }
 
     cjson_release(root);
+}
+
+static void fjxt_poll_stream_remote_rx(void)
+{
+    unsigned char rx_byte;
+    int rx_len;
+    uint8_t guard = 0U;
+
+#if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
+    const comm_driver_t *driver = comm_port_driver();
+
+    if ((driver != 0) && (strcmp(driver->name, "esp8266") == 0)) {
+        return;
+    }
+#endif
+
+    do {
+        rx_len = comm_port_recv(&rx_byte, 1U);
+        ++guard;
+    } while ((rx_len > 0) && (guard < 8U));
 }
 #endif
 
 void app_logic_init(void)
 {
-    gpio_hal_config_pin(&board_open_limit_pin);
-    gpio_hal_config_pin(&board_close_limit_pin);
     gpio_hal_config_pin(&board_pinch_sensor_pin);
 
     display = devmgr_get_display("oled");
@@ -349,27 +490,23 @@ void app_logic_init(void)
     buzzer_drv = devmgr_get_misc("buzzer");
     led_drv = devmgr_get_misc("led");
 #if VERSION_FEATURE_VOICE
-    voice_drv = devmgr_get_comm("su03t");
+    voice_drv = devmgr_get_comm("tts_uart");
 #endif
 
     g_fjxt.state = FJXT_STATE_STOPPED;
     g_fjxt.pending_cmd = FJXT_CMD_NONE;
-    g_fjxt.open_limit = 0U;
-    g_fjxt.close_limit = 0U;
-    g_fjxt.pinch_detected = 0U;
+    g_fjxt.pinch_detected = fjxt_read_active_pin(&board_pinch_sensor_pin, BOARD_PINCH_SENSOR_ACTIVE_LOW);
+    g_fjxt.key_raw_bits = fjxt_read_key_raw_bits();
     g_fjxt.alarm_active = 0U;
     g_fjxt.alarm_output_on = 0U;
     g_fjxt.display_dirty = 1U;
+    g_fjxt.nudge_active = 0U;
     g_fjxt.nudge_remaining_deg = 0U;
     g_fjxt.reverse_remaining_deg = 0U;
     g_fjxt.last_alarm_tick = sched_tick_get();
     g_fjxt.alarm_stop_tick = 0U;
     g_fjxt.last_telemetry_tick = 0U;
     g_fjxt.telemetry_pending = 1U;
-#if VERSION_FEATURE_CAMERA
-    g_fjxt.camera_ip[0] = '\0';
-    g_fjxt.camera_stream[0] = '\0';
-#endif
 
     fjxt_set_alarm_output(0U);
 #if VERSION_FEATURE_REMOTE
@@ -403,26 +540,26 @@ void app_logic_handle_key(uint8_t key_index)
 void sensor_loop_run(sched_event_t events, void *ctx)
 {
     uint8_t old_pinch;
-    uint8_t old_open;
-    uint8_t old_close;
+    uint8_t old_key_bits;
 
     (void)events;
     (void)ctx;
 
     old_pinch = g_fjxt.pinch_detected;
-    old_open = g_fjxt.open_limit;
-    old_close = g_fjxt.close_limit;
+    old_key_bits = g_fjxt.key_raw_bits;
 
-    g_fjxt.open_limit = fjxt_read_active_pin(&board_open_limit_pin, BOARD_OPEN_LIMIT_ACTIVE_LOW);
-    g_fjxt.close_limit = fjxt_read_active_pin(&board_close_limit_pin, BOARD_CLOSE_LIMIT_ACTIVE_LOW);
     g_fjxt.pinch_detected = fjxt_read_active_pin(&board_pinch_sensor_pin, BOARD_PINCH_SENSOR_ACTIVE_LOW);
+    g_fjxt.key_raw_bits = fjxt_read_key_raw_bits();
 
-    if ((old_pinch != g_fjxt.pinch_detected) ||
-        (old_open != g_fjxt.open_limit) ||
-        (old_close != g_fjxt.close_limit)) {
+    if (old_pinch != g_fjxt.pinch_detected) {
         g_fjxt.display_dirty = 1U;
         app_logic_request_telemetry();
-        event_set(APP_EVENT_MOTOR);
+        event_set(APP_EVENT_SENSOR | APP_EVENT_MOTOR | APP_EVENT_ALARM);
+    }
+
+    if (old_key_bits != g_fjxt.key_raw_bits) {
+        g_fjxt.display_dirty = 1U;
+        event_set(APP_EVENT_SENSOR);
     }
 }
 
@@ -441,37 +578,35 @@ void motor_loop_run(sched_event_t events, void *ctx)
     }
 
     if (g_fjxt.state == FJXT_STATE_OPENING) {
-        if (g_fjxt.open_limit != 0U) {
-            fjxt_complete_open();
-            return;
-        }
         fjxt_step_motor(BOARD_STEPMOTOR_OPEN_DIR);
-        if (g_fjxt.nudge_remaining_deg != 0U) {
-            if (g_fjxt.nudge_remaining_deg <= BOARD_STEPMOTOR_STEP_DEGREE) {
+        if (g_fjxt.nudge_remaining_deg <= BOARD_STEPMOTOR_STEP_DEGREE) {
+            if (g_fjxt.nudge_active != 0U) {
+                g_fjxt.nudge_active = 0U;
                 g_fjxt.nudge_remaining_deg = 0U;
                 fjxt_stop_motor();
                 fjxt_set_state(FJXT_STATE_STOPPED);
             } else {
-                g_fjxt.nudge_remaining_deg = (uint16_t)(g_fjxt.nudge_remaining_deg - BOARD_STEPMOTOR_STEP_DEGREE);
+                fjxt_complete_open();
             }
+        } else {
+            g_fjxt.nudge_remaining_deg = (uint16_t)(g_fjxt.nudge_remaining_deg - BOARD_STEPMOTOR_STEP_DEGREE);
         }
     } else if (g_fjxt.state == FJXT_STATE_CLOSING) {
-        if (g_fjxt.close_limit != 0U) {
-            fjxt_complete_close();
-            return;
-        }
         fjxt_step_motor(BOARD_STEPMOTOR_CLOSE_DIR);
-        if (g_fjxt.nudge_remaining_deg != 0U) {
-            if (g_fjxt.nudge_remaining_deg <= BOARD_STEPMOTOR_STEP_DEGREE) {
+        if (g_fjxt.nudge_remaining_deg <= BOARD_STEPMOTOR_STEP_DEGREE) {
+            if (g_fjxt.nudge_active != 0U) {
+                g_fjxt.nudge_active = 0U;
                 g_fjxt.nudge_remaining_deg = 0U;
                 fjxt_stop_motor();
                 fjxt_set_state(FJXT_STATE_STOPPED);
             } else {
-                g_fjxt.nudge_remaining_deg = (uint16_t)(g_fjxt.nudge_remaining_deg - BOARD_STEPMOTOR_STEP_DEGREE);
+                fjxt_complete_close();
             }
+        } else {
+            g_fjxt.nudge_remaining_deg = (uint16_t)(g_fjxt.nudge_remaining_deg - BOARD_STEPMOTOR_STEP_DEGREE);
         }
     } else if (g_fjxt.state == FJXT_STATE_PINCH_REVERSING) {
-        if ((g_fjxt.open_limit != 0U) || (g_fjxt.reverse_remaining_deg == 0U)) {
+        if (g_fjxt.reverse_remaining_deg == 0U) {
             fjxt_complete_open();
             return;
         }
@@ -532,14 +667,15 @@ void comm_loop_run(sched_event_t events, void *ctx)
 #endif
 
     (void)ctx;
+    (void)events;
 
 #if VERSION_FEATURE_WIFI || VERSION_FEATURE_CLOUD
-    if ((events & (APP_EVENT_COMM_RX | SCHED_EVENT_TICK)) != 0U) {
-        esp8266_mqtt_poll();
-    }
+    app_comm_poll(events);
 #endif
 
 #if VERSION_FEATURE_REMOTE
+    fjxt_poll_stream_remote_rx();
+
     now = sched_tick_get();
     if ((now - g_fjxt.last_telemetry_tick) >= FJXT_TELEMETRY_INTERVAL_MS) {
         g_fjxt.telemetry_pending = 1U;
@@ -559,7 +695,7 @@ void app_logic_on_remote_rx(const char *json_data)
 {
 #if VERSION_FEATURE_REMOTE
     cJSON *root;
-    cJSON *cmd_item;
+    const cJSON *cmd_item;
     const cJSON *params;
     const char *cmd_text;
     fjxt_command_t cmd;
@@ -573,8 +709,8 @@ void app_logic_on_remote_rx(const char *json_data)
         return;
     }
 
-    cmd_item = cJSON_GetObjectItem(root, "cmd");
-    if ((cmd_item == 0) || !cJSON_IsString(cmd_item)) {
+    cmd_item = fjxt_json_cmd_item(root);
+    if (cmd_item == 0) {
         cjson_release(root);
         return;
     }
@@ -591,21 +727,6 @@ void app_logic_on_remote_rx(const char *json_data)
             g_fjxt.pending_cmd = cmd;
             event_set(APP_EVENT_MOTOR);
         }
-#if VERSION_FEATURE_CAMERA
-        else if (strcmp(cmd_text, "camera_info") == 0) {
-            const cJSON *ip_item = cJSON_GetObjectItem(params, "ip");
-            const cJSON *stream_item = cJSON_GetObjectItem(params, "stream");
-
-            if ((ip_item != 0) && cJSON_IsString(ip_item)) {
-                fjxt_copy_text(g_fjxt.camera_ip, (uint16_t)sizeof(g_fjxt.camera_ip), ip_item->valuestring);
-            }
-            if ((stream_item != 0) && cJSON_IsString(stream_item)) {
-                fjxt_copy_text(g_fjxt.camera_stream, (uint16_t)sizeof(g_fjxt.camera_stream), stream_item->valuestring);
-            }
-            g_fjxt.display_dirty = 1U;
-            app_logic_request_telemetry();
-        }
-#endif
     }
 
     cjson_release(root);

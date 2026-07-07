@@ -29,7 +29,7 @@ static const stepmotor_driver_config_t board_stepmotor_config = {
 };
 REGISTER_BOARD_DEVICE(STEPPER, "stepmotor", &board_stepmotor_config);
 
-static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, 1U };
+static const gpio_output_driver_config_t board_buzzer_config = { board_buzzer_pin, BOARD_BUZZER_TRIGGER_LEVEL };
 REGISTER_BOARD_DEVICE(MISC, "buzzer", &board_buzzer_config);
 
 static const gpio_output_driver_config_t board_led_config = { board_led_pin, 1U };
@@ -69,15 +69,15 @@ REGISTER_BOARD_DEVICE(COMM, "esp8266", &board_esp8266_config);
 #endif
 
 #if VERSION_FEATURE_VOICE
-static const usart_device_config_t board_su03t_config = {
-    BOARD_SU03T_USART,
-    BOARD_SU03T_BAUDRATE,
-    board_su03t_tx,
-    board_su03t_rx,
-    BOARD_SU03T_USART_REMAP,
-    USART_HAL_TX_MODE_IRQ,
+static const usart_device_config_t board_tts_uart_config = {
+    BOARD_TTS_UART_USART,
+    BOARD_TTS_UART_BAUDRATE,
+    board_tts_uart_tx,
+    board_tts_uart_rx,
+    BOARD_TTS_UART_USART_REMAP,
+    BOARD_TTS_UART_USART_TX_MODE,
     0U,
     0U
 };
-REGISTER_BOARD_DEVICE(COMM, "su03t", &board_su03t_config);
+REGISTER_BOARD_DEVICE(COMM, "tts_uart", &board_tts_uart_config);
 #endif

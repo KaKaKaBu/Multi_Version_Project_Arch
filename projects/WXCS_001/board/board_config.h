@@ -68,6 +68,7 @@ static const hal_pin_t board_relay_pin = { HAL_PORT_A, HAL_PIN_4, GPIO_HAL_MODE_
 /* 蜂鸣器报警：PB8。                                                            */
 /* -------------------------------------------------------------------------- */
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
 
 /* -------------------------------------------------------------------------- */
 /* 状态 LED：PC13。                                                             */
