@@ -177,6 +177,20 @@ static const char *app_bmi_text(void)
     }
 }
 
+static const char *app_bmi_display_text(void)
+{
+    switch (g_ctx.bmi_state) {
+    case APP_BMI_LIGHT:
+        return "偏轻";
+    case APP_BMI_NORMAL:
+        return "正常";
+    case APP_BMI_HEAVY:
+        return "偏重";
+    default:
+        return "等待";
+    }
+}
+
 static void app_voice_cue(void)
 {
 #if VERSION_FEATURE_VOICE
@@ -374,24 +388,24 @@ static void app_display_status(void)
     app_display->print(0U, 0U, DISPLAY_FONT_SMALL, line);
 
 #if VERSION_FEATURE_FAN_CONTROL
-    p = app_puts(line, "M:");
-    p = app_puts(p, (g_ctx.manual_mode != 0U) ? "MAN " : "AUTO ");
-    p = app_puts(p, "Fan:");
-    (void)app_puts(p, (g_ctx.fan_on != 0U) ? "ON" : "OFF");
+    p = app_puts(line, "模式:");
+    p = app_puts(p, (g_ctx.manual_mode != 0U) ? "手动 " : "自动 ");
+    p = app_puts(p, "风:");
+    (void)app_puts(p, (g_ctx.fan_on != 0U) ? "开" : "关");
     app_display->print(0U, 1U, DISPLAY_FONT_SMALL, line);
 
-    p = app_puts(line, "P:");
+    p = app_puts(line, "压力:");
     p = app_put_u32(p, g_ctx.weight_g);
-    p = app_puts(p, "g Th:");
+    p = app_puts(p, "g 阈:");
     (void)app_put_u32(p, BOARD_PRESSURE_TRIGGER_G);
     app_display->print(0U, 2U, DISPLAY_FONT_SMALL, line);
-    app_display->print(0U, 3U, DISPLAY_FONT_SMALL, "K1 Toggle Fan");
+    app_display->print(0U, 3U, DISPLAY_FONT_SMALL, "K1切换风扇");
 #else
-    p = app_puts(line, "W:");
+    p = app_puts(line, "体重:");
     (void)app_put_weight_kg(p);
     app_display->print(0U, 1U, DISPLAY_FONT_SMALL, line);
 
-    p = app_puts(line, "H:");
+    p = app_puts(line, "身高:");
 #if VERSION_FEATURE_HEIGHT
     if (g_ctx.height_cm > 0U) {
         (void)app_put_height_m(p);
@@ -406,19 +420,19 @@ static void app_display_status(void)
 
     p = app_puts(line, "");
 #if VERSION_FEATURE_BMI
-    p = app_puts(p, (g_ctx.locked != 0U) ? "Lock " : "BMI:");
+    p = app_puts(p, (g_ctx.locked != 0U) ? "锁定 " : "体指:");
     if (g_ctx.bmi_x10 > 0U) {
         p = app_put_bmi(p);
         p = app_puts(p, " ");
     }
-    (void)app_puts(p, app_bmi_text());
+    (void)app_puts(p, app_bmi_display_text());
 #elif VERSION_FEATURE_WEIGHT_ALARM
-    p = app_puts(p, "Th:");
+    p = app_puts(p, "阈:");
     p = app_put_u32(p, g_ctx.threshold_g);
     p = app_puts(p, "g ");
-    (void)app_puts(p, (g_ctx.alarm_on != 0U) ? "AL:ON" : "AL:OFF");
+    (void)app_puts(p, (g_ctx.alarm_on != 0U) ? "警:开" : "警:关");
 #else
-    (void)app_puts(p, "Ready");
+    (void)app_puts(p, "就绪");
 #endif
     app_display->print(0U, 3U, DISPLAY_FONT_SMALL, line);
 #endif

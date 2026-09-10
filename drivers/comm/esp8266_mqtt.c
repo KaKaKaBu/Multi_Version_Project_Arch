@@ -16,6 +16,8 @@
 
 /** @brief Default AT command response wait time in milliseconds. */
 #define ESP8266_AT_TIMEOUT_MS 8000U
+/** @brief Longer wait for MQTT broker connection/authentication. */
+#define ESP8266_MQTT_CONN_TIMEOUT_MS 20000U
 /** @brief Timeout for AT+MQTTPUBRAW payload upload and OK response. */
 #define ESP8266_MQTT_PUBRAW_TIMEOUT_MS 10000U
 /** @brief URC prefix for an incoming MQTT subscription message line. */
@@ -344,6 +346,7 @@ static int esp8266_wifi_connect(const char *ssid, const char *password)
     if (esp8266_at_cmd("AT", 0, 2000U) != 0) {
         return -1;
     }
+    (void)esp8266_at_cmd("ATE0", 0, 2000U);
     if (esp8266_at_cmd("AT+CIPMUX=0", 0, 2000U) != 0) {
         return -1;
     }
@@ -358,7 +361,7 @@ static int esp8266_wifi_connect(const char *ssid, const char *password)
         return -1;
     }
 
-    if (esp8266_at_cmd(cmd, "OK", 5000U) != 0) {
+    if (esp8266_at_cmd(cmd, "OK", 15000U) != 0) {
         return -1;
     }
 
@@ -426,7 +429,7 @@ static int esp8266_mqtt_setup(const esp8266_mqtt_config_t *cfg)
         return -1;
     }
 
-    if (esp8266_at_cmd(cmd, "OK", ESP8266_AT_TIMEOUT_MS) != 0) {
+    if (esp8266_at_cmd(cmd, "+MQTTCONNECTED", ESP8266_MQTT_CONN_TIMEOUT_MS) != 0) {
         return -1;
     }
 
@@ -858,6 +861,12 @@ static void esp8266_mqtt_handle_line(const char *line)
     }
 
     if (line[0] == '\0') {
+        return;
+    }
+
+    if (strstr(line, "+MQTTDISCONNECTED:") != 0) {
+        esp8266_mqtt_ready = 0U;
+        esp8266_mqtt_clear_pending();
         return;
     }
 

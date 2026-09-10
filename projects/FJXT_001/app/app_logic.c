@@ -85,6 +85,8 @@ static const char *fjxt_state_text(fjxt_window_state_t state)
     }
 }
 
+static const char *fjxt_state_display_text(fjxt_window_state_t state);
+
 static void fjxt_set_alarm_output(uint8_t on)
 {
     g_fjxt.alarm_output_on = (on != 0U) ? 1U : 0U;
@@ -262,13 +264,13 @@ static void fjxt_refresh_display(void)
     }
 
     display->clear();
-    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "FJXT Window");
-    display->print(0U, 2U, DISPLAY_FONT_SMALL, "State:%s", fjxt_state_text(g_fjxt.state));
-    display->print(0U, 4U, DISPLAY_FONT_SMALL, "Obj:%s", g_fjxt.pinch_detected ? "YES" : "NO");
-    display->print(0U, 5U, DISPLAY_FONT_SMALL, "IR:%s K:%02X",
-                   g_fjxt.pinch_detected ? "BLOCK" : "CLEAR",
+    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "防夹窗帘");
+    display->print(0U, 2U, DISPLAY_FONT_SMALL, "状态:%s", fjxt_state_display_text(g_fjxt.state));
+    display->print(0U, 4U, DISPLAY_FONT_SMALL, "障碍:%s", g_fjxt.pinch_detected ? "有" : "无");
+    display->print(0U, 5U, DISPLAY_FONT_SMALL, "红外:%s 键:%02X",
+                   g_fjxt.pinch_detected ? "遮挡" : "正常",
                    (unsigned int)g_fjxt.key_raw_bits);
-    display->print(0U, 7U, DISPLAY_FONT_SMALL, g_fjxt.alarm_active ? "ALARM" : "READY");
+    display->print(0U, 7U, DISPLAY_FONT_SMALL, g_fjxt.alarm_active ? "报警" : "就绪");
     display->update();
     g_fjxt.display_dirty = 0U;
 }
@@ -560,6 +562,24 @@ void sensor_loop_run(sched_event_t events, void *ctx)
     if (old_key_bits != g_fjxt.key_raw_bits) {
         g_fjxt.display_dirty = 1U;
         event_set(APP_EVENT_SENSOR);
+    }
+}
+
+static const char *fjxt_state_display_text(fjxt_window_state_t state)
+{
+    switch (state) {
+    case FJXT_STATE_OPENING:
+        return "开窗中";
+    case FJXT_STATE_CLOSING:
+        return "关窗中";
+    case FJXT_STATE_OPEN_DONE:
+        return "已开窗";
+    case FJXT_STATE_CLOSE_DONE:
+        return "已关窗";
+    case FJXT_STATE_PINCH_REVERSING:
+        return "防夹";
+    default:
+        return "停止";
     }
 }
 

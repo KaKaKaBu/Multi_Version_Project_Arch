@@ -178,19 +178,19 @@ static void dcld_refresh_display(void)
 
     display->clear();
     if (g_dcld.mode == DCLD_MODE_THRESHOLD) {
-        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Set Threshold");
-        DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "K2:+ K3:-");
+        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "阈值设置");
+        DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "K2加 K3减");
         (void)tiny_snprintf(line, sizeof(line), "%ucm", (unsigned int)g_dcld.threshold_cm);
         display->print(0U, 4U, DISPLAY_FONT_LARGE, "%s", line);
     } else {
-        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Reverse Radar");
+        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "倒车雷达");
         (void)tiny_snprintf(line, sizeof(line), "%ucm", (unsigned int)g_dcld.distance_cm);
         display->print(0U, 1U, DISPLAY_FONT_LARGE, "%s", line);
-        display->print(0U, 5U, DISPLAY_FONT_SMALL, "Th:%ucm", (unsigned int)g_dcld.threshold_cm);
+        display->print(0U, 5U, DISPLAY_FONT_SMALL, "阈:%ucm", (unsigned int)g_dcld.threshold_cm);
 #if VERSION_FEATURE_TEMP_COMP
-        display->print(10U, 5U, DISPLAY_FONT_SMALL, "T:%dC", (int)g_dcld.temperature_c);
+        display->print(10U, 5U, DISPLAY_FONT_SMALL, "温:%dC", (int)g_dcld.temperature_c);
 #endif
-        display->print(0U, 7U, DISPLAY_FONT_SMALL, g_dcld.alarm_active ? "ALARM" : "SAFE");
+        display->print(0U, 7U, DISPLAY_FONT_SMALL, g_dcld.alarm_active ? "报警" : "安全");
     }
     display->update();
     g_dcld.display_dirty = 0U;

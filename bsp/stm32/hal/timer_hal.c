@@ -114,6 +114,17 @@ void timer_hal_init_us(hal_timer_id_t instance, uint16_t period_us)
     TIM_Cmd(TIMx, ENABLE);
 }
 
+uint16_t timer_hal_get_counter_us(hal_timer_id_t instance)
+{
+    TIM_TypeDef *TIMx = stm32f1_timer(instance);
+
+    if (TIMx == 0) {
+        return 0U;
+    }
+
+    return (uint16_t)TIM_GetCounter(TIMx);
+}
+
 /**
  * @brief Busy-waits for @p us microseconds using TIM4 as a free-running counter.
  * @param us Delay in microseconds.

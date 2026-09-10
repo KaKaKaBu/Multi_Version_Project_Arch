@@ -25,6 +25,7 @@ try:
         resolve_version_feature_list,
     )
     from gui_common import append_log, command_exists, drain_events, find_flutter, open_path
+    from tool_env import resolve_cmake_executable
 except ImportError:
     from tools.export_project import (
         discover_projects,
@@ -34,6 +35,7 @@ except ImportError:
         resolve_version_feature_list,
     )
     from tools.gui_common import append_log, command_exists, drain_events, find_flutter, open_path
+    from tools.tool_env import resolve_cmake_executable
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OPENOCD_CFG = str(TEMPLATE_ROOT / "stm32f103c8_blue_pill.cfg")
@@ -485,16 +487,18 @@ class ProjectRunGui:
         project = self._selected_project()
         if project is None:
             return
-        if not command_exists("cmake"):
-            messagebox.showerror("校验失败", "未找到 cmake 命令")
+        try:
+            cmake_exe = resolve_cmake_executable()
+        except FileNotFoundError as exc:
+            messagebox.showerror("校验失败", str(exc))
             return
         build_dir = Path(self.build_dir_var.get().strip())
         if not build_dir:
             messagebox.showerror("校验失败", "构建目录不能为空")
             return
         version = self._selected_version()
-        args_config = command(
-            "cmake",
+        args_config = [
+            cmake_exe,
             "-S",
             str(project),
             "-B",
@@ -503,16 +507,18 @@ class ProjectRunGui:
             "Ninja",
             f"-DAPP_VERSION={version}",
             f"-DCMAKE_TOOLCHAIN_FILE={self._template_root() / 'cmake' / 'stm32-gcc-toolchain.cmake'}",
-        )
-        args_build = command("cmake", "--build", str(build_dir))
+        ]
+        args_build = [cmake_exe, "--build", str(build_dir)]
         self._start_commands("CMake 构建", [(args_config, self._template_root(), None), (args_build, self._template_root(), None)])
 
     def _openocd_flash(self) -> None:
         project = self._selected_project()
         if project is None:
             return
-        if not command_exists("cmake"):
-            messagebox.showerror("校验失败", "未找到 cmake 命令")
+        try:
+            cmake_exe = resolve_cmake_executable()
+        except FileNotFoundError as exc:
+            messagebox.showerror("校验失败", str(exc))
             return
         if not command_exists("openocd"):
             messagebox.showerror("校验失败", "未找到 openocd 命令")
@@ -530,8 +536,8 @@ class ProjectRunGui:
         project_name = self.current_project_name
         version = self._selected_version()
 
-        args_config = command(
-            "cmake",
+        args_config = [
+            cmake_exe,
             "-S",
             str(project),
             "-B",
@@ -540,8 +546,8 @@ class ProjectRunGui:
             "Ninja",
             f"-DAPP_VERSION={version}",
             f"-DCMAKE_TOOLCHAIN_FILE={self._template_root() / 'cmake' / 'stm32-gcc-toolchain.cmake'}",
-        )
-        args_build = command("cmake", "--build", str(build_dir))
+        ]
+        args_build = [cmake_exe, "--build", str(build_dir)]
 
         def flash_args() -> List[str]:
             firmware = Path(firmware_text) if firmware_text else find_firmware_binary(project, project_name, build_dir)

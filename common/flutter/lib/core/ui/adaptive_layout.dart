@@ -92,6 +92,7 @@ class AdaptiveMetricGrid extends StatelessWidget {
     super.key,
     required this.children,
     this.minTileWidth = 168,
+    this.minTileHeight = 104,
     this.spacing = 12,
     this.singleColumnAspectRatio = 2.8,
     this.multiColumnAspectRatio = 1.75,
@@ -99,6 +100,7 @@ class AdaptiveMetricGrid extends StatelessWidget {
 
   final List<Widget> children;
   final double minTileWidth;
+  final double minTileHeight;
   final double spacing;
   final double singleColumnAspectRatio;
   final double multiColumnAspectRatio;
@@ -113,15 +115,23 @@ class AdaptiveMetricGrid extends StatelessWidget {
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
         final columns = (width / minTileWidth).floor().clamp(1, 4).toInt();
+        final totalSpacing = spacing * (columns - 1);
+        final tileWidth = (width - totalSpacing) / columns;
+        final preferredAspectRatio = columns == 1
+            ? singleColumnAspectRatio
+            : multiColumnAspectRatio;
+        final preferredHeight = tileWidth / preferredAspectRatio;
+        final tileHeight = preferredHeight < minTileHeight
+            ? minTileHeight
+            : preferredHeight;
+
         return GridView.count(
           crossAxisCount: columns,
           crossAxisSpacing: spacing,
           mainAxisSpacing: spacing,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: columns == 1
-              ? singleColumnAspectRatio
-              : multiColumnAspectRatio,
+          childAspectRatio: tileWidth / tileHeight,
           children: children,
         );
       },
@@ -134,17 +144,20 @@ class AdaptiveButtonGrid extends StatelessWidget {
     super.key,
     required this.children,
     this.minTileWidth = 150,
+    this.minTileHeight = 52,
     this.spacing = 12,
   });
 
   final List<Widget> children;
   final double minTileWidth;
+  final double minTileHeight;
   final double spacing;
 
   @override
   Widget build(BuildContext context) {
     return AdaptiveMetricGrid(
       minTileWidth: minTileWidth,
+      minTileHeight: minTileHeight,
       spacing: spacing,
       singleColumnAspectRatio: 4.2,
       multiColumnAspectRatio: 2.7,
@@ -176,11 +189,7 @@ class AdaptiveFieldRow extends StatelessWidget {
             if (constraints.maxWidth < 360) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(label),
-                  const SizedBox(height: 8),
-                  child,
-                ],
+                children: [Text(label), const SizedBox(height: 8), child],
               );
             }
 

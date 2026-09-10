@@ -164,21 +164,21 @@ static void app_display_refresh(void)
         return;
     }
 
-    mode_text = (app_ctx.mode == APP_MODE_AUTO) ? "AUTO" : "MAN";
-    person_text = (app_ctx.person_present != 0U) ? "YES" : "NO ";
+    mode_text = (app_ctx.mode == APP_MODE_AUTO) ? "自动" : "手动";
+    person_text = (app_ctx.person_present != 0U) ? "有" : "无";
 
     app_display->clear();
-    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "Mode:%s", mode_text);
-    app_display->print(0U, 2U, DISPLAY_FONT_SMALL, "Lux:%3u%%",
+    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "模式:%s", mode_text);
+    app_display->print(0U, 2U, DISPLAY_FONT_SMALL, "光照:%3u%%",
                        (unsigned int)(app_ctx.light_percent + 0.5f));
-    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "Person:%s", person_text);
+    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "人体:%s", person_text);
 
     if (app_ctx.mode == APP_MODE_MANUAL) {
         sel = app_ctx.selected;
         if (sel < APP_LIGHT_CHANNEL_COUNT) {
-            app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "L%u %s G%u",
+            app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "灯%u %s 档%u",
                                (unsigned int)(sel + 1U),
-                               app_ctx.light_on[sel] != 0U ? "ON " : "OFF",
+                               app_ctx.light_on[sel] != 0U ? "开" : "关",
                                (unsigned int)app_ctx.light_gear[sel]);
         }
     } else {
@@ -188,9 +188,9 @@ static void app_display_refresh(void)
             }
         }
         if (i >= APP_LIGHT_CHANNEL_COUNT) {
-            app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "Light:OFF");
+            app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "灯光:关");
         } else {
-            app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "Gear:%u",
+            app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "档位:%u",
                                (unsigned int)app_ctx.light_gear[0]);
         }
     }

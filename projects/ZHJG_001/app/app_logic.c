@@ -117,11 +117,11 @@ static const char *zhjg_selected_threshold_name(void)
 {
     switch (g_zhjg.selected_threshold) {
     case ZHJG_THRESHOLD_METHANE:
-        return "CH4";
+        return "甲烷";
     case ZHJG_THRESHOLD_WATER:
-        return "Water";
+        return "水位";
     case ZHJG_THRESHOLD_TILT:
-        return "Tilt";
+        return "倾角";
     default:
         return "CH4";
     }
@@ -163,7 +163,7 @@ static void zhjg_refresh_display(void)
 
     display->clear();
     if (g_zhjg.mode == ZHJG_MODE_THRESHOLD) {
-        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Set Threshold");
+        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "阈值设置");
         display->print(0U, 2U, DISPLAY_FONT_SMALL, "%s", zhjg_selected_threshold_name());
         if (g_zhjg.selected_threshold == ZHJG_THRESHOLD_METHANE) {
             (void)tiny_snprintf(line, sizeof(line), "%uppm", (unsigned int)g_zhjg.methane_threshold_ppm);
@@ -173,18 +173,18 @@ static void zhjg_refresh_display(void)
             (void)tiny_snprintf(line, sizeof(line), "%ddeg", (int)g_zhjg.tilt_threshold_degree);
         }
         display->print(0U, 4U, DISPLAY_FONT_LARGE, "%s", line);
-        DISPLAY_PRINT(display, 0U, 7U, DISPLAY_FONT_SMALL, "K2 Sel K3+ K4-");
+        DISPLAY_PRINT(display, 0U, 7U, DISPLAY_FONT_SMALL, "K2选 K3加 K4减");
     } else {
-        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Smart Manhole");
-        display->print(0U, 2U, DISPLAY_FONT_SMALL, "CH4:%uppm", (unsigned int)g_zhjg.methane_ppm);
-        display->print(0U, 3U, DISPLAY_FONT_SMALL, "Water:%d%%", (int)g_zhjg.water_level_percent);
-        display->print(0U, 4U, DISPLAY_FONT_SMALL, "Tilt:%ddeg", (int)g_zhjg.tilt_degree);
+        DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "智能井盖");
+        display->print(0U, 2U, DISPLAY_FONT_SMALL, "甲烷:%uppm", (unsigned int)g_zhjg.methane_ppm);
+        display->print(0U, 3U, DISPLAY_FONT_SMALL, "水位:%d%%", (int)g_zhjg.water_level_percent);
+        display->print(0U, 4U, DISPLAY_FONT_SMALL, "倾角:%d度", (int)g_zhjg.tilt_degree);
 #if VERSION_FEATURE_GPS
-        display->print(0U, 5U, DISPLAY_FONT_SMALL, g_zhjg.gps_fix.valid ? "GPS:OK" : "GPS:--");
+        display->print(0U, 5U, DISPLAY_FONT_SMALL, g_zhjg.gps_fix.valid ? "定位:正常" : "定位:--");
 #else
-        DISPLAY_PRINT(display, 0U, 5U, DISPLAY_FONT_SMALL, "GPS:N/A");
+        DISPLAY_PRINT(display, 0U, 5U, DISPLAY_FONT_SMALL, "定位:无");
 #endif
-        display->print(0U, 7U, DISPLAY_FONT_SMALL, g_zhjg.alarm_active ? "ALARM" : "SAFE");
+        display->print(0U, 7U, DISPLAY_FONT_SMALL, g_zhjg.alarm_active ? "报警" : "安全");
     }
     display->update();
     g_zhjg.display_dirty = 0U;

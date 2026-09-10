@@ -16,25 +16,25 @@
 
 #if APP_VERSION == 1
 #define VERSION_LABEL "SGTZ-001"
-#define VERSION_TITLE "FAN SCALE"
+#define VERSION_TITLE "风扇秤"
 #elif APP_VERSION == 2
 #define VERSION_LABEL "SGTZ-002"
-#define VERSION_TITLE "5KG SCALE"
+#define VERSION_TITLE "5kg秤"
 #elif APP_VERSION == 3
 #define VERSION_LABEL "SGTZ-003"
-#define VERSION_TITLE "BMI SCALE"
+#define VERSION_TITLE "体指秤"
 #elif APP_VERSION == 4
 #define VERSION_LABEL "SGTZ-004"
-#define VERSION_TITLE "BMI BLE"
+#define VERSION_TITLE "蓝牙体指"
 #elif APP_VERSION == 5
 #define VERSION_LABEL "SGTZ-005"
-#define VERSION_TITLE "BMI WIFI"
+#define VERSION_TITLE "WiFi体指"
 #elif APP_VERSION == 6
 #define VERSION_LABEL "SGTZ-006"
-#define VERSION_TITLE "BMI CAMERA"
+#define VERSION_TITLE "视频体指"
 #elif APP_VERSION == 7
 #define VERSION_LABEL "SGTZ-007"
-#define VERSION_TITLE "BMI VOICE"
+#define VERSION_TITLE "语音体指"
 #else
 #error "APP_VERSION must be 1-7"
 #endif

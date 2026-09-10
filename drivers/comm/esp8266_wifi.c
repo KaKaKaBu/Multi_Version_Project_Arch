@@ -237,6 +237,9 @@ void esp8266_port_drain_rx(void)
 
     while (esp8266_port_recv_byte(&byte) == 1) {
         esp8266_port_rx_push(&byte, 1U);
+        if ((esp8266_config != 0) && (esp8266_config->debug_trace_enable != 0U)) {
+            esp8266_debug_trace(&byte, 1U);
+        }
 #if ESP8266_DRAIN_DEBUG
         if (preview_len < 16U) {
             preview[preview_len] = ((byte >= 32U) && (byte <= 126U)) ? (char)byte : '.';

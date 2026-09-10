@@ -9,6 +9,50 @@
 static unsigned char app_last_rx_buffer[APP_RX_BUFFER_SIZE];
 static unsigned short app_last_rx_len;
 static unsigned short app_stream_rx_len;
+static unsigned char app_json_depth;
+static unsigned char app_json_in_string;
+static unsigned char app_json_escape;
+
+static void app_reset_stream_state(void)
+{
+    app_stream_rx_len = 0U;
+    app_json_depth = 0U;
+    app_json_in_string = 0U;
+    app_json_escape = 0U;
+}
+
+static unsigned char app_update_json_state(unsigned char byte)
+{
+    if (app_json_in_string != 0U) {
+        if (app_json_escape != 0U) {
+            app_json_escape = 0U;
+        } else if (byte == '\\') {
+            app_json_escape = 1U;
+        } else if (byte == '"') {
+            app_json_in_string = 0U;
+        }
+        return 0U;
+    }
+
+    if (byte == '"') {
+        app_json_in_string = 1U;
+        return 0U;
+    }
+
+    if (byte == '{') {
+        if (app_json_depth < 0xFFU) {
+            ++app_json_depth;
+        }
+        return 0U;
+    }
+
+    if ((byte == '}') && (app_json_depth != 0U)) {
+        --app_json_depth;
+        return (app_json_depth == 0U) ? 1U : 0U;
+    }
+
+    return 0U;
+}
 
 static void app_process_rx_frame(const unsigned char *data, unsigned short len)
 {
@@ -47,22 +91,26 @@ void app_comm_rx_callback(const unsigned char *data, unsigned short len)
         if ((byte == '\r') || (byte == '\n')) {
             if (app_stream_rx_len != 0U) {
                 app_process_rx_frame(app_last_rx_buffer, app_stream_rx_len);
-                app_stream_rx_len = 0U;
+                app_reset_stream_state();
             }
             continue;
         }
 
         if (app_stream_rx_len < (APP_RX_BUFFER_SIZE - 1U)) {
             app_last_rx_buffer[app_stream_rx_len++] = byte;
+            if ((app_stream_rx_len != 0U) && (app_update_json_state(byte) != 0U)) {
+                app_process_rx_frame(app_last_rx_buffer, app_stream_rx_len);
+                app_reset_stream_state();
+            }
         } else {
-            app_stream_rx_len = 0U;
+            app_reset_stream_state();
         }
     }
 
 #if VERSION_FEATURE_WIFI
     if (len > 1U) {
         app_process_rx_frame(data, len);
-        app_stream_rx_len = 0U;
+        app_reset_stream_state();
     }
 #endif
 }

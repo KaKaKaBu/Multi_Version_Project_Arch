@@ -30,6 +30,11 @@ __attribute__((weak)) void key_exti_irq_handler(uint32_t pending_mask)
     (void)pending_mask;
 }
 
+__attribute__((weak)) void ir_remote_exti_irq_handler(uint32_t pending_mask)
+{
+    (void)pending_mask;
+}
+
 static void handle_exti_group(uint32_t line_mask)
 {
     uint32_t pending = EXTI->PR & line_mask;
@@ -39,6 +44,7 @@ static void handle_exti_group(uint32_t line_mask)
     }
 
     key_exti_irq_handler(pending);
+    ir_remote_exti_irq_handler(pending);
     EXTI->PR = pending;
     irq_event_post_from_isr(IRQ_EVENT_SOURCE_KEY_EXTI, pending);
 }

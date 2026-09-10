@@ -11,6 +11,11 @@ from pathlib import Path
 from tkinter import END, NORMAL, DISABLED
 from typing import Callable, Iterable, List, Optional
 
+try:
+    from tool_env import resolve_cmake_executable
+except ImportError:
+    from tools.tool_env import resolve_cmake_executable
+
 PROJECT_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
 ANDROID_PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$")
 WINDOWS_INVALID_CHARS = set('<>:"/\\|?*')
@@ -91,6 +96,12 @@ def validate_android_package_name(value: str) -> Optional[str]:
 
 
 def command_exists(command: str) -> bool:
+    if command.lower() in {"cmake", "cmake.exe"}:
+        try:
+            resolve_cmake_executable()
+            return True
+        except FileNotFoundError:
+            return False
     return shutil.which(command) is not None
 
 

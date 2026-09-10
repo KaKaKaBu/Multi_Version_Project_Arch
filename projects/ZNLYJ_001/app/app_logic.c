@@ -118,12 +118,12 @@ static const char *znlyj_threshold_name(unsigned char item)
 {
     switch (item) {
     case 0U:  return "Temp";
-    case 1U:  return "Humidity";
+    case 1U:  return "湿度";
 #if VERSION_FEATURE_LIGHT
-    case 2U:  return "Light";
-    case 3U:  return "Weight";
+    case 2U:  return "光照";
+    case 3U:  return "重量";
 #endif
-    default:  return "Temp";
+    default:  return "温度";
     }
 }
 
@@ -174,7 +174,7 @@ static void znlyj_refresh_display(void)
     display->clear();
 
     if (g_znlyj.mode == ZNLYJ_MODE_THRESHOLD) {
-        display->print(0U, 0U, DISPLAY_FONT_SMALL, "Set Threshold");
+        display->print(0U, 0U, DISPLAY_FONT_SMALL, "阈值设置");
         display->print(0U, 2U, DISPLAY_FONT_SMALL, "%s",
                        znlyj_threshold_name(g_znlyj.selected_threshold));
 
@@ -194,28 +194,28 @@ static void znlyj_refresh_display(void)
             break;
 #endif
         }
-        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2 Sel K3+ K4-");
+        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2选 K3加 K4减");
     } else {
-        display->print(0U, 0U, DISPLAY_FONT_SMALL, "Rack:%s",
-                       g_znlyj.rack_open ? "OPEN " : "CLOSE");
-        display->print(0U, 1U, DISPLAY_FONT_SMALL, "T:%.0fC H:%.0f%%",
+        display->print(0U, 0U, DISPLAY_FONT_SMALL, "晾架:%s",
+                       g_znlyj.rack_open ? "打开" : "关闭");
+        display->print(0U, 1U, DISPLAY_FONT_SMALL, "温:%.0fC 湿:%.0f%%",
                        g_znlyj.temperature, g_znlyj.humidity);
 #if VERSION_FEATURE_LIGHT
-        display->print(0U, 2U, DISPLAY_FONT_SMALL, "Light:%.0f%%", g_znlyj.light_percent);
+        display->print(0U, 2U, DISPLAY_FONT_SMALL, "光照:%.0f%%", g_znlyj.light_percent);
 #endif
-        display->print(0U, 3U, DISPLAY_FONT_SMALL, "Human:%s",
-                       g_znlyj.human_present ? "YES" : "NO ");
-        display->print(0U, 4U, DISPLAY_FONT_SMALL, "Clothes:%s",
-                       g_znlyj.clothes_present ? "YES" : "NO ");
+        display->print(0U, 3U, DISPLAY_FONT_SMALL, "人体:%s",
+                       g_znlyj.human_present ? "有" : "无");
+        display->print(0U, 4U, DISPLAY_FONT_SMALL, "衣物:%s",
+                       g_znlyj.clothes_present ? "有" : "无");
 #if VERSION_FEATURE_WEIGHT
-        display->print(0U, 5U, DISPLAY_FONT_SMALL, "W:%.1fkg %s",
+        display->print(0U, 5U, DISPLAY_FONT_SMALL, "重:%.1fkg %s",
                        g_znlyj.weight_kg,
-                       g_znlyj.weight_overload ? "OVER!" : "");
+                       g_znlyj.weight_overload ? "超重" : "");
 #endif
-        display->print(0U, 6U, DISPLAY_FONT_SMALL, "Mode:%s",
-                       (g_znlyj.mode == ZNLYJ_MODE_AUTO) ? "AUTO" : "MAN");
+        display->print(0U, 6U, DISPLAY_FONT_SMALL, "模式:%s",
+                       (g_znlyj.mode == ZNLYJ_MODE_AUTO) ? "自动" : "手动");
         display->print(0U, 7U, DISPLAY_FONT_SMALL,
-                       g_znlyj.alarm_active ? "ALARM!" : "SAFE");
+                       g_znlyj.alarm_active ? "报警" : "安全");
     }
 
     display->update();

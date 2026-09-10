@@ -49,7 +49,9 @@ class _StatusBanner extends StatelessWidget {
           color: color,
         ),
         title: Text(data.alarm ? '空气指标超限' : '空气状态正常'),
-        subtitle: Text('${data.modeLabel} · ${describeKqzl2Version(capabilities)}'),
+        subtitle: Text(
+          '${data.modeLabel} · ${describeKqzl2Version(capabilities)}',
+        ),
       ),
     );
   }
@@ -70,6 +72,7 @@ class _SensorGrid extends StatelessWidget {
       title: '实时数据',
       child: AdaptiveMetricGrid(
         minTileWidth: 168,
+        minTileHeight: 118,
         children: [
           for (final sensor in sensors)
             _MetricCard(
@@ -123,6 +126,7 @@ class _ActuatorGrid extends StatelessWidget {
       title: '执行器状态',
       child: AdaptiveMetricGrid(
         minTileWidth: 160,
+        minTileHeight: 118,
         children: [
           for (final actuator in airActuatorCatalog)
             _MetricCard(
@@ -171,15 +175,15 @@ class _MetricCard extends StatelessWidget {
         : Theme.of(context).colorScheme.onSurfaceVariant;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 8),
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 6),
             Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               value,
               maxLines: 2,

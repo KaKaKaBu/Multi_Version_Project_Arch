@@ -34,6 +34,7 @@
 #include "rfid_if.h"
 #include "radio_if.h"
 #include "gnss_if.h"
+#include "audio_recorder_if.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,6 +73,7 @@ const rfid_driver_t *devmgr_get_rfid(const char *name);
 const radio_driver_t *devmgr_get_radio(const char *name);
 
 const gnss_driver_t *devmgr_get_gnss(const char *name);
+const audio_recorder_driver_t *devmgr_get_audio_recorder(const char *name);
 
 /** @brief 返回 (__driver_list_end - __driver_list_start) 注册项个数。 */
 unsigned short devmgr_count(void);

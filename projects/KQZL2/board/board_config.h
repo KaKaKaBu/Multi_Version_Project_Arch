@@ -15,10 +15,11 @@
 #define BOARD_USART3_BAUDRATE 115200U
 
 #if HAL_DEBUG_UART_ENABLE
-#define BOARD_DEBUG_UART_BAUDRATE 9600U
+#define BOARD_DEBUG_UART_BAUDRATE 38400U
 #define BOARD_DEBUG_UART_PASSTHROUGH_USART3 0
 static const hal_pin_t board_debug_uart_tx = { HAL_PORT_C, HAL_PIN_13, GPIO_HAL_MODE_OUT_PP };
 #endif
+#define BOARD_ESP8266_DEBUG_TRACE_ENABLE 0U
 
 /** @name ESP8266 Wi-Fi / MQTT (HAL_USART_ID_3 PB10/PB11). */
 #define BOARD_ESP8266_USART HAL_USART_ID_3
@@ -47,6 +48,7 @@ static const hal_pin_t board_esp8266_rst_pin = { HAL_PORT_B, HAL_PIN_1, GPIO_HAL
 #endif
 
 #if VERSION_FEATURE_CLOUD
+
 #define BOARD_ESP8266_HUAWEI_BROKER "7e87c47089.st1.iotda-device.cn-east-3.myhuaweicloud.com"
 #define BOARD_ESP8266_HUAWEI_PORT 1883U
 #define BOARD_ESP8266_HUAWEI_DEVICE_ID "6a4c91b6e094d6159250627c_KQZL2_stm32"
@@ -96,7 +98,8 @@ static const hal_pin_t board_dht11_pin = { HAL_PORT_A, HAL_PIN_5, GPIO_HAL_MODE_
 static const hal_pin_t board_relay_pin = { HAL_PORT_A, HAL_PIN_11, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_led_pin = { HAL_PORT_A, HAL_PIN_6, GPIO_HAL_MODE_OUT_PP };
 static const hal_pin_t board_buzzer_pin = { HAL_PORT_A, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
-#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_LOW
+#define BOARD_LED_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
 
 #if HAL_ADC_ENABLE
 static const hal_pin_t board_pm25_adc_pin = { HAL_PORT_A, HAL_PIN_0, GPIO_HAL_MODE_ANALOG };

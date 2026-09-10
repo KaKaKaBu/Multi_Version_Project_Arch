@@ -203,9 +203,10 @@ static void app_print_time_line(unsigned char row,
     }
 
     line[pos++] = (line_field_id == active_field) ? '*' : ' ';
-    line[pos++] = prefix[0];
-    line[pos++] = prefix[1];
-    line[pos++] = prefix[2];
+    while ((*prefix != '\0') && (pos < (sizeof(line) - 1U))) {
+        line[pos++] = *prefix;
+        ++prefix;
+    }
     line[pos++] = ':';
 
     line[pos++] = (line_field_id == active_field && active_digit == APP_TIMER_DIGIT_HOUR) ? '>' : ' ';
@@ -236,6 +237,16 @@ static const char *app_wifi_status_text(void)
     return "offline";
 }
 
+static const char *app_wifi_status_display_text(void)
+{
+#if VERSION_FEATURE_WIFI
+    if (esp8266_mqtt_is_ready() != 0) {
+        return "已连接";
+    }
+#endif
+    return "离线";
+}
+
 static void app_display_manual_main(void)
 {
     char time_text[12];
@@ -245,16 +256,16 @@ static void app_display_manual_main(void)
     }
 
     app_display->clear();
-    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "Mode:MANUAL");
-    app_display->print(0U, 2U, DISPLAY_FONT_SMALL, "Relay:%s",
-                       app_ctx.relay_state != 0U ? "ON " : "OFF");
+    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "模式:手动");
+    app_display->print(0U, 2U, DISPLAY_FONT_SMALL, "继电器:%s",
+                       app_ctx.relay_state != 0U ? "开" : "关");
     app_hms_t cur_time;
 
     cur_time.hour = app_ctx.now.hour;
     cur_time.minute = app_ctx.now.minute;
     cur_time.second = app_ctx.now.second;
     app_format_hms(time_text, (unsigned short)sizeof(time_text), &cur_time);
-    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "Time:%s", time_text);
+    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "时间:%s", time_text);
     app_display->update();
 }
 
@@ -275,20 +286,20 @@ static void app_display_manual_wifi(void)
     }
 
     if (wifi_page == APP_WIFI_PAGE_PASS) {
-        title = "WiFi PASS";
+        title = "WiFi密码";
         value = BOARD_ESP8266_WIFI_PASS;
     } else if (wifi_page == APP_WIFI_PAGE_STATUS) {
-        title = "WiFi STAT";
-        value = app_wifi_status_text();
+        title = "WiFi状态";
+        value = app_wifi_status_display_text();
     } else {
-        title = "WiFi SSID";
+        title = "WiFi名称";
         value = BOARD_ESP8266_WIFI_SSID;
     }
 
     app_display->clear();
     app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "%s", title);
     app_display->print(0U, 2U, DISPLAY_FONT_SMALL, "%s", value);
-    app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "K2:Back");
+    app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "K2返回");
     app_display->update();
 }
 
@@ -299,19 +310,19 @@ static void app_display_timer(void)
     }
 
     app_display->clear();
-    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "Mode:TIMER");
+    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "模式:定时");
     {
         app_hms_t cur_time;
 
         cur_time.hour = app_ctx.now.hour;
         cur_time.minute = app_ctx.now.minute;
         cur_time.second = app_ctx.now.second;
-        app_print_time_line(2U, "Cur", &cur_time, APP_TIMER_FIELD_CURRENT);
+        app_print_time_line(2U, "当前", &cur_time, APP_TIMER_FIELD_CURRENT);
     }
-    app_print_time_line(3U, "On ", &app_ctx.on_time, APP_TIMER_FIELD_ON);
-    app_print_time_line(4U, "Off", &app_ctx.off_time, APP_TIMER_FIELD_OFF);
-    app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "Relay:%s",
-                       app_ctx.relay_state != 0U ? "ON" : "OFF");
+    app_print_time_line(3U, "开启", &app_ctx.on_time, APP_TIMER_FIELD_ON);
+    app_print_time_line(4U, "关闭", &app_ctx.off_time, APP_TIMER_FIELD_OFF);
+    app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "继电器:%s",
+                       app_ctx.relay_state != 0U ? "开" : "关");
     app_display->update();
 }
 

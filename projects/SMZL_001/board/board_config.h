@@ -45,28 +45,28 @@ static const hal_pin_t board_sensor_i2c_sda = { HAL_PORT_B, HAL_PIN_7, GPIO_HAL_
 #define BOARD_MAX30102_I2C_ADDR 0xAEU
 
 /* -------------------------------------------------------------------------- */
-/* DS18B20 体温传感器：PB12 单总线。                                             */
+/* DS18B20 体温传感器：PA5 单总线。                                             */
 /* -------------------------------------------------------------------------- */
-static const hal_pin_t board_ds18b20_pin = { HAL_PORT_B, HAL_PIN_12, GPIO_HAL_MODE_OUT_OD };
+static const hal_pin_t board_ds18b20_pin = { HAL_PORT_A, HAL_PIN_5, GPIO_HAL_MODE_OUT_OD };
 
 /* -------------------------------------------------------------------------- */
-/* 蜂鸣器报警：PB8。                                                            */
+/* 蜂鸣器报警：PB12，低电平触发。                                                */
 /* -------------------------------------------------------------------------- */
-static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_8, GPIO_HAL_MODE_OUT_PP };
-#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_HIGH
+static const hal_pin_t board_buzzer_pin = { HAL_PORT_B, HAL_PIN_12, GPIO_HAL_MODE_OUT_PP };
+#define BOARD_BUZZER_TRIGGER_LEVEL GPIO_OUTPUT_TRIGGER_LOW
 
 /* -------------------------------------------------------------------------- */
-/* 状态 LED：PC13。                                                             */
+/* 状态 LED：PA6。                                                              */
 /* -------------------------------------------------------------------------- */
-static const hal_pin_t board_led_pin = { HAL_PORT_C, HAL_PIN_13, GPIO_HAL_MODE_OUT_PP };
+static const hal_pin_t board_led_pin = { HAL_PORT_A, HAL_PIN_6, GPIO_HAL_MODE_OUT_PP };
 
 /* -------------------------------------------------------------------------- */
-/* 4 个按键：模式、清零/选择、加、减。                                           */
+/* 4 个按键：模式、清零/选择、加、减。PB3/PB4 需关闭 JTAG。                       */
 /* -------------------------------------------------------------------------- */
-static const hal_pin_t board_key1_pin = { HAL_PORT_B, HAL_PIN_4, GPIO_HAL_MODE_IN_PULLUP };
-static const hal_pin_t board_key2_pin = { HAL_PORT_B, HAL_PIN_5, GPIO_HAL_MODE_IN_PULLUP };
-static const hal_pin_t board_key3_pin = { HAL_PORT_B, HAL_PIN_13, GPIO_HAL_MODE_IN_PULLUP };
-static const hal_pin_t board_key4_pin = { HAL_PORT_B, HAL_PIN_14, GPIO_HAL_MODE_IN_PULLUP };
+static const hal_pin_t board_key1_pin = { HAL_PORT_B, HAL_PIN_2, GPIO_HAL_MODE_IN_PULLUP };
+static const hal_pin_t board_key2_pin = { HAL_PORT_B, HAL_PIN_3, GPIO_HAL_MODE_IN_PULLUP };
+static const hal_pin_t board_key3_pin = { HAL_PORT_B, HAL_PIN_4, GPIO_HAL_MODE_IN_PULLUP };
+static const hal_pin_t board_key4_pin = { HAL_PORT_B, HAL_PIN_5, GPIO_HAL_MODE_IN_PULLUP };
 static const hal_pin_t *const board_smzl_key_pins[] = {
     &board_key1_pin,
     &board_key2_pin,
@@ -75,6 +75,7 @@ static const hal_pin_t *const board_smzl_key_pins[] = {
 };
 #define KEY_DRIVER_PIN_TABLE board_smzl_key_pins
 #define KEY_DRIVER_BUTTON_COUNT ((uint8_t)(sizeof(board_smzl_key_pins) / sizeof(board_smzl_key_pins[0])))
+#define BOARD_KEY_SWJ_REMAP GPIO_HAL_REMAP_SWJ_JTAG_DISABLE
 
 /* -------------------------------------------------------------------------- */
 /* ESP8266 WiFi：v3 使用 HAL_USART_ID_3 PB10/PB11，CH_PD/RST 用 PB0/PB1。              */

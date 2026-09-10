@@ -112,6 +112,7 @@ void devmgr_init_all(void)
             DEVMGR_INIT_CASE(DRIVER_TYPE_RFID, rfid_driver_t, init);
             DEVMGR_INIT_CASE(DRIVER_TYPE_RADIO, radio_driver_t, init);
             DEVMGR_INIT_CASE(DRIVER_TYPE_GNSS, gnss_driver_t, init);
+            DEVMGR_INIT_CASE(DRIVER_TYPE_AUDIO_RECORDER, audio_recorder_driver_t, init);
             default:
                 /* 未知 type：忽略，便于渐进式扩展枚举 */
                 break;
@@ -173,6 +174,7 @@ const radio_driver_t *devmgr_get_radio(const char *name)
     return 0;
 }
 DEVMGR_GET_IMPL(gnss_driver_t, gnss_driver_t, DRIVER_TYPE_GNSS, gnss)
+DEVMGR_GET_IMPL(audio_recorder_driver_t, audio_recorder_driver_t, DRIVER_TYPE_AUDIO_RECORDER, audio_recorder)
 
 unsigned short devmgr_count(void)
 {

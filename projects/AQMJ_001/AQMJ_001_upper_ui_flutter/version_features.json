@@ -1,0 +1,23 @@
+{
+  "_comment": "AQMJ_001 Flutter upper UI features per firmware version. AQMJ-017 is 51 MCU and is intentionally skipped.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "remote", "ble", "app"] },
+    "3": { "features": ["common", "remote", "wifi", "app"] },
+    "4": { "features": ["common", "remote", "wifi", "app", "camera"] },
+    "5": { "features": ["common", "remote", "wifi", "cloud", "app"] },
+    "6": { "features": ["common", "light"] },
+    "7": { "features": ["common", "light", "remote", "ble", "app"] },
+    "8": { "features": ["common", "light", "remote", "wifi", "app"] },
+    "9": { "features": ["common", "light", "remote", "wifi", "app", "camera"] },
+    "10": { "features": ["common", "light", "remote", "wifi", "cloud", "app"] },
+    "11": { "features": ["common", "light", "message"] },
+    "12": { "features": ["common", "light", "message", "remote", "ble", "app"] },
+    "13": { "features": ["common", "light", "message", "remote", "wifi", "app"] },
+    "14": { "features": ["common", "light", "message", "remote", "wifi", "app", "camera"] },
+    "15": { "features": ["common", "light", "message", "remote", "wifi", "cloud", "app"] },
+    "16": { "features": ["common", "light"] },
+    "18": { "features": ["common", "ir"] }
+  }
+}

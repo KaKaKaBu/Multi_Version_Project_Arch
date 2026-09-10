@@ -22,10 +22,10 @@ const defaultHuaweiIotdaConfig = HuaweiIotdaConfig(
   serviceId: String.fromEnvironment('HUAWEI_SERVICE_ID', defaultValue: 'KQZL2'),
   appCustomPublishTopic: String.fromEnvironment(
     'HUAWEI_APP_PUB_TOPIC',
-    defaultValue: '/jiabailie/M2M/KQZL2_app/down',
+    defaultValue: '/jiabailie/M2M/KQZL2_app/up',
   ),
   appCustomSubscribeTopic: String.fromEnvironment(
     'HUAWEI_APP_SUB_TOPIC',
-    defaultValue: '/jiabailie/M2M/KQZL2_app/up',
+    defaultValue: '/jiabailie/M2M/KQZL2_app/down',
   ),
 );

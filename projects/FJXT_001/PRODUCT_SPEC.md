@@ -56,7 +56,7 @@ FJXT-011 是 STC89C52/C51 版本，需求与 STM32 版本差异较大：只要�
 | Key2 一键关 | PB3，低有效，需关闭 JTAG                   |
 | Key3 开一点停 | PB4，低有效，需关闭 JTAG                   |
 | Key4 关一点停 | PB5，低有效                            |
-| 红外对管防夹检测 | PA7，高有效                            |
+| 红外对管防夹检测 | PA7，低有效，上拉输入                      |
 | ULN2003 IN1-IN4 | PB12/PB13/PB14/PB15                |
 | Buzzer | PB8                                |
 | Alarm LED | PA6                                |

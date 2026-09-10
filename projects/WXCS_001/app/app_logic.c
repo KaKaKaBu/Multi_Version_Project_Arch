@@ -145,6 +145,34 @@ static const char *app_threshold_name(void)
     }
 }
 
+static const char *app_mode_display_text(void)
+{
+    switch (g_ctx.mode) {
+    case APP_MODE_AUTO:
+        return "自动";
+    case APP_MODE_MANUAL:
+        return "手动";
+    case APP_MODE_THRESHOLD:
+        return "阈值";
+    default:
+        return "未知";
+    }
+}
+
+static const char *app_threshold_display_name(void)
+{
+    switch (g_ctx.selected_threshold) {
+    case APP_THRESHOLD_TEMP:
+        return "温度";
+    case APP_THRESHOLD_AQ:
+        return "空气";
+    case APP_THRESHOLD_CO:
+        return "CO";
+    default:
+        return "温度";
+    }
+}
+
 #if defined(PLATFORM_MCS51)
 static char *app_copy_text(char *dst, const char *src)
 {
@@ -211,11 +239,11 @@ static void app_display_refresh(void)
     display->clear();
 
 #if defined(PLATFORM_MCS51)
-    app_line_label_text(line, "Mode:", app_mode_text());
+    app_line_label_text(line, "模式:", app_mode_display_text());
     display->print(0U, 0U, DISPLAY_FONT_SMALL, line);
 
     if (g_ctx.mode == APP_MODE_THRESHOLD) {
-        app_line_label_text(line, "Set ", app_threshold_name());
+        app_line_label_text(line, "设置", app_threshold_display_name());
         display->print(0U, 2U, DISPLAY_FONT_SMALL, line);
         if (g_ctx.selected_threshold == APP_THRESHOLD_TEMP) {
             app_line_label_u16(line, "", (unsigned int)g_ctx.temp_threshold, "C");
@@ -227,30 +255,30 @@ static void app_display_refresh(void)
             app_line_label_u16(line, "", (unsigned int)g_ctx.co_threshold_ppm, "ppm");
             display->print(0U, 4U, DISPLAY_FONT_LARGE, line);
         }
-        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2 Sel K3+ K4-");
+        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2选 K3加 K4减");
     } else {
-        app_line_label_u16(line, "Temp:", (unsigned int)g_ctx.temperature, "C");
+        app_line_label_u16(line, "温度:", (unsigned int)g_ctx.temperature, "C");
         display->print(0U, 2U, DISPLAY_FONT_SMALL, line);
-        app_line_label_u16(line, "AQ:", (unsigned int)g_ctx.air_quality_ppm, "ppm");
+        app_line_label_u16(line, "空气:", (unsigned int)g_ctx.air_quality_ppm, "ppm");
         display->print(0U, 3U, DISPLAY_FONT_SMALL, line);
-        app_line_label_u16(line, "CO:", (unsigned int)g_ctx.co_ppm, "ppm");
+        app_line_label_u16(line, "一氧:", (unsigned int)g_ctx.co_ppm, "ppm");
         display->print(0U, 4U, DISPLAY_FONT_SMALL, line);
 
         if (g_ctx.mode == APP_MODE_MANUAL) {
-            app_line_label_text(line, "Dev:",
-                                (g_ctx.selected_device == APP_DEVICE_FAN) ? "FAN" : "ALARM");
+            app_line_label_text(line, "设备:",
+                                (g_ctx.selected_device == APP_DEVICE_FAN) ? "排风" : "报警");
             display->print(0U, 5U, DISPLAY_FONT_SMALL, line);
-            display->print(0U, 6U, DISPLAY_FONT_SMALL, "K2 Sel K3 Toggle");
+            display->print(0U, 6U, DISPLAY_FONT_SMALL, "K2选 K3切换");
         }
 
         display->print(0U, 7U, DISPLAY_FONT_SMALL,
-                       (g_ctx.alarm_on != 0U) ? "ALARM!" : "SAFE");
+                       (g_ctx.alarm_on != 0U) ? "报警" : "安全");
     }
 #else
-    display->print(0U, 0U, DISPLAY_FONT_SMALL, "Mode:%s", app_mode_text());
+    display->print(0U, 0U, DISPLAY_FONT_SMALL, "模式:%s", app_mode_display_text());
 
     if (g_ctx.mode == APP_MODE_THRESHOLD) {
-        display->print(0U, 2U, DISPLAY_FONT_SMALL, "Set %s", app_threshold_name());
+        display->print(0U, 2U, DISPLAY_FONT_SMALL, "设置%s", app_threshold_display_name());
         if (g_ctx.selected_threshold == APP_THRESHOLD_TEMP) {
             display->print(0U, 4U, DISPLAY_FONT_LARGE, "%dC",
                            (int)g_ctx.temp_threshold);
@@ -261,20 +289,20 @@ static void app_display_refresh(void)
             display->print(0U, 4U, DISPLAY_FONT_LARGE, "%uppm",
                            (unsigned int)g_ctx.co_threshold_ppm);
         }
-        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2 Sel K3+ K4-");
+        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2选 K3加 K4减");
     } else {
-        display->print(0U, 2U, DISPLAY_FONT_SMALL, "Temp:%dC", (int)g_ctx.temperature);
-        display->print(0U, 3U, DISPLAY_FONT_SMALL, "AQ:%uppm", (unsigned int)g_ctx.air_quality_ppm);
-        display->print(0U, 4U, DISPLAY_FONT_SMALL, "CO:%uppm", (unsigned int)g_ctx.co_ppm);
+        display->print(0U, 2U, DISPLAY_FONT_SMALL, "温度:%dC", (int)g_ctx.temperature);
+        display->print(0U, 3U, DISPLAY_FONT_SMALL, "空气:%uppm", (unsigned int)g_ctx.air_quality_ppm);
+        display->print(0U, 4U, DISPLAY_FONT_SMALL, "一氧:%uppm", (unsigned int)g_ctx.co_ppm);
 
         if (g_ctx.mode == APP_MODE_MANUAL) {
-            display->print(0U, 5U, DISPLAY_FONT_SMALL, "Dev:%s",
-                           (g_ctx.selected_device == APP_DEVICE_FAN) ? "FAN" : "ALARM");
-            display->print(0U, 6U, DISPLAY_FONT_SMALL, "K2 Sel K3 Toggle");
+            display->print(0U, 5U, DISPLAY_FONT_SMALL, "设备:%s",
+                           (g_ctx.selected_device == APP_DEVICE_FAN) ? "排风" : "报警");
+            display->print(0U, 6U, DISPLAY_FONT_SMALL, "K2选 K3切换");
         }
 
         display->print(0U, 7U, DISPLAY_FONT_SMALL,
-                       (g_ctx.alarm_on != 0U) ? "ALARM!" : "SAFE");
+                       (g_ctx.alarm_on != 0U) ? "报警" : "安全");
     }
 #endif
 

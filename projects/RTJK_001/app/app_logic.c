@@ -232,28 +232,28 @@ static void app_display_auto(void)
     }
 
     app_display->clear();
-    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "Mode:AUTO");
-    app_display->print(0U, 2U, DISPLAY_FONT_SMALL, "HR:%3u BPM", (unsigned int)app_ctx.hr);
+    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "模式:自动");
+    app_display->print(0U, 2U, DISPLAY_FONT_SMALL, "心率:%3u BPM", (unsigned int)app_ctx.hr);
 
 #if VERSION_FEATURE_SPO2
-    app_display->print(0U, 3U, DISPLAY_FONT_SMALL, "SpO2:%3u %%", (unsigned int)app_ctx.spo2);
+    app_display->print(0U, 3U, DISPLAY_FONT_SMALL, "血氧:%3u %%", (unsigned int)app_ctx.spo2);
 #endif
 
 #if VERSION_FEATURE_BLOOD_PRESSURE
-    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "BP:%3u/%3u",
+    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "血压:%3u/%3u",
                        (unsigned int)app_ctx.bp_sys, (unsigned int)app_ctx.bp_dia);
 #endif
 
 #if VERSION_FEATURE_TEMP
     {
         int temp_x10 = (int)(app_ctx.temp * 10.0f);
-        app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "Temp:%2d.%1dC",
+        app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "体温:%2d.%1dC",
                            temp_x10 / 10, temp_x10 % 10);
     }
 #endif
 
-    app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "Alarm:%s",
-                       app_ctx.alarm_active != 0U ? "ON " : "OFF");
+    app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "报警:%s",
+                       app_ctx.alarm_active != 0U ? "开" : "关");
     app_display->update();
 }
 
@@ -264,9 +264,10 @@ static void app_print_threshold_line(unsigned char row, const char *label, const
     unsigned char pos = 0U;
 
     line[pos++] = (app_ctx.threshold_field == field_id) ? '*' : ' ';
-    line[pos++] = label[0];
-    line[pos++] = label[1];
-    line[pos++] = label[2];
+    while ((*label != '\0') && (pos < (sizeof(line) - 1U))) {
+        line[pos++] = *label;
+        ++label;
+    }
     line[pos++] = ':';
     while ((*value != '\0') && (pos < (sizeof(line) - 1U))) {
         line[pos++] = *value;
@@ -285,43 +286,43 @@ static void app_display_threshold(void)
     }
 
     app_display->clear();
-    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "Mode:THRESH");
+    app_display->print(0U, 0U, DISPLAY_FONT_SMALL, "模式:阈值");
 
     buf[0] = (char)('0' + (app_ctx.th.hr_min / 10U));
     buf[1] = (char)('0' + (app_ctx.th.hr_min % 10U));
     buf[2] = '\0';
-    app_print_threshold_line(2U, "Hmn", buf, APP_FIELD_HR_MIN);
+    app_print_threshold_line(2U, "心低", buf, APP_FIELD_HR_MIN);
 
     buf[0] = (char)('0' + (app_ctx.th.hr_max / 10U));
     buf[1] = (char)('0' + (app_ctx.th.hr_max % 10U));
     buf[2] = '\0';
-    app_print_threshold_line(3U, "Hmx", buf, APP_FIELD_HR_MAX);
+    app_print_threshold_line(3U, "心高", buf, APP_FIELD_HR_MAX);
 
 #if VERSION_FEATURE_SPO2
     buf[0] = (char)('0' + (app_ctx.th.spo2_min / 10U));
     buf[1] = (char)('0' + (app_ctx.th.spo2_min % 10U));
     buf[2] = '\0';
-    app_print_threshold_line(4U, "Smn", buf, APP_FIELD_SPO2_MIN);
+    app_print_threshold_line(4U, "氧低", buf, APP_FIELD_SPO2_MIN);
 #endif
 
 #if VERSION_FEATURE_TEMP
     {
         int tmin = (int)(app_ctx.th.temp_min * 10.0f);
         int tmax = (int)(app_ctx.th.temp_max * 10.0f);
-        app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "%cTmn:%2d.%1d",
+        app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "%c温低:%2d.%1d",
                            (app_ctx.threshold_field == APP_FIELD_TEMP_MIN) ? '*' : ' ',
                            tmin / 10, tmin % 10);
-        app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "%cTmx:%2d.%1d",
+        app_display->print(0U, 6U, DISPLAY_FONT_SMALL, "%c温高:%2d.%1d",
                            (app_ctx.threshold_field == APP_FIELD_TEMP_MAX) ? '*' : ' ',
                            tmax / 10, tmax % 10);
     }
 #endif
 
 #if VERSION_FEATURE_BLOOD_PRESSURE
-    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "%cBmn:%3u",
+    app_display->print(0U, 4U, DISPLAY_FONT_SMALL, "%c压低:%3u",
                        (app_ctx.threshold_field == APP_FIELD_BP_MIN) ? '*' : ' ',
                        (unsigned int)app_ctx.th.bp_min);
-    app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "%cBmx:%3u",
+    app_display->print(0U, 5U, DISPLAY_FONT_SMALL, "%c压高:%3u",
                        (app_ctx.threshold_field == APP_FIELD_BP_MAX) ? '*' : ' ',
                        (unsigned int)app_ctx.th.bp_max);
 #endif

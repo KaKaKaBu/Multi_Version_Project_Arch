@@ -109,13 +109,13 @@ static void smzl_set_alarm_output(unsigned char on)
 static const char *smzl_threshold_name(void)
 {
     switch (g_smzl.selected_threshold) {
-    case SMZL_THR_HR_UPPER:  return "HR Hi";
-    case SMZL_THR_HR_LOWER:  return "HR Lo";
-    case SMZL_THR_SPO2_UPPER: return "SpO2 Hi";
-    case SMZL_THR_SPO2_LOWER: return "SpO2 Lo";
-    case SMZL_THR_TEMP_UPPER: return "Tmp Hi";
-    case SMZL_THR_TEMP_LOWER: return "Tmp Lo";
-    default:                 return "HR Hi";
+    case SMZL_THR_HR_UPPER:  return "心率高";
+    case SMZL_THR_HR_LOWER:  return "心率低";
+    case SMZL_THR_SPO2_UPPER: return "血氧高";
+    case SMZL_THR_SPO2_LOWER: return "血氧低";
+    case SMZL_THR_TEMP_UPPER: return "体温高";
+    case SMZL_THR_TEMP_LOWER: return "体温低";
+    default:                 return "心率高";
     }
 }
 
@@ -146,7 +146,7 @@ static void smzl_refresh_display(void)
     display->clear();
 
     if (g_smzl.mode == SMZL_MODE_THRESHOLD) {
-        display->print(0U, 0U, DISPLAY_FONT_SMALL, "Set Threshold");
+        display->print(0U, 0U, DISPLAY_FONT_SMALL, "阈值设置");
         display->print(0U, 2U, DISPLAY_FONT_SMALL, "%s", smzl_threshold_name());
 
         if (g_smzl.selected_threshold == SMZL_THR_HR_UPPER ||
@@ -164,19 +164,19 @@ static void smzl_refresh_display(void)
                         ? g_smzl.temp_upper : g_smzl.temp_lower;
             display->print(0U, 4U, DISPLAY_FONT_LARGE, "%.1fC", val);
         }
-        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2 Sel K3+ K4-");
+        display->print(0U, 7U, DISPLAY_FONT_SMALL, "K2选 K3加 K4减");
     } else {
-        display->print(0U, 0U, DISPLAY_FONT_SMALL, "Turn:%u",
+        display->print(0U, 0U, DISPLAY_FONT_SMALL, "翻身:%u",
                        (unsigned int)g_smzl.turnover_count);
-        display->print(0U, 2U, DISPLAY_FONT_SMALL, "HR:%ubpm",
+        display->print(0U, 2U, DISPLAY_FONT_SMALL, "心率:%ubpm",
                        (unsigned int)g_smzl.heart_rate);
-        display->print(0U, 3U, DISPLAY_FONT_SMALL, "SpO2:%u%%",
+        display->print(0U, 3U, DISPLAY_FONT_SMALL, "血氧:%u%%",
                        (unsigned int)g_smzl.spo2);
-        display->print(0U, 4U, DISPLAY_FONT_SMALL, "Temp:%.1fC",
+        display->print(0U, 4U, DISPLAY_FONT_SMALL, "体温:%.1fC",
                        g_smzl.temperature);
-        display->print(0U, 6U, DISPLAY_FONT_SMALL, "K1 Set K2 Clear");
+        display->print(0U, 6U, DISPLAY_FONT_SMALL, "K1设置 K2清零");
         display->print(0U, 7U, DISPLAY_FONT_SMALL,
-                       g_smzl.alarm_active ? "ALARM!" : "SAFE");
+                       g_smzl.alarm_active ? "报警" : "安全");
     }
 
     display->update();

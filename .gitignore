@@ -94,3 +94,7 @@ desktop.ini
 .codex/
 .reasonix/
 .agents/
+
+
+# ===============TMPE======================
+.tmp/

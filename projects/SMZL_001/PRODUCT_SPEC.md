@@ -91,10 +91,10 @@ JSON 由 cJSON 构建/解析，避免手工拼接。
 | OLED I2C SCL/SDA | PB6 / PB7 | I2C1，地址 `0x78` |
 | MPU6050 I2C SCL/SDA | PB6 / PB7 | 与 OLED 共用 I2C1，地址 `0xD0` |
 | MAX30102 I2C SCL/SDA | PB6 / PB7 | 与 OLED 共用 I2C1，地址 `0xAE` |
-| DS18B20 | PB12 | 单总线体温传感器 |
-| 蜂鸣器 | PB8 | 报警输出 |
-| LED | PC13 | 状态/报警输出 |
-| Key1/Key2/Key3/Key4 | PB4 / PB5 / PB13 / PB14 | 模式、清零/选择、加、减 |
+| DS18B20 | PA5 | 单总线体温传感器 |
+| 蜂鸣器 | PB12 | 报警输出，低电平触发 |
+| LED | PA6 | 状态/报警输出 |
+| Key1/Key2/Key3/Key4 | PB2 / PB3 / PB4 / PB5 | 模式、清零/选择、加、减，关闭 JTAG |
 | ESP8266 TX/RX | PB10 / PB11 | v3，USART3 |
 | ESP8266 CH_PD/RST | PB0 / PB1 | v3 |
 | JDY-31 TX/RX | PA2 / PA3 | v2，USART2 |

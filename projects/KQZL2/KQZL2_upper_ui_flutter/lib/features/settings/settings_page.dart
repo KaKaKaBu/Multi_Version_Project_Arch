@@ -51,6 +51,7 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         CommonControlPage(
           title: '工作模式',
+          embedded: true,
           primaryActions: [
             DeviceCommandAction(
               icon: Icons.autorenew,
@@ -77,6 +78,8 @@ class _SettingsPageState extends State<SettingsPage> {
         AdaptiveSectionCard(
           title: '远程控制',
           child: AdaptiveButtonGrid(
+            minTileWidth: 132,
+            minTileHeight: 54,
             children: [
               for (final actuator in airActuatorCatalog) ...[
                 FilledButton.icon(
@@ -106,7 +109,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Expanded(
                         child: TextField(
-                          controller: _thresholdControllers[sensor.thresholdKey],
+                          controller:
+                              _thresholdControllers[sensor.thresholdKey],
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             suffixText: sensor.unit,
@@ -128,7 +132,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         AdaptiveSectionCard(
           child: Text(
-            'V14 支持温湿度、烟雾、PM2.5、CO、排风、蜂鸣器、灯光和华为云App远程控制。命令通过 MQTT/BLE 透明 JSON 协议下发。',
+            _versionHelpText(),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -136,13 +140,28 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  String _versionHelpText() {
+    final remote = widget.capabilities.has('cloud')
+        ? '华为云App'
+        : widget.capabilities.has('wifi')
+        ? (widget.capabilities.has('web') ? '网页' : 'WiFi App')
+        : widget.capabilities.has('ble')
+        ? '蓝牙App'
+        : '本地按键';
+    final sensors = airSensorCatalog
+        .where((sensor) => sensorSupported(widget.capabilities, sensor.feature))
+        .map((sensor) => sensor.label)
+        .join('、');
+    return 'V${widget.capabilities.version} 支持$sensors、排风、蜂鸣器、灯光和$remote控制。命令通过透明 JSON 协议下发。';
+  }
+
   void _applyThreshold(AirSensorSpec sensor) {
     final raw = _thresholdControllers[sensor.thresholdKey]?.text.trim() ?? '';
     final value = int.tryParse(raw);
     if (value == null || value < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入有效阈值')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入有效阈值')));
       return;
     }
     widget.service.setThreshold(sensor.thresholdKey, value);

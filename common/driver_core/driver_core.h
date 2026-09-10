@@ -57,7 +57,8 @@ typedef enum driver_type {
     DRIVER_TYPE_RFID,                 ///< RFID（rfid_if.h）。
     DRIVER_TYPE_RADIO,                ///< 遗留射频（radio_if.h，新代码用 COMM）。
     DRIVER_TYPE_GNSS,                 ///< GNSS（gnss_if.h）。
-    DRIVER_TYPE_BLOOD_PRESSURE        ///< 血压（bp_if.h）。
+    DRIVER_TYPE_BLOOD_PRESSURE,       ///< 血压（bp_if.h）。
+    DRIVER_TYPE_AUDIO_RECORDER        ///< 录放音模块（audio_recorder_if.h）。
 } driver_type_t;
 
 /** @brief 小写遗留别名，兼容旧驱动 REGISTER_DRIVER 写法。 */
@@ -82,6 +83,7 @@ typedef enum driver_type {
 #define DRIVER_TYPE_radio DRIVER_TYPE_RADIO
 #define DRIVER_TYPE_gnss DRIVER_TYPE_GNSS
 #define DRIVER_TYPE_blood_pressure DRIVER_TYPE_BLOOD_PRESSURE
+#define DRIVER_TYPE_audio_recorder DRIVER_TYPE_AUDIO_RECORDER
 
 /** @brief 链接器收集的单条注册记录：类型 + 实例指针。 */
 typedef struct driver_registry_entry {

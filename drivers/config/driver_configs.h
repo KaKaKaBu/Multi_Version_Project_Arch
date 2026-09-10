@@ -33,6 +33,19 @@ typedef struct gpio_probe_driver_config {
     uint8_t active_low;
 } gpio_probe_driver_config_t;
 
+typedef struct ir_remote_driver_config {
+    hal_pin_t pin;
+    hal_timer_id_t timer;
+    uint8_t active_low;
+    uint8_t irq_priority;
+} ir_remote_driver_config_t;
+
+typedef struct isd1820_driver_config {
+    hal_pin_t rec;
+    hal_pin_t play;
+    uint8_t active_high;
+} isd1820_driver_config_t;
+
 typedef struct one_wire_sensor_config {
     hal_pin_t pin;
 } one_wire_sensor_config_t;

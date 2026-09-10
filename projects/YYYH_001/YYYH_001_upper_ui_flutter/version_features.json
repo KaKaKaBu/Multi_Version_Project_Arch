@@ -1,0 +1,30 @@
+{
+  "_comment": "YYYH_001 Flutter upper UI features per firmware version.",
+  "defaultFeatures": ["common"],
+  "versions": {
+    "1": { "features": ["common"] },
+    "2": { "features": ["common", "remote", "ble", "app"] },
+    "3": { "features": ["common", "remote", "wifi", "app"] },
+    "4": { "features": ["common", "remote", "wifi", "app", "camera"] },
+    "5": { "features": ["common", "servo"] },
+    "6": { "features": ["common", "servo", "remote", "ble", "app"] },
+    "7": { "features": ["common", "servo", "remote", "wifi", "app"] },
+    "8": { "features": ["common", "servo", "remote", "wifi", "app", "camera"] },
+    "9": { "features": ["common", "servo", "remote", "wifi", "cloud", "app"] },
+    "10": { "features": ["common", "servo", "hx711"] },
+    "11": { "features": ["common", "servo", "hx711", "remote", "ble", "app"] },
+    "12": { "features": ["common", "servo", "hx711", "remote", "wifi", "app"] },
+    "13": { "features": ["common", "servo", "hx711", "remote", "wifi", "app", "camera"] },
+    "14": { "features": ["common", "servo", "hx711", "remote", "wifi", "cloud", "app"] },
+    "15": { "features": ["common", "servo", "hx711", "tts"] },
+    "16": { "features": ["common", "servo", "hx711", "tts", "remote", "ble", "app"] },
+    "17": { "features": ["common", "servo", "hx711", "tts", "remote", "wifi", "app"] },
+    "18": { "features": ["common", "servo", "hx711", "tts", "remote", "wifi", "app", "camera"] },
+    "19": { "features": ["common", "servo", "hx711", "tts", "remote", "wifi", "cloud", "app"] },
+    "20": { "features": ["common", "servo", "hx711", "tts", "dht11"] },
+    "21": { "features": ["common", "servo", "hx711", "tts", "dht11", "remote", "ble", "app"] },
+    "22": { "features": ["common", "servo", "hx711", "tts", "dht11", "remote", "wifi", "app"] },
+    "23": { "features": ["common", "servo", "hx711", "tts", "dht11", "remote", "wifi", "app", "camera"] },
+    "24": { "features": ["common", "servo", "hx711", "tts", "dht11", "remote", "wifi", "cloud", "app"] }
+  }
+}

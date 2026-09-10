@@ -150,6 +150,7 @@ void app_main(void)
 {
     /* BSP/调度/事件/设备管理按固定顺序初始化，驱动自注册依赖 devmgr_init_all。 */
     bsp_init();
+    gpio_hal_apply_remap(BOARD_KEY_SWJ_REMAP);
     sched_init();
     irq_event_init();
     devmgr_init_all();

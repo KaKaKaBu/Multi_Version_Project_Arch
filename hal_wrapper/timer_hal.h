@@ -18,6 +18,7 @@ typedef struct timer_hal_pwm_config {
 } timer_hal_pwm_config_t;
 
 void timer_hal_init_us(hal_timer_id_t instance, uint16_t period_us);
+uint16_t timer_hal_get_counter_us(hal_timer_id_t instance);
 void timer_hal_delay_us(uint32_t us);
 hal_status_t timer_hal_pwm_init(const timer_hal_pwm_config_t *cfg);
 void timer_hal_pwm_set_compare(hal_timer_id_t instance, uint8_t channel, uint16_t compare);

@@ -6,6 +6,7 @@
 #include "actuator_if.h"
 #include "misc_if.h"
 #include "display_if.h"
+#include "kqzl2_oled_font.h"
 #include "input_if.h"
 #include "comm_if.h"
 #include "board_config.h"
@@ -15,6 +16,7 @@
 #endif
 #if VERSION_FEATURE_WIFI
 #include "esp8266_mqtt.h"
+void app_comm_poll(sched_event_t events);
 #endif
 
 #include <string.h>
@@ -51,6 +53,13 @@ static const display_driver_t *display = NULL;
 #define HUMIDITY_THRESHOLD_STEP 5
 #define SMOKE_THRESHOLD_STEP    50
 #define CO_THRESHOLD_STEP       5
+
+#define KQZL2_OLED_PRINT(x, y, fmt, ...) \
+    do { \
+        if ((display != 0) && (display->print != 0)) { \
+            display->print((x), (y), DISPLAY_FONT_SMALL, (fmt), ##__VA_ARGS__); \
+        } \
+    } while (0)
 
 /* ============================================================================
  * Initialization
@@ -96,6 +105,9 @@ void app_logic_init(void)
     /* Get display driver */
     display = devmgr_get_display("oled");
     if (display) {
+        if (display->set_font != 0) {
+            display->set_font(&kqzl2_oled_font);
+        }
         display->clear();
     }
 }
@@ -239,33 +251,33 @@ void alarm_loop_run(sched_event_t events, void *ctx)
 
 static void format_auto_screen(void)
 {
-    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "AUTO PM2.5:%d", g_app.pm25_ppm);
+    KQZL2_OLED_PRINT(0U, 0U, "自动 PM2.5:%d", g_app.pm25_ppm);
 
 #if VERSION_FEATURE_DHT11
-    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, "T:%dC H:%d%%", g_app.temperature, g_app.humidity);
+    KQZL2_OLED_PRINT(0U, 1U, "温:%dC 湿:%d%%", g_app.temperature, g_app.humidity);
 #else
-    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, "PM2.5 Monitor");
+    KQZL2_OLED_PRINT(0U, 1U, "空气质量");
 #endif
 
 #if VERSION_FEATURE_MQ2 && VERSION_FEATURE_MQ7
-    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "SM:%d CO:%d", g_app.smoke_ppm, g_app.co_ppm);
+    KQZL2_OLED_PRINT(0U, 2U, "烟:%d CO:%d", g_app.smoke_ppm, g_app.co_ppm);
 #elif VERSION_FEATURE_MQ2
-    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "Smoke:%d ppm", g_app.smoke_ppm);
+    KQZL2_OLED_PRINT(0U, 2U, "烟雾:%d", g_app.smoke_ppm);
 #elif VERSION_FEATURE_MQ7
-    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "CO:%d ppm", g_app.co_ppm);
+    KQZL2_OLED_PRINT(0U, 2U, "CO:%d", g_app.co_ppm);
 #else
-    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "Status:%s", g_app.alarm_active ? "ALARM" : "OK");
+    KQZL2_OLED_PRINT(0U, 2U, "状态:%s", g_app.alarm_active ? "报警" : "正常");
 #endif
 
-    DISPLAY_PRINT(display, 0U, 3U, DISPLAY_FONT_SMALL, "F:%s B:%s L:%s",
-                  g_app.fan_on ? "ON" : "off",
-                  g_app.buzzer_on ? "ON" : "off",
-                  g_app.light_on ? "ON" : "off");
+    KQZL2_OLED_PRINT(0U, 3U, "排:%s 蜂:%s 灯:%s",
+                     g_app.fan_on ? "开" : "关",
+                     g_app.buzzer_on ? "开" : "关",
+                     g_app.light_on ? "开" : "关");
 }
 
 static void format_manual_screen(void)
 {
-    const char *device_names[] = {"Fan", "Buzzer", "Light"};
+    const char *device_names[] = {"排风", "蜂鸣", "灯光"};
     uint8_t state = 0;
 
     switch (g_app.manual_selected_device) {
@@ -274,15 +286,15 @@ static void format_manual_screen(void)
         case DEVICE_LIGHT: state = g_app.light_on; break;
     }
 
-    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Mode:MANUAL");
-    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, ">%s", device_names[g_app.manual_selected_device]);
-    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "State: %s", state ? "ON" : "OFF");
-    DISPLAY_PRINT(display, 0U, 3U, DISPLAY_FONT_SMALL, "K2:Sel K3:Toggle");
+    KQZL2_OLED_PRINT(0U, 0U, "手动模式");
+    KQZL2_OLED_PRINT(0U, 1U, "选择:%s", device_names[g_app.manual_selected_device]);
+    KQZL2_OLED_PRINT(0U, 2U, "状态:%s", state ? "开" : "关");
+    KQZL2_OLED_PRINT(0U, 3U, "K2选 K3开关");
 }
 
 static void format_threshold_screen(void)
 {
-    const char *thresh_names[] = {"PM2.5", "Temp", "Humid", "Smoke", "CO"};
+    const char *thresh_names[] = {"PM2.5", "温度", "湿度", "烟雾", "CO"};
     uint8_t max_thresh = THRESH_PM25 + 1;
     uint16_t value = 0;
 
@@ -308,10 +320,10 @@ static void format_threshold_screen(void)
         case THRESH_CO: value = g_app.co_threshold; break;
     }
 
-    DISPLAY_PRINT(display, 0U, 0U, DISPLAY_FONT_SMALL, "Mode:THRESHOLD");
-    DISPLAY_PRINT(display, 0U, 1U, DISPLAY_FONT_SMALL, ">%s", thresh_names[g_app.thresh_selected_item]);
-    DISPLAY_PRINT(display, 0U, 2U, DISPLAY_FONT_SMALL, "Value: %d", value);
-    DISPLAY_PRINT(display, 0U, 3U, DISPLAY_FONT_SMALL, "K2:Sel K3:+ K4:-");
+    KQZL2_OLED_PRINT(0U, 0U, "阈值设置");
+    KQZL2_OLED_PRINT(0U, 1U, "选择:%s", thresh_names[g_app.thresh_selected_item]);
+    KQZL2_OLED_PRINT(0U, 2U, "当前值:%d", value);
+    KQZL2_OLED_PRINT(0U, 3U, "K2选 K3加 K4减");
 }
 
 void display_loop_run(sched_event_t events, void *ctx)
@@ -510,6 +522,17 @@ void app_logic_on_key4_press(void)
 #include "cjson_port.h"
 
 #define APP_TELEMETRY_BUFFER_SIZE 384U
+#if VERSION_FEATURE_WIFI
+#define APP_TELEMETRY_MIN_INTERVAL_MS 5000U
+#define APP_HUAWEI_PROPERTY_INTERVAL_MS 30000U
+#else
+#define APP_TELEMETRY_MIN_INTERVAL_MS 250U
+#endif
+
+static uint32_t app_last_telemetry_tick;
+#if VERSION_FEATURE_CLOUD
+static uint32_t app_last_huawei_property_tick;
+#endif
 
 static const cJSON *kqzl2_json_object_child(const cJSON *parent, const char *name)
 {
@@ -687,12 +710,16 @@ static void app_logic_publish_telemetry(void)
 #if VERSION_FEATURE_WIFI
     if (esp8266_mqtt_is_ready() != 0) {
 #if VERSION_FEATURE_CLOUD
+        uint32_t now = sched_tick_get();
         const esp8266_mqtt_config_t *mqtt_cfg;
         char huawei_properties[APP_TELEMETRY_BUFFER_SIZE];
 
         app_logic_build_huawei_properties(huawei_properties, sizeof(huawei_properties));
-        if (huawei_properties[0] != '\0') {
+        if ((huawei_properties[0] != '\0') &&
+            ((app_last_huawei_property_tick == 0U) ||
+             ((uint32_t)(now - app_last_huawei_property_tick) >= APP_HUAWEI_PROPERTY_INTERVAL_MS))) {
             (void)esp8266_mqtt_publish_huawei_properties(huawei_properties);
+            app_last_huawei_property_tick = now;
         }
         mqtt_cfg = esp8266_mqtt_active_config();
         if ((mqtt_cfg != 0) &&
@@ -715,8 +742,10 @@ static void app_logic_publish_telemetry(void)
 
 void app_logic_request_telemetry(void)
 {
-    g_app.telemetry_pending = 1U;
-    event_set(APP_EVENT_COMM_TX);
+    if (g_app.telemetry_pending == 0U) {
+        g_app.telemetry_pending = 1U;
+        event_set(APP_EVENT_COMM_TX);
+    }
 }
 
 void comm_loop_run(sched_event_t events, void *ctx)
@@ -724,13 +753,12 @@ void comm_loop_run(sched_event_t events, void *ctx)
 #if VERSION_FEATURE_BLE
     unsigned char rx;
 #endif
+    uint32_t now;
 
     (void)ctx;
 
 #if VERSION_FEATURE_WIFI
-    if ((events & (APP_EVENT_COMM_RX | APP_EVENT_TICK)) != 0U) {
-        esp8266_mqtt_poll();
-    }
+    app_comm_poll(events);
 #endif
 
 #if VERSION_FEATURE_BLE
@@ -741,7 +769,13 @@ void comm_loop_run(sched_event_t events, void *ctx)
 #endif
 
     if (((events & (APP_EVENT_COMM_TX | APP_EVENT_TICK)) != 0U) && (g_app.telemetry_pending != 0U)) {
+        now = sched_tick_get();
+        if ((app_last_telemetry_tick != 0U) &&
+            ((uint32_t)(now - app_last_telemetry_tick) < APP_TELEMETRY_MIN_INTERVAL_MS)) {
+            return;
+        }
         g_app.telemetry_pending = 0U;
+        app_last_telemetry_tick = now;
         app_logic_publish_telemetry();
     }
 }

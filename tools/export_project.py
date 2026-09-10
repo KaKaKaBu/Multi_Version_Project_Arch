@@ -37,6 +37,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
+try:
+    from tool_env import resolve_cmake_executable
+except ImportError:
+    from tools.tool_env import resolve_cmake_executable
+
 TEMPLATE_ROOT_NAME = "project_template"
 DEFAULT_STM32_TOOLCHAIN_BIN = ""
 
@@ -351,52 +356,7 @@ def write_text(path: Path, content: str) -> None:
 
 
 def find_cmake_executable() -> str:
-    candidate = shutil.which("cmake")
-    if candidate:
-        return candidate
-
-    env_candidates = [
-        os.environ.get("CMAKE_EXE", ""),
-        os.environ.get("CMAKE_EXECUTABLE", ""),
-    ]
-    for env_root in (
-        os.environ.get("CMAKE_ROOT", ""),
-        os.environ.get("CMAKE_HOME", ""),
-        os.environ.get("CLION_HOME", ""),
-    ):
-        if env_root:
-            env_candidates.append(str(Path(env_root) / "bin" / "cmake.exe"))
-            env_candidates.append(str(Path(env_root) / "bin" / "cmake" / "win" / "x64" / "bin" / "cmake.exe"))
-
-    fixed_candidates = [
-        r"C:\Program Files\CMake\bin\cmake.exe",
-        r"C:\Program Files (x86)\CMake\bin\cmake.exe",
-        r"C:\Tools\cmake\bin\cmake.exe",
-        r"D:\Tools\cmake\bin\cmake.exe",
-    ]
-    clion_roots = [
-        Path(r"C:\Program Files"),
-        Path(r"D:\Program Files"),
-        Path.home() / "AppData" / "Local" / "Programs",
-    ]
-    clion_candidates: List[str] = []
-    for root in clion_roots:
-        if root.exists():
-            clion_candidates.extend(
-                str(path)
-                for path in root.glob(r"CLion*\bin\cmake\win\x64\bin\cmake.exe")
-            )
-
-    for item in [*env_candidates, *fixed_candidates, *clion_candidates]:
-        if not item:
-            continue
-        path = Path(item)
-        if path.is_file():
-            return str(path)
-
-    raise FileNotFoundError(
-        "未找到 cmake。请安装 CMake、将 cmake 加入 PATH，或设置 CMAKE_EXE/CLION_HOME。"
-    )
+    return resolve_cmake_executable()
 
 
 def find_ninja_executable() -> Optional[str]:

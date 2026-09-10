@@ -4,6 +4,7 @@
  */
 
 #include "display_if.h"
+#include "oled_cn_font.h"
 #include "oled_font.h"
 #include "tiny_printf.h"
 #include "i2c_hal.h"
@@ -29,6 +30,7 @@
 /** @brief Internal 128x64 monochrome framebuffer in SSD1306 page layout. */
 static uint8_t oled_framebuffer[OLED_WIDTH * OLED_PAGES];
 static const i2c_device_config_t *oled_config;
+static const display_font_t *oled_custom_font;
 
 /** @brief Forward declaration: zeroes the internal framebuffer. */
 static void oled_clear(void);
@@ -69,6 +71,35 @@ static void oled_set_pixel(unsigned char x, unsigned char y, unsigned char on)
         oled_framebuffer[index] |= (uint8_t)(1U << bit);
     } else {
         oled_framebuffer[index] &= (uint8_t)~(1U << bit);
+    }
+}
+
+static void oled_draw_pixel_public(uint16_t x, uint16_t y, uint16_t color)
+{
+    if ((x >= OLED_WIDTH) || (y >= OLED_HEIGHT)) {
+        return;
+    }
+    oled_set_pixel((unsigned char)x, (unsigned char)y, (color != 0U) ? 1U : 0U);
+}
+
+static void oled_fill_rect(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color)
+{
+    uint16_t px;
+    uint16_t py;
+    uint16_t x_end = (uint16_t)(x + width);
+    uint16_t y_end = (uint16_t)(y + height);
+
+    if (x_end > OLED_WIDTH) {
+        x_end = OLED_WIDTH;
+    }
+    if (y_end > OLED_HEIGHT) {
+        y_end = OLED_HEIGHT;
+    }
+
+    for (py = y; py < y_end; ++py) {
+        for (px = x; px < x_end; ++px) {
+            oled_draw_pixel_public(px, py, color);
+        }
     }
 }
 
@@ -130,6 +161,7 @@ static void oled_init(const void *config)
     cfg.timeout_us = I2C_HAL_DEFAULT_TIMEOUT_US;
     (void)i2c_hal_init(&cfg);
 
+    oled_custom_font = &oled_cn_font;
     oled_hw_init();
     oled_clear();
     oled_update();
@@ -220,6 +252,143 @@ static void oled_draw_char(unsigned char col, unsigned char page, char ch, unsig
     }
 }
 
+static uint16_t oled_decode_utf8(const char **text)
+{
+    const uint8_t *s = (const uint8_t *)(*text);
+    uint16_t cp;
+
+    if (s[0] < 0x80U) {
+        *text += 1;
+        return s[0];
+    }
+    if (((s[0] & 0xE0U) == 0xC0U) && ((s[1] & 0xC0U) == 0x80U)) {
+        cp = (uint16_t)(((uint16_t)(s[0] & 0x1FU) << 6) | (uint16_t)(s[1] & 0x3FU));
+        *text += 2;
+        return cp;
+    }
+    if (((s[0] & 0xF0U) == 0xE0U) && ((s[1] & 0xC0U) == 0x80U) && ((s[2] & 0xC0U) == 0x80U)) {
+        cp = (uint16_t)(((uint16_t)(s[0] & 0x0FU) << 12) |
+                        ((uint16_t)(s[1] & 0x3FU) << 6) |
+                        (uint16_t)(s[2] & 0x3FU));
+        *text += 3;
+        return cp;
+    }
+
+    *text += 1;
+    return (uint16_t)'?';
+}
+
+static void oled_draw_ascii_pixel(uint16_t x, uint16_t y, char ch, unsigned char scale, uint16_t color)
+{
+    const uint8_t *glyph;
+    unsigned char font_width = oled_font_get_width();
+    unsigned char font_height = oled_font_get_height();
+    unsigned char col_bytes = oled_font_get_col_bytes();
+    unsigned char font_pages = (unsigned char)((font_height + 7U) / 8U);
+    unsigned char page_offset;
+    unsigned char col;
+    unsigned char bit;
+    unsigned char dx;
+    unsigned char dy;
+
+    if ((ch < 0x20) || (ch > 0x7E)) {
+        ch = '?';
+    }
+
+    glyph = oled_font_get_glyph(ch);
+    if (glyph == 0) {
+        return;
+    }
+
+    for (page_offset = 0U; page_offset < font_pages; ++page_offset) {
+        for (col = 0U; col < font_width; ++col) {
+            uint8_t column_data = glyph[(col * col_bytes) + page_offset];
+
+            for (bit = 0U; bit < 8U; ++bit) {
+                if (((page_offset * 8U) + bit) >= font_height) {
+                    continue;
+                }
+                if ((column_data & (uint8_t)(1U << bit)) == 0U) {
+                    continue;
+                }
+                for (dy = 0U; dy < scale; ++dy) {
+                    for (dx = 0U; dx < scale; ++dx) {
+                        oled_draw_pixel_public((uint16_t)(x + (uint16_t)col * scale + dx),
+                                               (uint16_t)(y + (uint16_t)(page_offset * 8U + bit) * scale + dy),
+                                               color);
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void oled_draw_bitmap_glyph(uint16_t x, uint16_t y, uint8_t width, uint8_t height,
+                                   const uint8_t *bitmap, uint8_t bytes_per_row,
+                                   uint8_t scale, uint16_t color)
+{
+    uint8_t row;
+    uint8_t col;
+    uint8_t dx;
+    uint8_t dy;
+
+    if ((bitmap == 0) || (bytes_per_row == 0U)) {
+        return;
+    }
+
+    for (row = 0U; row < height; ++row) {
+        for (col = 0U; col < width; ++col) {
+            uint8_t byte = bitmap[(uint16_t)row * bytes_per_row + (uint16_t)(col / 8U)];
+            uint8_t bit = (uint8_t)(0x80U >> (col % 8U));
+            if ((byte & bit) == 0U) {
+                continue;
+            }
+            for (dy = 0U; dy < scale; ++dy) {
+                for (dx = 0U; dx < scale; ++dx) {
+                    oled_draw_pixel_public((uint16_t)(x + (uint16_t)col * scale + dx),
+                                           (uint16_t)(y + (uint16_t)row * scale + dy),
+                                           color);
+                }
+            }
+        }
+    }
+}
+
+static void oled_draw_text(uint16_t x, uint16_t y, display_font_size_t size, uint16_t color, const char *text)
+{
+    uint16_t cursor = x;
+    uint8_t scale = oled_font_scale(size);
+
+    if (text == 0) {
+        return;
+    }
+
+    while (*text != '\0') {
+        uint16_t cp = oled_decode_utf8(&text);
+        const display_glyph_t *glyph = display_font_find_glyph(oled_custom_font, cp);
+
+        if (glyph != 0) {
+            uint8_t bytes_per_row = (uint8_t)((glyph->width + 7U) / 8U);
+            oled_draw_bitmap_glyph(cursor, y, glyph->width, glyph->height, glyph->bitmap, bytes_per_row, scale, color);
+            cursor = (uint16_t)(cursor + (uint16_t)glyph->width * scale + scale);
+        } else if (cp < 0x80U) {
+            oled_draw_ascii_pixel(cursor, y, (char)cp, scale, color);
+            cursor = (uint16_t)(cursor + (uint16_t)oled_font_get_width() * scale + scale);
+        } else {
+            cursor = (uint16_t)(cursor + ((oled_custom_font != 0) ? oled_custom_font->width : oled_font_get_width()) * scale + scale);
+        }
+
+        if (cursor >= OLED_WIDTH) {
+            break;
+        }
+    }
+}
+
+static void oled_set_font(const display_font_t *font)
+{
+    oled_custom_font = font;
+}
+
 /**
  * @brief Draws a null-terminated string at a grid column and row.
  * @param x Starting character column.
@@ -237,6 +406,15 @@ static void oled_print_text(unsigned char x, unsigned char y, display_font_size_
     unsigned char max_cols = (unsigned char)(OLED_WIDTH / glyph_width);
 
     if (text == 0) {
+        return;
+    }
+
+    if (oled_custom_font != 0) {
+        oled_draw_text((uint16_t)((uint16_t)x * oled_font_get_width() * scale),
+                       (uint16_t)((uint16_t)y * oled_custom_font->height * scale),
+                       size,
+                       1U,
+                       text);
         return;
     }
 
@@ -319,10 +497,10 @@ const display_driver_t oled_drv = {
     oled_print,
     oled_width,
     oled_height,
-    0,
-    0,
-    0,
-    0
+    oled_set_font,
+    oled_draw_pixel_public,
+    oled_fill_rect,
+    oled_draw_text
 };
 
 REGISTER_DRIVER(DISPLAY, oled_drv);
